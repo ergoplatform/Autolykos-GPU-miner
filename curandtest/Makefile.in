@@ -1,0 +1,70 @@
+include Makefile.cpu
+
+ifeq ($(CPU),xeon-phi)
+      COPT= -fast -Wall -openmp 
+      CXX = icpc -mmic
+      AR  = xiar
+      LIBS = -mkl
+      LIBNAME = libtt_mic.a
+endif
+
+ifeq ($(CPU),suse-intel)
+      COPT= -fast -Wall -qopenmp 
+      CXX = icpc 
+      AR  = xiar
+      LIBS = -mkl 
+      LIBNAME = libtt.a
+endif
+
+ifeq ($(CPU),suse-intel-debug)
+      COPT= -O0 -Wall -openmp -g
+      CXX = icpc 
+      AR  = xiar
+      LIBS = -mkl=sequential 
+      LIBNAME = libtt_debug.a
+endif
+
+ifeq ($(CPU),suse-gnu-mkl-debug)
+      COPT= -O0 -Wall -fopenmp -g  -m64 -I$(MKLROOT)/include
+      CXX = g++ 
+      AR  = xiar
+      LIBS =  -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lm
+endif
+
+ifeq ($(CPU),mac-gnu)
+      CXX      = g++
+      LIB = -llapack -lblas -fopenmp -lcblas -llapacke 
+      AR = ar
+      COPT = -O3 -Wall
+endif
+
+#ifeq ($(CPU),linux-gnu)
+#      CXX = g++
+#      #LIB = -llapack -lblas -fopenmp -lcblas -llapacke 
+#      LIBS = -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLROOT}/lib/intel64/libmkl_sequential.a ${MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -lm -ldl
+#      AR = ar
+#      COPT = -O3 -Wall -fopenmp
+#      LIBNAME = libcp.a
+#endif
+
+ifeq ($(CPU),linux-gnu)
+      CXX = gcc
+      AR = ar
+      COPT = -O3 -Wall
+      LIBNAME = lib.a
+endif
+
+ifeq ($(CPU),linux-nv)
+      CXX = nvcc
+      AR = ar
+      COPT = -O3
+      LIBNAME = lib.a
+endif
+
+ifeq ($(CPU),linux-intel)
+      CXX = icpc
+      LIBS = -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLROOT}/lib/intel64/libmkl_intel_thread.a ${MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -liomp5 -lpthread -lm -ldl
+      AR = ar
+      COPT = -O3 -Wall -openmp 
+      LIBNAME = libcp.a
+endif
