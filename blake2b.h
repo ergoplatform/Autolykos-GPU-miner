@@ -9,8 +9,10 @@
 
 #define k = 32
 #define N = 1 << 26
-// 16 byte
-#define q = 0x14def9dea2f79cd65812631a5cf5d3ed
+// 8 high bytes
+#define q_hi = 0x14def9dea2f79cd6
+// 8 low bytes
+#define q_lo = 0x5812631a5cf5d3ed
 
 // state context
 typedef struct {

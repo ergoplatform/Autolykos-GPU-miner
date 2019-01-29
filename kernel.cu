@@ -86,13 +86,15 @@ __global__ void blake2b(
     //===================================================================//
     for (k = 0; k < keylen; ++k)
     {
-        int is_full = (ctx->c == 128)? 1: 0;
+        //uint32_t is_full = (ctx->c == 128)? 1: 0;
+        uint32_t is_full = !(ctx->c - 128) * 0xFFFFFFFF;
 
         {
-            ctx->t[0] += is_full * ctx->c;
+            ctx->t[0] += is_full & ctx->c;
 
-            int i = (ctx->t[0] < ctx->c)? 1: 0;
-            ctx->t[1] += is_full * i;
+            //int i = (ctx->t[0] < ctx->c)? 1: 0;
+            int i = 1 - !(ctx->t[0] < ctx->c);
+            ctx->t[1] += is_full & i;
 
             uint64_t v[16];
             uint64_t m[16];
@@ -125,26 +127,29 @@ __global__ void blake2b(
 
             for (i = 0; i < 8; ++i)
             {
-                ctx->h[i] ^= (is_full * (v[i] ^ v[i + 8]));
+                ctx->h[i] ^= is_full & (v[i] ^ v[i + 8]);
             }
 
-            ctx->c = (is_full)? 0: ctx->c;
+            //ctx->c = (is_full)? 0: ctx->c;
+            ctx->c &= ~is_full;
         }
 
         ctx->b[ctx->c++] = ((const uint8_t *)key)[k];
     }
 
-    ctx->c = (keylen > 0)? 128: ctx->c;
+    //ctx->c = (keylen > 0)? 128: ctx->c;
+    ctx->c = ((1 - !(keylen > 0)) << 7) + (!(keylen > 0)) * ctx->c;
 
     //===================================================================//
     for (k = 0; k < inlen; ++k)
     {
-        int is_full = (ctx->c == 128)? 1: 0;
+        uint32_t is_full = !(ctx->c - 128);
 
         {
             ctx->t[0] += is_full * ctx->c;
 
-            int i = (ctx->t[0] < ctx->c)? 1: 0;
+            //int i = (ctx->t[0] < ctx->c)? 1: 0;
+            int i = 1 - !(ctx->t[0] < ctx->c);
             ctx->t[1] += is_full * i;
 
             uint64_t v[16];

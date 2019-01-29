@@ -28,17 +28,21 @@
     v[c] = v[c] + v[d];             \
     v[b] = ROTR64(v[b] ^ v[c], 63); \
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 // Hash
+////////////////////////////////////////////////////////////////////////////////
 __global__ void blake2b(
     blake2b_ctx * ctx,
     void * out,
-    size_t outlen,
+    uint32_t outlen,
     const void * key,
-    size_t keylen,
+    uint32_t keylen,
     const void * in,
-    size_t inlen
+    uint32_t inlen
 ) {
+    int k;
+
     const uint64_t blake2b_iv[8] = {
         0x6A09E667F3BCC908, 0xBB67AE8584CAA73B,
         0x3C6EF372FE94F82B, 0xA54FF53A5F1D36F1,
@@ -61,9 +65,7 @@ __global__ void blake2b(
         { 14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3 }
     };
 
-    size_t k;
-
-    //===================================================================//
+    //====================================================================//
 #pragma unroll
     for (k = 0; k < 8; ++k)
     {
@@ -83,123 +85,131 @@ __global__ void blake2b(
         ctx->b[k] = 0;
     }
 
-    //===================================================================//
-    for (k = 0; k < keylen; ++k)
+    //====================================================================//
+    int i;
+    uint64_t v[16];
+    uint64_t m[16];
+
+    for (k = 0; k < keylen & 0xFFFFFF80; ++k)
     {
-        int is_full = (ctx->c == 128)? 1: 0;
-
+        while (ctx->c < 128)
         {
-            ctx->t[0] += is_full * ctx->c;
-
-            int i = (ctx->t[0] < ctx->c)? 1: 0;
-            ctx->t[1] += is_full * i;
-
-            uint64_t v[16];
-            uint64_t m[16];
-
-            for (i = 0; i < 8; ++i)
-            {
-                v[i] = ctx->h[i];
-                v[i + 8] = blake2b_iv[i];
-            }
-
-            v[12] ^= ctx->t[0];
-            v[13] ^= ctx->t[1];
-
-            for (i = 0; i < 16; i++)
-            {
-                m[i] = B2B_GET64(&ctx->b[8 * i]);
-            }
-
-            for (i = 0; i < 12; ++i)
-            {
-                B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
-                B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
-                B2B_G(2, 6, 10, 14, m[sigma[i][ 4]], m[sigma[i][ 5]]);
-                B2B_G(3, 7, 11, 15, m[sigma[i][ 6]], m[sigma[i][ 7]]);
-                B2B_G(0, 5, 10, 15, m[sigma[i][ 8]], m[sigma[i][ 9]]);
-                B2B_G(1, 6, 11, 12, m[sigma[i][10]], m[sigma[i][11]]);
-                B2B_G(2, 7,  8, 13, m[sigma[i][12]], m[sigma[i][13]]);
-                B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
-            }
-
-            for (i = 0; i < 8; ++i)
-            {
-                ctx->h[i] ^= (is_full * (v[i] ^ v[i + 8]));
-            }
-
-            ctx->c = (is_full)? 0: ctx->c;
+            ctx->b[ctx->c++] = ((const uint8_t *)key)[k++];
         }
+
+        ctx->t[0] += ctx->c;
+        ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
+
+#pragma unroll
+        for (i = 0; i < 8; ++i)
+        {
+            v[i] = ctx->h[i];
+            v[i + 8] = blake2b_iv[i];
+        }
+
+        v[12] ^= ctx->t[0];
+        v[13] ^= ctx->t[1];
+
+#pragma unroll
+        for (i = 0; i < 16; i++)
+        {
+            m[i] = B2B_GET64(&ctx->b[8 * i]);
+        }
+
+#pragma unroll
+        for (i = 0; i < 12; ++i)
+        {
+            B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
+            B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
+            B2B_G(2, 6, 10, 14, m[sigma[i][ 4]], m[sigma[i][ 5]]);
+            B2B_G(3, 7, 11, 15, m[sigma[i][ 6]], m[sigma[i][ 7]]);
+            B2B_G(0, 5, 10, 15, m[sigma[i][ 8]], m[sigma[i][ 9]]);
+            B2B_G(1, 6, 11, 12, m[sigma[i][10]], m[sigma[i][11]]);
+            B2B_G(2, 7,  8, 13, m[sigma[i][12]], m[sigma[i][13]]);
+            B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
+        }
+
+#pragma unroll
+        for (i = 0; i < 8; ++i)
+        {
+            ctx->h[i] ^= v[i] ^ v[i + 8];
+        }
+
+        ctx->c = 0;
 
         ctx->b[ctx->c++] = ((const uint8_t *)key)[k];
     }
 
-    ctx->c = (keylen > 0)? 128: ctx->c;
-
-    //===================================================================//
-    for (k = 0; k < inlen; ++k)
+    while (k < keylen)
     {
-        int is_full = (ctx->c == 128)? 1: 0;
+        ctx->b[ctx->c++] = ((const uint8_t *)key)[k++];
+    }
 
-        {
-            ctx->t[0] += is_full * ctx->c;
+    //ctx->c = (keylen > 0)? 128: ctx->c;
+    ctx->c = ((1 - !(keylen > 0)) << 7) + (!(keylen > 0)) * ctx->c;
 
-            int i = (ctx->t[0] < ctx->c)? 1: 0;
-            ctx->t[1] += is_full * i;
-
-            uint64_t v[16];
-            uint64_t m[16];
-
-            for (i = 0; i < 8; ++i)
-            {
-                v[i] = ctx->h[i];
-                v[i + 8] = blake2b_iv[i];
-            }
-
-            v[12] ^= ctx->t[0];
-            v[13] ^= ctx->t[1];
-
-            for (i = 0; i < 16; i++)
-            {
-                m[i] = B2B_GET64(&ctx->b[8 * i]);
-            }
-
-            for (i = 0; i < 12; ++i)
-            {
-                B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
-                B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
-                B2B_G(2, 6, 10, 14, m[sigma[i][ 4]], m[sigma[i][ 5]]);
-                B2B_G(3, 7, 11, 15, m[sigma[i][ 6]], m[sigma[i][ 7]]);
-                B2B_G(0, 5, 10, 15, m[sigma[i][ 8]], m[sigma[i][ 9]]);
-                B2B_G(1, 6, 11, 12, m[sigma[i][10]], m[sigma[i][11]]);
-                B2B_G(2, 7,  8, 13, m[sigma[i][12]], m[sigma[i][13]]);
-                B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
-            }
-
-            for (i = 0; i < 8; ++i)
-            {
-                ctx->h[i] ^= (is_full * (v[i] ^ v[i + 8]));
-            }
-
-            ctx->c = (is_full)? 0: ctx->c;
-        }
-
+    //====================================================================//
+    for (k = 0; ctx->c < 128 && k < inlen; ++k)
+    {
         ctx->b[ctx->c++] = ((const uint8_t *)in)[k];
     }
 
-    //===================================================================//
-    ctx->t[0] += ctx->c;
+    while (k < inlen)
+    {
+        ctx->t[0] += ctx->c;
+        ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
-    int i = (ctx->t[0] < ctx->c)? 1: 0;
-    ctx->t[1] += i;
+#pragma unroll
+        for (i = 0; i < 8; ++i)
+        {
+            v[i] = ctx->h[i];
+            v[i + 8] = blake2b_iv[i];
+        }
+
+        v[12] ^= ctx->t[0];
+        v[13] ^= ctx->t[1];
+
+#pragma unroll
+        for (i = 0; i < 16; i++)
+        {
+            m[i] = B2B_GET64(&ctx->b[8 * i]);
+        }
+
+#pragma unroll
+        for (i = 0; i < 12; ++i)
+        {
+            B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
+            B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
+            B2B_G(2, 6, 10, 14, m[sigma[i][ 4]], m[sigma[i][ 5]]);
+            B2B_G(3, 7, 11, 15, m[sigma[i][ 6]], m[sigma[i][ 7]]);
+            B2B_G(0, 5, 10, 15, m[sigma[i][ 8]], m[sigma[i][ 9]]);
+            B2B_G(1, 6, 11, 12, m[sigma[i][10]], m[sigma[i][11]]);
+            B2B_G(2, 7,  8, 13, m[sigma[i][12]], m[sigma[i][13]]);
+            B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
+        }
+
+#pragma unroll
+        for (i = 0; i < 8; ++i)
+        {
+            ctx->h[i] ^= v[i] ^ v[i + 8];
+        }
+
+        ctx->c = 0;
+       
+        while (ctx->c < 128 && k < inlen)
+        {
+            ctx->b[ctx->c++] = ((const uint8_t *)in)[k++];
+        }
+    }
+
+    //====================================================================//
+    ctx->t[0] += ctx->c;
+    ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
     while (ctx->c < 128)
     {
         ctx->b[ctx->c++] = 0;
     }
-
-    uint64_t v[16];
-    uint64_t m[16];
 
 #pragma unroll
     for (i = 0; i < 8; ++i)
@@ -218,6 +228,7 @@ __global__ void blake2b(
         m[i] = B2B_GET64(&ctx->b[8 * i]);
     }
 
+#pragma unroll
     for (i = 0; i < 12; ++i)
     {
         B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
@@ -238,7 +249,7 @@ __global__ void blake2b(
 
     for (k = 0; k < ctx->outlen; ++k)
     {
-        ((uint8_t *)out)[k] = (ctx->h[k >> 3] >> (8 * (k & 7))) & 0xFF;
+        ((uint8_t *)out)[k] = (ctx->h[k >> 3] >> ((k & 7) << 3)) & 0xFF;
     }
 
     return;

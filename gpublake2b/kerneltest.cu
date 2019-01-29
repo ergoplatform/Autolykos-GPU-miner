@@ -38,8 +38,13 @@ int blake2b_selftest()
     const size_t b2b_md_len[4] = {20, 32, 48, 64};
     const size_t b2b_in_len[6] = {0, 3, 128, 129, 255, 1024};
 
-    size_t i, j, outlen, inlen;
-    uint8_t in[1024], md[64], key[64];
+    size_t i;
+    size_t j;
+    size_t outlen;
+    size_t inlen;
+    uint8_t in[1024];
+    uint8_t md[64];
+    uint8_t key[64];
     blake2b_ctx ctx;
 
     // 256-bit hash for testing

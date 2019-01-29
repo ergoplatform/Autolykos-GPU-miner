@@ -16,7 +16,7 @@ typedef struct {
     // total number of bytes
     uint64_t t[2];
     // pointer for b[]
-    size_t c;
+    uint32_t c;
     // digest size
     size_t outlen;
 } blake2b_ctx;
@@ -26,10 +26,10 @@ typedef struct {
 //      Secret key (also <= 64 bytes) is optional (keylen = 0).
 int blake2b_init(
     blake2b_ctx * ctx,
-    size_t outlen,
+    uint32_t outlen,
     // secret key
     const void * key,
-    size_t keylen
+    uint32_t keylen
 );
 
 // Add "inlen" bytes from "in" into the hash.
@@ -38,7 +38,7 @@ void blake2b_update(
     blake2b_ctx * ctx,
     // data to be hashed
     const void * in,
-    size_t inlen
+    uint32_t inlen
 );
 
 // Generate the message digest (size given in init).
@@ -53,13 +53,13 @@ __global__ void blake2b(
     blake2b_ctx * ctx, 
     // return buffer for digest
     void * out,
-    size_t outlen,
+    uint32_t outlen,
     // optional secret key
     const void * key,
-    size_t keylen,
+    uint32_t keylen,
     // data to be hashed
     const void * in,
-    size_t inlen
+    uint32_t inlen
 );
 
 #endif 

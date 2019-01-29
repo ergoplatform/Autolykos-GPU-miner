@@ -45,6 +45,9 @@ __global__ void blockMining(
     const void * in,
     size_t inlen
 ) {
+    //===================================================================//
+    //  Generate nonce
+    //===================================================================//
     int i = blockDim.x * blockDim.y * threadIdx.z
         + blockDim.x * threadIdx.y + threadIdx.x;
     //int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -52,6 +55,8 @@ __global__ void blockMining(
     in + inlen = curand(state + i);
     in + inlen + 1 = curand(state + i);
 
+    //===================================================================//
+    //  Hash message nonce
     //===================================================================//
     const uint64_t blake2b_iv[8] = {
         0x6A09E667F3BCC908, 0xBB67AE8584CAA73B,
@@ -111,6 +116,7 @@ __global__ void blockMining(
             uint64_t v[16];
             uint64_t m[16];
 
+#pragma unroll
             for (i = 0; i < 8; ++i)
             {
                 v[i] = ctx->h[i];
@@ -120,11 +126,13 @@ __global__ void blockMining(
             v[12] ^= ctx->t[0];
             v[13] ^= ctx->t[1];
 
+#pragma unroll
             for (i = 0; i < 16; i++)
             {
                 m[i] = B2B_GET64(&ctx->b[8 * i]);
             }
 
+#pragma unroll
             for (i = 0; i < 12; ++i)
             {
                 B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
@@ -137,6 +145,7 @@ __global__ void blockMining(
                 B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
             }
 
+#pragma unroll
             for (i = 0; i < 8; ++i)
             {
                 ctx->h[i] ^= (is_full * (v[i] ^ v[i + 8]));
@@ -164,6 +173,7 @@ __global__ void blockMining(
             uint64_t v[16];
             uint64_t m[16];
 
+#pragma unroll
             for (i = 0; i < 8; ++i)
             {
                 v[i] = ctx->h[i];
@@ -173,11 +183,13 @@ __global__ void blockMining(
             v[12] ^= ctx->t[0];
             v[13] ^= ctx->t[1];
 
+#pragma unroll
             for (i = 0; i < 16; i++)
             {
                 m[i] = B2B_GET64(&ctx->b[8 * i]);
             }
 
+#pragma unroll
             for (i = 0; i < 12; ++i)
             {
                 B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
@@ -190,6 +202,7 @@ __global__ void blockMining(
                 B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
             }
 
+#pragma unroll
             for (i = 0; i < 8; ++i)
             {
                 ctx->h[i] ^= (is_full * (v[i] ^ v[i + 8]));
@@ -232,6 +245,7 @@ __global__ void blockMining(
         m[i] = B2B_GET64(&ctx->b[8 * i]);
     }
 
+#pragma unroll
     for (i = 0; i < 12; ++i)
     {
         B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
@@ -256,7 +270,7 @@ __global__ void blockMining(
     }
 
     //===================================================================//
-    //===================================================================//
+    //  Generate indices
     //===================================================================//
 
     uint32_t indices[k];
@@ -273,7 +287,14 @@ __global__ void blockMining(
         indices[i] = ((uint32_t *)out + i) * 0x03FFFFFF;
     }
 
+    
     //===================================================================//
+    //  Calculate d
+    //===================================================================//
+    for (i = 0; i < k; ++i)
+    {
+
+    }
 
     return;
 }
