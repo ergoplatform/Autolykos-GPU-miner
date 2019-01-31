@@ -1,109 +1,268 @@
-#include "blake2b.h"
+#include "kernel.h"
 
-// 4 bytes
-#define q3 = 0x14def9de
-// 4 bytes
-#define q2 = 0xa2f79cd6
-// 4 bytes
-#define q1 = 0x5812631a
-// 4 bytes
-#define q0 = 0x5cf5d3ed
+// 8 * 32 bits
+// q == [q0, q1, q2, q3, 0, 0, 0, 0x10000000]
 
-// Cyclic right rotation.
-#ifndef ROTR64
-#define ROTR64(x, y)  (((x) >> (y)) ^ ((x) << (64 - (y))))
-#endif
+// 32 bits
+#define q3_s "0x14def9de"
+#define q2_s "0xa2f79cd6"
+#define q1_s "0x5812631a"
+#define q0_s "0x5cf5d3ed"
 
-// Little-endian byte access.
-#define B2B_GET64(p)                            \
-    (((uint64_t) ((uint8_t *) (p))[0]) ^        \
-    (((uint64_t) ((uint8_t *) (p))[1]) << 8) ^  \
-    (((uint64_t) ((uint8_t *) (p))[2]) << 16) ^ \
-    (((uint64_t) ((uint8_t *) (p))[3]) << 24) ^ \
-    (((uint64_t) ((uint8_t *) (p))[4]) << 32) ^ \
-    (((uint64_t) ((uint8_t *) (p))[5]) << 40) ^ \
-    (((uint64_t) ((uint8_t *) (p))[6]) << 48) ^ \
-    (((uint64_t) ((uint8_t *) (p))[7]) << 56))
-
-// G Mixing function.
-#define B2B_G(a, b, c, d, x, y)     \
-{                                   \
-    v[a] = v[a] + v[b] + x;         \
-    v[d] = ROTR64(v[d] ^ v[a], 32); \
-    v[c] = v[c] + v[d];             \
-    v[b] = ROTR64(v[b] ^ v[c], 24); \
-    v[a] = v[a] + v[b] + y;         \
-    v[d] = ROTR64(v[d] ^ v[a], 16); \
-    v[c] = v[c] + v[d];             \
-    v[b] = ROTR64(v[b] ^ v[c], 63); \
-}
 ////////////////////////////////////////////////////////////////////////////////
-// Hash
+//  Multiply
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void blake2b(
-    blake2b_ctx * ctx,
-    void * out,
-    size_t outlen,
-    const void * key,
-    size_t keylen,
-    const void * in,
-    size_t inlen
+__global__ void mul(
+    // 8 * 32 bits
+    uint32_t * x,
+    // 8 * 32 bits
+    uint32_t * y,
+    // 16 * 32 bits
+    uint32_t * res
 ) {
-    // q == [0x10000000, 0, 0, 0, q3, q2, q1, q0]   32
-    // q == [0x1000000000000000, 0, Q1, Q0]         64
-    int i;
-    uint64_t d1;
-    uint32_t med[6];
-
-    for (int i = 4; i > 0; --i)
+    //====================================================================//
+    //  x[0] * y -> res[0, ..., 7, 8]
+    //====================================================================//
+    // initialize res[0, ..., 7]
+#pragma unroll
+    for (int k = 0; k < 8; k += 2)
     {
-        d1 = ((x[i] << 4) | (x[i - 1] >> 60)) - (x[i] >> 60);
+        asm volatile (
+            "mul.lo.u32 %0, %1, %2;":
+            "=r"(res[k]):
+            "r"(x[0]),
+            "r"(y[k])
+        );
+        asm volatile (
+            "mul.hi.u32 %0, %1, %2;":
+            "=r"(res[k + 1]):
+            "r"(x[0]),
+            "r"(y[k])
+        );
+    }
 
+    //====================================================================//
+    asm volatile (
+        "mad.lo.cc.u32 %0, %1, %2, %0;":
+        "+r"(res[1]):
+        "r"(x[0]),
+        "r"(y[1])
+    );
+    asm volatile (
+        "madc.hi.cc.u32 %0, %1, %2, %0;":
+        "+r"(res[2]):
+        "r"(x[0]),
+        "r"(y[1])
+    );
+
+#pragma unroll
+    for (int k = 3; k < 6; k += 2)
+    {
         asm volatile (
-            "mul.lo.cc.u32 %0, %1, q0;":
-            "=r"(med[0]):
-            "r"(((uint32_t *)&d1)[0])
+            "madc.lo.cc.u32 %0, %1, %2, %0;":
+            "+r"(res[k]):
+            "r"(x[0]),
+            "r"(y[k])
         );
         asm volatile (
-            "mulc.hi.cc.u32 %0, %1, q0;":
-            "=r"(med[1]):
-            "r"(((uint32_t *)&d1)[0])
+            "madc.hi.cc.u32 %0, %1, %2, %0;":
+            "+r"(res[k + 1]):
+            "r"(x[0]),
+            "r"(y[k])
+        );
+    }
+
+    asm volatile (
+        "madc.lo.cc.u32 %0, %1, %2, %0;":
+        "+r"(res[7]):
+        "r"(x[0]),
+        "r"(y[7])
+    );
+    // initialize res[8]
+    asm volatile (
+        "madc.hi.u32 %0, %1, %2, 0;":
+        "=r"(res[8]):
+        "r"(x[0]),
+        "r"(y[7])
+    );
+
+    //====================================================================//
+    //  x[i] * y -> res[i, ..., i + 7, i + 8]
+    //====================================================================//
+#pragma unroll
+    for (int i = 1; i < 8; ++i)
+    {
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, %2, %0;":
+            "+r"(res[i]):
+            "r"(x[i]),
+            "r"(y[0])
         );
         asm volatile (
-            "mul.lo.cc.u32 %0, %1, q2;":
-            "=r"(med[2]):
-            "r"(((uint32_t *)&d1)[0])
+            "madc.hi.cc.u32 %0, %1, %2, %0;":
+            "+r"(res[i + 1]):
+            "r"(x[i]),
+            "r"(y[0])
         );
-        asm volatile (
-            "mulc.hi.cc.u32 %0, %1, q2;":
-            "=r"(med[3]):
-            "r"(((uint32_t *)&d1)[0])
-        );
+
+#pragma unroll
+        for (int k = 2; k < 8; k += 2)
+        {
+            asm volatile (
+                "madc.lo.cc.u32 %0, %1, %2, %0;":
+                "+r"(res[i + k]):
+                "r"(x[i]),
+                "r"(y[k])
+            );
+            asm volatile (
+                "madc.hi.cc.u32 %0, %1, %2, %0;":
+                "+r"(res[i + k + 1]):
+                "r"(x[i]),
+                "r"(y[k])
+            );
+        }
+
+    // initialize res[i + 8]
         asm volatile (
             "addc.u32 %0, 0, 0;":
-            "=r"(med[4])
+            "=r"(res[i + 8])
         );
 
     //====================================================================//
         asm volatile (
-            "mad.lo.cc.u32 %0, %1, q1, %0;":
+            "mad.lo.cc.u32 %0, %1, %2, %0;":
+            "+r"(res[i + 1]):
+            "r"(x[i]),
+            "r"(y[1])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1, %2, %0;":
+            "+r"(res[i + 2]):
+            "r"(x[i]),
+            "r"(y[1])
+        );
+
+#pragma unroll
+        for (int k = 3; k < 6; k += 2)
+        {
+            asm volatile (
+                "madc.lo.cc.u32 %0, %1, %2, %0;":
+                "+r"(res[i + k]):
+                "r"(x[i]),
+                "r"(y[k])
+            );
+            asm volatile (
+                "madc.hi.cc.u32 %0, %1, %2, %0;":
+                "+r"(res[i + k + 1]):
+                "r"(x[i]),
+                "r"(y[k])
+            );
+        }
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, %2, %0;":
+            "+r"(res[i + 7]):
+            "r"(x[i]),
+            "r"(y[7])
+        );
+        asm volatile (
+            "madc.hi.u32 %0, %1, %2, %0;":
+            "+r"(res[i + 8]):
+            "r"(x[i]),
+            "r"(y[7])
+        );
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//  Mod q
+////////////////////////////////////////////////////////////////////////////////
+__global__ void mod_q(
+    // word count
+    uint32_t xw,
+    // xw * 64 bits
+    uint64_t * x
+    // result 4 * 64 bits -> x[0, 1, 2, 3]
+) {
+    uint64_t h;
+    uint32_t med[6];
+    uint32_t carry;
+
+    for (int i = xw - 1; i >= 4; --i)
+    {
+        h = ((x[i] << 4) | (x[i - 1] >> 60)) - (x[i] >> 60);
+
+        // correct highest 2 * 32 bits
+        ((uint32_t *)(x + i - 1))[1]
+            = (((uint32_t *)(x + i - 1))[1] & 0x0FFFFFFF)
+            | (((uint32_t *)(x + i))[1] & 0x10000000);
+
+    //====================================================================//
+    //  q multiple for next 6 * 32 bits
+    //====================================================================//
+        asm volatile (
+            "mul.lo.u32 %0, %1, "q0_s";":
+            "=r"(med[0]):
+            "r"(((uint32_t *)&h)[0])
+        );
+        asm volatile (
+            "mul.hi.u32 %0, %1, "q0_s";":
+            "=r"(med[1]):
+            "r"(((uint32_t *)&h)[0])
+        );
+        asm volatile (
+            "mul.lo.u32 %0, %1, "q2_s";":
+            "=r"(med[2]):
+            "r"(((uint32_t *)&h)[0])
+        );
+        asm volatile (
+            "mul.hi.u32 %0, %1, "q2_s";":
+            "=r"(med[3]):
+            "r"(((uint32_t *)&h)[0])
+        );
+
+    //====================================================================//
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q1_s", %0;":
             "+r"(med[1]):
-            "r"(((uint32_t *)&d1)[0])
+            "r"(((uint32_t *)&h)[0])
         );
         asm volatile (
-            "madc.hi.cc.u32 %0, %1, q1, %0;":
+            "madc.hi.cc.u32 %0, %1, "q1_s", %0;":
             "+r"(med[2]):
-            "r"(((uint32_t *)&d1)[0])
+            "r"(((uint32_t *)&h)[0])
         );
         asm volatile (
-            "mad.lo.cc.u32 %0, %1, q3, %0;":
+            "madc.lo.cc.u32 %0, %1, "q3_s", %0;":
             "+r"(med[3]):
-            "r"(((uint32_t *)&d1)[0])
+            "r"(((uint32_t *)&h)[0])
         );
         asm volatile (
-            "madc.hi.cc.u32 %0, %1, q3, %0;":
+            "madc.hi.u32 %0, %1, "q3_s", 0;":
+            "=r"(med[4]):
+            "r"(((uint32_t *)&h)[0])
+        );
+
+    //====================================================================//
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q0_s", %0;":
+            "+r"(med[1]):
+            "r"(((uint32_t *)&h)[1])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1, "q0_s", %0;":
+            "+r"(med[2]):
+            "r"(((uint32_t *)&h)[1])
+        );
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q2_s", %0;":
+            "+r"(med[3]):
+            "r"(((uint32_t *)&h)[1])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1," q2_s", %0;":
             "+r"(med[4]):
-            "r"(((uint32_t *)&d1)[0])
+            "r"(((uint32_t *)&h)[1])
         );
         asm volatile (
             "addc.u32 %0, 0, 0;":
@@ -111,30 +270,119 @@ __global__ void blake2b(
         );
 
     //====================================================================//
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q1_s", %0;":
+            "+r"(med[2]):
+            "r"(((uint32_t *)&h)[1])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1, "q1_s", %0;":
+            "+r"(med[3]):
+            "r"(((uint32_t *)&h)[1])
+        );
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q3_s", %0;":
+            "+r"(med[4]):
+            "r"(((uint32_t *)&h)[1])
+        );
+        asm volatile (
+            "madc.hi.u32 %0, %1, "q3_s", %0;":
+            "+r"(med[5]):
+            "r"(((uint32_t *)&h)[1])
+        );
 
-        //(d1[0] * p[0]).lo
-        //(d1[0] * p[0]).hi
-        //(d1[0] * p[2]).lo
-        //(d1[0] * p[2]).hi
-        //Потом один addc нуля к пятому слову.
-        (d1[0] * p[1]).lo
-        (d1[0] * p[1]).hi
-        (d1[0] * p[3]).lo
-        (d1[0] * p[3]).hi
-        Потом один addc нуля к шестому слову.
-        (d1[1] * p[0]).lo
-        (d1[1] * p[0]).hi
-        (d1[1] * p[2]).lo
-        (d1[1] * p[2]).hi
-        Один addc нуля к шестому слову.
-        (d1[1] * p[1]).lo
-        (d1[1] * p[1]).hi
-        (d1[1] * p[3]).lo
-        (d1[1] * p[3]).hi
+    //====================================================================//
+    //  next 6 * 32 bits mod q
+    //====================================================================//
+        asm volatile (
+            "sub.cc.u32 %0, %0, %1;":
+            "+r"(((uint32_t *)(x + i - 4))[0]):
+            "r"(med[0])
+        );
+        asm volatile (
+            "subc.cc.u32 %0, %0, %1;":
+            "+r"(((uint32_t *)(x + i - 4))[1]):
+            "r"(med[1])
+        );
+
+#pragma unroll
+        for (int j = 1; j < 3; ++j)
+        {
+#pragma unroll
+            for (int k = 0; k < 2; ++k)
+            {
+                asm volatile (
+                    "subc.cc.u32 %0, %0, %1;":
+                    "+r"(((uint32_t *)(x + i - 4 + j))[k]):
+                    "r"(med[2 * j + k])
+                );
+            }
+        }
+
+        asm volatile (
+            "subc.cc.u32 %0, %0, 0;":
+            "+r"(((uint32_t *)(x + i - 1))[0])
+        );
+
+        asm volatile (
+            "subc.cc.u32 %0, %0, 0;":
+            "+r"(((uint32_t *)(x + i - 1))[1])
+        );
+
+    //====================================================================//
+    //  next 6 * 32 bits correction
+    //====================================================================//
+        asm volatile (
+            "subc.u32 %0, 0, 0;":
+            "=r"(carry)
+        );
+
+        carry = 0 - carry;
+
+    //====================================================================//
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q0_s", %0;":
+            "+r"(((uint32_t *)(x + i - 4))[0]):
+            "r"(carry)
+        );
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q1_s", %0;":
+            "+r"(((uint32_t *)(x + i - 4))[1]):
+            "r"(carry)
+        );
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q2_s", %0;":
+            "+r"(((uint32_t *)(x + i - 3))[0]):
+            "r"(carry)
+        );
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q3_s", %0;":
+            "+r"(((uint32_t *)(x + i - 3))[1]):
+            "r"(carry)
+        );
+    //====================================================================//
+
+        asm volatile (
+            "addc.cc.u32 %0, %0, 0;":
+            "+r"(((uint32_t *)(x + i - 2))[0])
+        );
+
+        asm volatile (
+            "addc.cc.u32 %0, %0, 0;":
+            "+r"(((uint32_t *)(x + i - 2))[1])
+        );
+
+        asm volatile (
+            "addc.cc.u32 %0, %0, 0;":
+            "+r"(((uint32_t *)(x + i - 1))[0])
+        );
+
+        asm volatile (
+            "addc.u32 %0, %0, 0;":
+            "+r"(((uint32_t *)(x + i - 1))[1])
+        );
     }
-        
-
-    asm("sub.cc.u32 %0, %1, %2;" : "=r"(i) : "r"(j), "r"(k));
-
-    return;
 }

@@ -6,7 +6,7 @@ include Makefile.in
 CFLAGS = -c
 
 SRCDIR = .
-SOURCES = $(SRCDIR)/bigintest.cu $(SRCDIR)/kernel.cu 
+SOURCES = $(SRCDIR)/biginttest.cu $(SRCDIR)/kernel.cu 
 OBJECTS = $(SOURCES:.cu=.o)
 
 LIBPATH = ./lib/$(LIBNAME)

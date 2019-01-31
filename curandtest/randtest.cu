@@ -1,24 +1,21 @@
-/*
- * This program uses the device CURAND API to calculate what 
- * proportion of pseudo-random ints have low bit set.
- */
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
 #include <curand_kernel.h>
+
 /* include MTGP host helper functions */
 #include <curand_mtgp32_host.h>
 /* include MTGP pre-computed parameter sets */
 #include <curand_mtgp32dc_p_11213.h>
 
 
-#define CUDA_CALL(x) do { if((x) != cudaSuccess) { \
-    printf("Error at %s:%d\n",__FILE__,__LINE__); \
-    return EXIT_FAILURE;}} while(0)
+#define CUDA_CALL(x) do { if((x) != cudaSuccess) {  \
+printf("Error at %s:%d\n",__FILE__,__LINE__);       \
+return EXIT_FAILURE;}} while(0)
 
-#define CURAND_CALL(x) do { if((x) != CURAND_STATUS_SUCCESS) { \
-    printf("Error at %s:%d\n",__FILE__,__LINE__); \
-    return EXIT_FAILURE;}} while(0)
+#define CURAND_CALL(x) do { if((x) != CURAND_STATUS_SUCCESS) {  \
+printf("Error at %s:%d\n",__FILE__,__LINE__);                   \
+return EXIT_FAILURE;}} while(0)
 
 __global__ void generate_kernel(
     curandStateMtgp32 * state, 
@@ -39,11 +36,6 @@ __global__ void generate_kernel(
     /* Store results */
     result[id] += count;
 }
-
-/// __global__ void MyKernel(
-///     void
-/// ) {
-/// }
 
 int main(int argc, char *argv[])
 {
@@ -122,7 +114,9 @@ int main(int argc, char *argv[])
     }
 
     /* Copy device memory to host */
-    CUDA_CALL(cudaMemcpy(hostResults, devResults, 64 * 512 * sizeof(int), cudaMemcpyDeviceToHost));
+    CUDA_CALL(cudaMemcpy(
+        hostResults, devResults, 64 * 512 * sizeof(int), cudaMemcpyDeviceToHost)
+    );
 
     /* Show result */
     total = 0;
@@ -139,7 +133,6 @@ int main(int argc, char *argv[])
     free(hostResults);
 
     printf("OK\n");
-
     return EXIT_SUCCESS;
 }
 
