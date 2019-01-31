@@ -48,6 +48,7 @@ void blake2b_final(
     void * out
 );
 
+// Mixing function
 // All-in-one convenience function.
 __global__ void blake2b(
     blake2b_ctx * ctx, 

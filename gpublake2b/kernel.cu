@@ -1,11 +1,7 @@
 #include "blake2b.h"
 
-// Cyclic right rotation.
-#ifndef ROTR64
-#define ROTR64(x, y)  (((x) >> (y)) ^ ((x) << (64 - (y))))
-#endif
-
-// Little-endian byte access.
+// Little-endian byte access
+#ifndef B2B_GET64
 #define B2B_GET64(p)                            \
     (((uint64_t) ((uint8_t *) (p))[0]) ^        \
     (((uint64_t) ((uint8_t *) (p))[1]) << 8) ^  \
@@ -15,8 +11,15 @@
     (((uint64_t) ((uint8_t *) (p))[5]) << 40) ^ \
     (((uint64_t) ((uint8_t *) (p))[6]) << 48) ^ \
     (((uint64_t) ((uint8_t *) (p))[7]) << 56))
+#endif
 
-// G Mixing function.
+// Cyclic right rotation
+#ifndef ROTR64
+#define ROTR64(x, y)  (((x) >> (y)) ^ ((x) << (64 - (y))))
+#endif
+
+// G mixing function
+#ifndef B2B_G
 #define B2B_G(a, b, c, d, x, y)     \
 {                                   \
     v[a] = v[a] + v[b] + x;         \
@@ -28,9 +31,10 @@
     v[c] = v[c] + v[d];             \
     v[b] = ROTR64(v[b] ^ v[c], 63); \
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
-// Hash
+//  Hash
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void blake2b(
     blake2b_ctx * ctx,
@@ -41,7 +45,10 @@ __global__ void blake2b(
     const void * in,
     uint32_t inlen
 ) {
-    int k;
+    uint32_t k;
+
+    uint64_t v[16];
+    uint64_t m[16];
 
     const uint64_t blake2b_iv[8] = {
         0x6A09E667F3BCC908, 0xBB67AE8584CAA73B,
@@ -66,6 +73,8 @@ __global__ void blake2b(
     };
 
     //====================================================================//
+    //  Initialize context
+    //====================================================================//
 #pragma unroll
     for (k = 0; k < 8; ++k)
     {
@@ -86,10 +95,8 @@ __global__ void blake2b(
     }
 
     //====================================================================//
-    int i;
-    uint64_t v[16];
-    uint64_t m[16];
-
+    //  Hash key [optional]
+    //====================================================================//
     for (k = 0; k < keylen & 0xFFFFFF80; ++k)
     {
         while (ctx->c < 128)
@@ -101,7 +108,7 @@ __global__ void blake2b(
         ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
 #pragma unroll
-        for (i = 0; i < 8; ++i)
+        for (int i = 0; i < 8; ++i)
         {
             v[i] = ctx->h[i];
             v[i + 8] = blake2b_iv[i];
@@ -111,13 +118,13 @@ __global__ void blake2b(
         v[13] ^= ctx->t[1];
 
 #pragma unroll
-        for (i = 0; i < 16; i++)
+        for (int i = 0; i < 16; i++)
         {
             m[i] = B2B_GET64(&ctx->b[8 * i]);
         }
 
 #pragma unroll
-        for (i = 0; i < 12; ++i)
+        for (int i = 0; i < 12; ++i)
         {
             B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
             B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
@@ -130,7 +137,7 @@ __global__ void blake2b(
         }
 
 #pragma unroll
-        for (i = 0; i < 8; ++i)
+        for (int i = 0; i < 8; ++i)
         {
             ctx->h[i] ^= v[i] ^ v[i + 8];
         }
@@ -149,6 +156,8 @@ __global__ void blake2b(
     ctx->c = ((1 - !(keylen > 0)) << 7) + (!(keylen > 0)) * ctx->c;
 
     //====================================================================//
+    //  Hash input
+    //====================================================================//
     for (k = 0; ctx->c < 128 && k < inlen; ++k)
     {
         ctx->b[ctx->c++] = ((const uint8_t *)in)[k];
@@ -160,7 +169,7 @@ __global__ void blake2b(
         ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
 #pragma unroll
-        for (i = 0; i < 8; ++i)
+        for (int i = 0; i < 8; ++i)
         {
             v[i] = ctx->h[i];
             v[i + 8] = blake2b_iv[i];
@@ -170,13 +179,13 @@ __global__ void blake2b(
         v[13] ^= ctx->t[1];
 
 #pragma unroll
-        for (i = 0; i < 16; i++)
+        for (int i = 0; i < 16; i++)
         {
             m[i] = B2B_GET64(&ctx->b[8 * i]);
         }
 
 #pragma unroll
-        for (i = 0; i < 12; ++i)
+        for (int i = 0; i < 12; ++i)
         {
             B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
             B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
@@ -189,7 +198,7 @@ __global__ void blake2b(
         }
 
 #pragma unroll
-        for (i = 0; i < 8; ++i)
+        for (int i = 0; i < 8; ++i)
         {
             ctx->h[i] ^= v[i] ^ v[i + 8];
         }
@@ -203,6 +212,8 @@ __global__ void blake2b(
     }
 
     //====================================================================//
+    //  Finalize hash
+    //====================================================================//
     ctx->t[0] += ctx->c;
     ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
@@ -212,7 +223,7 @@ __global__ void blake2b(
     }
 
 #pragma unroll
-    for (i = 0; i < 8; ++i)
+    for (int i = 0; i < 8; ++i)
     {
         v[i] = ctx->h[i];
         v[i + 8] = blake2b_iv[i];
@@ -223,13 +234,13 @@ __global__ void blake2b(
     v[14] = ~v[14];
 
 #pragma unroll
-    for (i = 0; i < 16; i++)
+    for (int i = 0; i < 16; i++)
     {
         m[i] = B2B_GET64(&ctx->b[8 * i]);
     }
 
 #pragma unroll
-    for (i = 0; i < 12; ++i)
+    for (int i = 0; i < 12; ++i)
     {
         B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
         B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
@@ -242,7 +253,7 @@ __global__ void blake2b(
     }
 
 #pragma unroll
-    for (i = 0; i < 8; ++i)
+    for (int i = 0; i < 8; ++i)
     {
         ctx->h[i] ^= v[i] ^ v[i + 8];
     }

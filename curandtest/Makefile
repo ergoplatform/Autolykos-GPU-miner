@@ -22,7 +22,7 @@ lib: $(OBJECTS)
 	ranlib $(LIBPATH)
 
 test:
-	$(CXX) $(LIBPATH) $(COPT) -o $(TESTEXEC)
+	$(CXX) $(LIBPATH) $(LIBS) $(COPT) -o $(TESTEXEC)
 
 clean:
 	rm -f $(OBJECTS) $(LIBPATH) $(TESTEXEC)
