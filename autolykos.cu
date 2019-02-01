@@ -1,15 +1,10 @@
 #include <cuda.h>
 #include <curand.h>
-#include <curand_kernel.h>
 
 #include "blake2b.h"
 
-// Cyclic right rotation.
-#ifndef ROTR64
-#define ROTR64(x, y)  (((x) >> (y)) ^ ((x) << (64 - (y))))
-#endif
-
-// Little-endian byte access.
+// Little-endian byte access
+#ifndef B2B_GET64
 #define B2B_GET64(p)                            \
     (((uint64_t) ((uint8_t *) (p))[0]) ^        \
     (((uint64_t) ((uint8_t *) (p))[1]) << 8) ^  \
@@ -19,8 +14,15 @@
     (((uint64_t) ((uint8_t *) (p))[5]) << 40) ^ \
     (((uint64_t) ((uint8_t *) (p))[6]) << 48) ^ \
     (((uint64_t) ((uint8_t *) (p))[7]) << 56))
+#endif
 
-// G Mixing function.
+// Cyclic right rotation
+#ifndef ROTR64
+#define ROTR64(x, y)  (((x) >> (y)) ^ ((x) << (64 - (y))))
+#endif
+
+// G mixing function
+#ifndef B2B_G
 #define B2B_G(a, b, c, d, x, y)     \
 {                                   \
     v[a] = v[a] + v[b] + x;         \
@@ -32,32 +34,34 @@
     v[c] = v[c] + v[d];             \
     v[b] = ROTR64(v[b] ^ v[c], 63); \
 }
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
-//  Block mining                                                              //
+//  Block mining                                                               
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void blockMining(
-    curandStateMtgp32 * state, 
+    // context
     blake2b_ctx * ctx,
-    void * out,
-    size_t outlen,
+    // optional secret key
     const void * key,
-    size_t keylen,
+    uint32_t keylen,
+    // message
     const void * in,
-    size_t inlen
+    uint32_t inlen,
+    // pregenerated nonces
+    const void * non,
+    // hashes
+    void * out,
+    uint32_t outlen
 ) {
     //===================================================================//
-    //  Generate nonce
+    //  Hash(message || nonce)
     //===================================================================//
-    int i = blockDim.x * blockDim.y * threadIdx.z
-        + blockDim.x * threadIdx.y + threadIdx.x;
-    //int id = threadIdx.x + blockIdx.x * blockDim.x;
+    uint32_t j;
 
-    in + inlen = curand(state + i);
-    in + inlen + 1 = curand(state + i);
+    uint64_t v[16];
+    uint64_t m[16];
 
-    //===================================================================//
-    //  Hash message nonce
-    //===================================================================//
     const uint64_t blake2b_iv[8] = {
         0x6A09E667F3BCC908, 0xBB67AE8584CAA73B,
         0x3C6EF372FE94F82B, 0xA54FF53A5F1D36F1,
@@ -80,9 +84,9 @@ __global__ void blockMining(
         { 14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3 }
     };
 
-    //===================================================================//
-    size_t j;
-
+    //====================================================================//
+    //  Initialize context
+    //====================================================================//
 #pragma unroll
     for (j = 0; j < 8; ++j)
     {
@@ -102,134 +106,136 @@ __global__ void blockMining(
         ctx->b[j] = 0;
     }
 
-    //===================================================================//
-    for (j = 0; j < keylen; ++j)
+    //====================================================================//
+    //  Hash key [optional]
+    //====================================================================//
+    for (j = 0; j < keylen & 0xFFFFFF80; ++j)
     {
-        int is_full = (ctx->c == 128)? 1: 0;
-
+        while (ctx->c < 128)
         {
-            ctx->t[0] += is_full * ctx->c;
-
-            int i = (ctx->t[0] < ctx->c)? 1: 0;
-            ctx->t[1] += is_full * i;
-
-            uint64_t v[16];
-            uint64_t m[16];
-
-#pragma unroll
-            for (i = 0; i < 8; ++i)
-            {
-                v[i] = ctx->h[i];
-                v[i + 8] = blake2b_iv[i];
-            }
-
-            v[12] ^= ctx->t[0];
-            v[13] ^= ctx->t[1];
-
-#pragma unroll
-            for (i = 0; i < 16; i++)
-            {
-                m[i] = B2B_GET64(&ctx->b[8 * i]);
-            }
-
-#pragma unroll
-            for (i = 0; i < 12; ++i)
-            {
-                B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
-                B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
-                B2B_G(2, 6, 10, 14, m[sigma[i][ 4]], m[sigma[i][ 5]]);
-                B2B_G(3, 7, 11, 15, m[sigma[i][ 6]], m[sigma[i][ 7]]);
-                B2B_G(0, 5, 10, 15, m[sigma[i][ 8]], m[sigma[i][ 9]]);
-                B2B_G(1, 6, 11, 12, m[sigma[i][10]], m[sigma[i][11]]);
-                B2B_G(2, 7,  8, 13, m[sigma[i][12]], m[sigma[i][13]]);
-                B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
-            }
-
-#pragma unroll
-            for (i = 0; i < 8; ++i)
-            {
-                ctx->h[i] ^= (is_full * (v[i] ^ v[i + 8]));
-            }
-
-            ctx->c = (is_full)? 0: ctx->c;
+            ctx->b[ctx->c++] = ((const uint8_t *)key)[j++];
         }
+
+        ctx->t[0] += ctx->c;
+        ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
+
+#pragma unroll
+        for (int i = 0; i < 8; ++i)
+        {
+            v[i] = ctx->h[i];
+            v[i + 8] = blake2b_iv[i];
+        }
+
+        v[12] ^= ctx->t[0];
+        v[13] ^= ctx->t[1];
+
+#pragma unroll
+        for (int i = 0; i < 16; i++)
+        {
+            m[i] = B2B_GET64(&ctx->b[8 * i]);
+        }
+
+#pragma unroll
+        for (int i = 0; i < 12; ++i)
+        {
+            B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
+            B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
+            B2B_G(2, 6, 10, 14, m[sigma[i][ 4]], m[sigma[i][ 5]]);
+            B2B_G(3, 7, 11, 15, m[sigma[i][ 6]], m[sigma[i][ 7]]);
+            B2B_G(0, 5, 10, 15, m[sigma[i][ 8]], m[sigma[i][ 9]]);
+            B2B_G(1, 6, 11, 12, m[sigma[i][10]], m[sigma[i][11]]);
+            B2B_G(2, 7,  8, 13, m[sigma[i][12]], m[sigma[i][13]]);
+            B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
+        }
+
+#pragma unroll
+        for (int i = 0; i < 8; ++i)
+        {
+            ctx->h[i] ^= v[i] ^ v[i + 8];
+        }
+
+        ctx->c = 0;
 
         ctx->b[ctx->c++] = ((const uint8_t *)key)[j];
     }
 
-    ctx->c = (keylen > 0)? 128: ctx->c;
-
-    //===================================================================//
-    for (j = 0; j < inlen; ++j)
+    while (j < keylen)
     {
-        int is_full = (ctx->c == 128)? 1: 0;
+        ctx->b[ctx->c++] = ((const uint8_t *)key)[j++];
+    }
 
-        {
-            ctx->t[0] += is_full * ctx->c;
+    //ctx->c = (keylen > 0)? 128: ctx->c;
+    ctx->c = ((1 - !(keylen > 0)) << 7) + (!(keylen > 0)) * ctx->c;
 
-            int i = (ctx->t[0] < ctx->c)? 1: 0;
-            ctx->t[1] += is_full * i;
-
-            uint64_t v[16];
-            uint64_t m[16];
-
-#pragma unroll
-            for (i = 0; i < 8; ++i)
-            {
-                v[i] = ctx->h[i];
-                v[i + 8] = blake2b_iv[i];
-            }
-
-            v[12] ^= ctx->t[0];
-            v[13] ^= ctx->t[1];
-
-#pragma unroll
-            for (i = 0; i < 16; i++)
-            {
-                m[i] = B2B_GET64(&ctx->b[8 * i]);
-            }
-
-#pragma unroll
-            for (i = 0; i < 12; ++i)
-            {
-                B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
-                B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
-                B2B_G(2, 6, 10, 14, m[sigma[i][ 4]], m[sigma[i][ 5]]);
-                B2B_G(3, 7, 11, 15, m[sigma[i][ 6]], m[sigma[i][ 7]]);
-                B2B_G(0, 5, 10, 15, m[sigma[i][ 8]], m[sigma[i][ 9]]);
-                B2B_G(1, 6, 11, 12, m[sigma[i][10]], m[sigma[i][11]]);
-                B2B_G(2, 7,  8, 13, m[sigma[i][12]], m[sigma[i][13]]);
-                B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
-            }
-
-#pragma unroll
-            for (i = 0; i < 8; ++i)
-            {
-                ctx->h[i] ^= (is_full * (v[i] ^ v[i + 8]));
-            }
-
-            ctx->c = (is_full)? 0: ctx->c;
-        }
-
+    //====================================================================//
+    //  Hash input
+    //====================================================================//
+    for (j = 0; ctx->c < 128 && j < inlen; ++j)
+    {
         ctx->b[ctx->c++] = ((const uint8_t *)in)[j];
     }
 
-    //===================================================================//
-    ctx->t[0] += ctx->c;
+    while (j < inlen)
+    {
+        ctx->t[0] += ctx->c;
+        ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
-    int i = (ctx->t[0] < ctx->c)? 1: 0;
-    ctx->t[1] += i;
+#pragma unroll
+        for (int i = 0; i < 8; ++i)
+        {
+            v[i] = ctx->h[i];
+            v[i + 8] = blake2b_iv[i];
+        }
+
+        v[12] ^= ctx->t[0];
+        v[13] ^= ctx->t[1];
+
+#pragma unroll
+        for (int i = 0; i < 16; i++)
+        {
+            m[i] = B2B_GET64(&ctx->b[8 * i]);
+        }
+
+#pragma unroll
+        for (int i = 0; i < 12; ++i)
+        {
+            B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
+            B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
+            B2B_G(2, 6, 10, 14, m[sigma[i][ 4]], m[sigma[i][ 5]]);
+            B2B_G(3, 7, 11, 15, m[sigma[i][ 6]], m[sigma[i][ 7]]);
+            B2B_G(0, 5, 10, 15, m[sigma[i][ 8]], m[sigma[i][ 9]]);
+            B2B_G(1, 6, 11, 12, m[sigma[i][10]], m[sigma[i][11]]);
+            B2B_G(2, 7,  8, 13, m[sigma[i][12]], m[sigma[i][13]]);
+            B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
+        }
+
+#pragma unroll
+        for (int i = 0; i < 8; ++i)
+        {
+            ctx->h[i] ^= v[i] ^ v[i + 8];
+        }
+
+        ctx->c = 0;
+       
+        while (ctx->c < 128 && j < inlen)
+        {
+            ctx->b[ctx->c++] = ((const uint8_t *)in)[j++];
+        }
+    }
+
+    //====================================================================//
+    //  Finalize hash
+    //====================================================================//
+    ctx->t[0] += ctx->c;
+    ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
     while (ctx->c < 128)
     {
         ctx->b[ctx->c++] = 0;
     }
 
-    uint64_t v[16];
-    uint64_t m[16];
-
 #pragma unroll
-    for (i = 0; i < 8; ++i)
+    for (int i = 0; i < 8; ++i)
     {
         v[i] = ctx->h[i];
         v[i + 8] = blake2b_iv[i];
@@ -240,13 +246,13 @@ __global__ void blockMining(
     v[14] = ~v[14];
 
 #pragma unroll
-    for (i = 0; i < 16; i++)
+    for (int i = 0; i < 16; i++)
     {
         m[i] = B2B_GET64(&ctx->b[8 * i]);
     }
 
 #pragma unroll
-    for (i = 0; i < 12; ++i)
+    for (int i = 0; i < 12; ++i)
     {
         B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
         B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
@@ -259,39 +265,38 @@ __global__ void blockMining(
     }
 
 #pragma unroll
-    for (i = 0; i < 8; ++i)
+    for (int i = 0; i < 8; ++i)
     {
         ctx->h[i] ^= v[i] ^ v[i + 8];
     }
 
     for (j = 0; j < ctx->outlen; ++j)
     {
-        ((uint8_t *)out)[j] = (ctx->h[j >> 3] >> (8 * (j & 7))) & 0xFF;
+        ((uint8_t *)out)[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
     }
 
     //===================================================================//
     //  Generate indices
     //===================================================================//
 
-    uint32_t indices[k];
+    uint32_t indices[j];
 
 #pragma unroll
-    for (i = 0; i < 3; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         out + outlen + i = out + i;
     }
 
 #pragma unroll
-    for (i = 0; i < k; ++i)
+    for (int i = 0; i < k; ++i)
     {
         indices[i] = ((uint32_t *)out + i) * 0x03FFFFFF;
     }
-
     
     //===================================================================//
     //  Calculate d
     //===================================================================//
-    for (i = 0; i < k; ++i)
+    for (int i = 0; i < k; ++i)
     {
 
     }

@@ -1,6 +1,3 @@
-// blake2b.h
-// BLAKE2b Hashing Context and API Prototypes
-
 #ifndef BLAKE2B_H
 #define BLAKE2B_H
 
@@ -9,10 +6,10 @@
 
 #define k = 32
 #define N = 1 << 26
-// 8 high bytes
-#define q_hi = 0x14def9dea2f79cd6
-// 8 low bytes
-#define q_lo = 0x5812631a5cf5d3ed
+
+// 8 * 64 bits
+#define Q1 = 0x14def9dea2f79cd6
+#define Q0 = 0x5812631a5cf5d3ed
 
 // state context
 typedef struct {
@@ -23,9 +20,9 @@ typedef struct {
     // total number of bytes
     uint64_t t[2];
     // pointer for b[]
-    size_t c;
+    uint32_t c;
     // digest size
-    size_t outlen;
+    uint32_t outlen;
 } blake2b_ctx;
 
 // Initialize the hashing context "ctx" with optional key "key".
@@ -33,10 +30,10 @@ typedef struct {
 //      Secret key (also <= 64 bytes) is optional (keylen = 0).
 int blake2b_init(
     blake2b_ctx * ctx,
-    size_t outlen,
+    uint32_t outlen,
     // secret key
     const void * key,
-    size_t keylen
+    uint32_t keylen
 );
 
 // Add "inlen" bytes from "in" into the hash.
@@ -45,7 +42,7 @@ void blake2b_update(
     blake2b_ctx * ctx,
     // data to be hashed
     const void * in,
-    size_t inlen
+    uint32_t inlen
 );
 
 // Generate the message digest (size given in init).
@@ -60,13 +57,13 @@ __global__ void blake2b(
     blake2b_ctx * ctx, 
     // return buffer for digest
     void * out,
-    size_t outlen,
+    uint32_t outlen,
     // optional secret key
     const void * key,
-    size_t keylen,
+    uint32_t keylen,
     // data to be hashed
     const void * in,
-    size_t inlen
+    uint32_t inlen
 );
 
 #endif 

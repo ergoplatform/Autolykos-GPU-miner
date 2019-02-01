@@ -33,25 +33,25 @@ int main(int argc, char *argv[])
     uint64_t * y_h = (uint64_t *)malloc(4 * sizeof(uint64_t));
     uint64_t * res_h = (uint64_t *)malloc(8 * sizeof(uint64_t));
 
-    //x_h[3] = 0x1000000000000000;
+    x_h[3] = 0x1000000000000000;
+    x_h[2] = 0;
+    x_h[1] = Q1;
+    x_h[0] = Q0_1;
+    
+    y_h[3] = 0x1000000000000000;
+    y_h[2] = 0;
+    y_h[1] = Q1;
+    y_h[0] = Q0_1;
+
+    //x_h[3] = 0;
     //x_h[2] = 0;
-    //x_h[1] = Q1;
-    //x_h[0] = Q0_1;
+    //x_h[1] = 0;
+    //x_h[0] = 0x100;
       
     //y_h[3] = 0x1000000000000000;
     //y_h[2] = 0;
     //y_h[1] = Q1;
-    //y_h[0] = Q0_2;
-
-    x_h[3] = 0;
-    x_h[2] = 0;
-    x_h[1] = 0;
-    x_h[0] = 0x100;
-
-    y_h[3] = 0x1000000000000000;
-    y_h[2] = 0;
-    y_h[1] = Q1;
-    y_h[0] = Q0;
+    //y_h[0] = Q0;
 
     uint32_t * x_d;
     uint32_t * y_d;
@@ -61,24 +61,41 @@ int main(int argc, char *argv[])
     CUDA_CALL(cudaMalloc((void **)&y_d, 8 * sizeof(uint32_t)));
     CUDA_CALL(cudaMalloc((void **)&res_d, 8 * sizeof(uint64_t)));
 
-    CUDA_CALL(cudaMemcpy(
-        x_d, (uint32_t *)x_h, 8 * sizeof(uint32_t), cudaMemcpyHostToDevice
-    ));
-    CUDA_CALL(cudaMemcpy(
-        y_d, (uint32_t *)y_h, 8 * sizeof(uint32_t), cudaMemcpyHostToDevice
-    ));
+    for (int i = 1; i < 0xFF; ++i)
+    {
+        x_h[0] = Q0 - i;
+        for (int j = 1; j < 0xFF; ++j)
+        {
+            y_h[0] = Q0 - j;
+            CUDA_CALL(cudaMemcpy(
+                x_d, (uint32_t *)x_h, 8 * sizeof(uint32_t),
+                cudaMemcpyHostToDevice
+            ));
+            CUDA_CALL(cudaMemcpy(
+                y_d, (uint32_t *)y_h, 8 * sizeof(uint32_t),
+                cudaMemcpyHostToDevice
+            ));
 
-    mul<<<1, 1>>>(x_d, y_d, (uint32_t *)res_d);
-    mod_q<<<1, 1>>>(8, res_d);
+            mul<<<1, 1>>>(x_d, y_d, (uint32_t *)res_d);
+            mod_q<<<1, 1>>>(8, res_d);
 
-    CUDA_CALL(cudaMemcpy(
-        res_h, res_d, 8 * sizeof(uint64_t), cudaMemcpyDeviceToHost
-    ));
+            CUDA_CALL(cudaMemcpy(
+                res_h, res_d, 8 * sizeof(uint64_t), cudaMemcpyDeviceToHost
+            ));
 
-    //printf("%#lx, %#lx,\n%#lx, %#lx\n", res_h[7], res_h[6], res_h[5], res_h[4]);
-    printf("%#lx, %#lx,\n%#lx, %#lx\n", res_h[3], res_h[2], res_h[1], res_h[0]);
+            //printf("%#lx, %#lx,\n%#lx, %#lx\n", res_h[7], res_h[6], res_h[5], res_h[4]);
 
-    printf("\n");
+            if (res_h[3] > 0 || res_h[2] > 0 || res_h[1] > 0 || res_h[0] != i * j)
+            {
+                printf(
+                    "%#lx, %#lx, %#lx, %#lx ",
+                    res_h[3], res_h[2], res_h[1], res_h[0]
+                );
+                printf("\ti * j = %#x\n", i * j);
+            }
+        }
+        printf("i = %d\n", i);
+    }
 
     CUDA_CALL(cudaFree(x_d));
     CUDA_CALL(cudaFree(y_d));

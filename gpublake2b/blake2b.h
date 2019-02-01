@@ -1,6 +1,3 @@
-// blake2b.h
-// BLAKE2b Hashing Context and API Prototypes
-
 #ifndef BLAKE2B_H
 #define BLAKE2B_H
 
@@ -48,8 +45,7 @@ void blake2b_final(
     void * out
 );
 
-// Mixing function
-// All-in-one convenience function.
+// Hash-function
 __global__ void blake2b(
     blake2b_ctx * ctx, 
     // return buffer for digest

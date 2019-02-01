@@ -6,15 +6,17 @@ include Makefile.in
 CFLAGS = -c
 
 SRCDIR = .
+LIBPATH = ./lib/$(LIBNAME)
+
 SOURCES = $(SRCDIR)/test.c $(SRCDIR)/blake2b.c $(SRCDIR)/kernel.c
 OBJECTS = $(SOURCES:.c=.o)
-
-LIBPATH = ./lib/$(LIBNAME)
 
 TESTEXEC = test.out
 
 .c.o:
 	$(CXX) $(COPT) $(CFLAGS) $< -o $@
+
+all: clean lib test
 
 lib: $(OBJECTS)
 	mkdir -p ./lib;

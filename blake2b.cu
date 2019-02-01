@@ -135,12 +135,12 @@ static void blake2b_compress(
 //      Secret key (also <= 64 bytes) is optional (keylen = 0).
 int blake2b_init(
     blake2b_ctx * ctx,
-    size_t outlen,
+    uint32_t outlen,
     const void * key,
     // (keylen=0: no key)
-    size_t keylen
+    uint32_t keylen
 ) {
-    size_t k;
+    uint32_t k;
 
     if (outlen == 0 || outlen > 64 || keylen > 64)
     {
@@ -186,9 +186,9 @@ void blake2b_update(
     // data
     const void * in,
     // data byte size
-    size_t inlen
+    uint32_t inlen
 ) {
-    size_t k;
+    uint32_t k;
 
     for (k = 0; k < inlen; ++k)
     {
@@ -221,7 +221,7 @@ void blake2b_final(
     blake2b_ctx * ctx,
     void * out
 ) {
-    size_t k;
+    uint32_t k;
 
     // mark last block offset
     ctx->t[0] += ctx->c;

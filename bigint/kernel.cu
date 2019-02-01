@@ -10,7 +10,75 @@
 #define q0_s "0x5cf5d3ed"
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Multiply
+//  256 bits addition with overflow
+////////////////////////////////////////////////////////////////////////////////
+// [x, carry] = [x, carry] + y
+__global__ void add(
+    // 8 * 32 bits
+    uint32_t * x,
+    // 1 * 32 bits
+    uint32_t * carry,
+    // 8 * 32 bits
+    uint32_t * y
+) {
+    asm volatile (
+        "add.cc.u32 %0, %0, %1;":
+        "+r"(x[0]):
+        "r"(y[0])
+    );
+
+#pragma unroll
+    for (int i = 1; i < 8; ++i)
+    {
+        asm volatile (
+            "addc.cc.u32 %0, %0, %1;":
+            "+r"(x[i]):
+            "r"(y[i])
+        );
+    }
+
+    asm volatile (
+        "addc.u32 %0, %0, 0;":
+        "+r"(*carry)
+    );
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//  256 bits subtraction with borrow-out
+////////////////////////////////////////////////////////////////////////////////
+// [x, carry] = [x, carry] - y
+__global__ void sub(
+    // 8 * 32 bits
+    uint32_t * x,
+    // 1 * 32 bits
+    uint32_t * carry,
+    // 8 * 32 bits
+    uint32_t * y
+) {
+    asm volatile (
+        "sub.cc.u32 %0, %0, %1;":
+        "+r"(x[0]):
+        "r"(y[0])
+    );
+
+#pragma unroll
+    for (int i = 1; i < 8; ++i)
+    {
+        asm volatile (
+            "subc.cc.u32 %0, %0, %1;":
+            "+r"(x[i]):
+            "r"(y[i])
+        );
+    }
+
+    asm volatile (
+        "subc.u32 %0, %0, 0;":
+        "+r"(*carry)
+    );
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//  256 bits multiplication
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void mul(
     // 8 * 32 bits

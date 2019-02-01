@@ -16,6 +16,8 @@ TESTEXEC = test.out
 .cu.o:
 	$(CXX) $(COPT) $(CFLAGS) $< -o $@
 
+all: clean lib test
+
 lib: $(OBJECTS)
 	mkdir -p ./lib;
 	$(AR) rc $(LIBPATH) $(OBJECTS)
