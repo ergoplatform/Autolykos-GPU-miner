@@ -18,11 +18,16 @@
 // 64 bits
 #define Q1       0x14DEF9DEA2F79CD6
 #define Q0       0x5812631A5CF5D3ED
+#define FdotQ3   0xF000000000000000
+#define FdotQ2   1
+#define FdotQ1   0x3910A40B8C82308F
+#define FdotQ0   0x2913CE8B72676AE3
 // 32 bits
 #define q3_s     "0x14DEF9DE"
 #define q2_s     "0xA2F79CD6"
 #define q1_s     "0x5812631A"
 #define q0_s     "0x5CF5D3ED"
+
 
 // state context
 typedef struct {

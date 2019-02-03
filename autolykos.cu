@@ -63,9 +63,14 @@ __global__ void prehash(
 
     uint64_t * blake2b_iv = (uint64_t *)shared;
     uint8_t * sigma = (uint8_t *)(shared + 16);
-    uint32_t * rem = shared + 64;
+    uint32_t * sk = shared + 72;
+    uint32_t * rem = shared + 80;
 
     tid = threadIdx.x + blockDim.x * blockIdx.x;
+    blake2b_ctx ctx;
+    uint32_t valid = 1;
+    uint64_t * p[4];// = (uint64_t *)(hash + ((uint64_t)tid) << 3);
+    uint64_t * res[9];
 
     //====================================================================//
     //  Initialize context
@@ -76,14 +81,14 @@ __global__ void prehash(
         ctx.h[j] = blake2b_iv[j];
     }
 
-    ctx.h[0] ^= 0x01010000 ^ (KEY_LEN << 8) ^ HASH_LEN;
+    ctx.h[0] ^= 0x01010000 ^ (0 << 8) ^ HASH_LEN;
 
     ctx.t[0] = 0;
     ctx.t[1] = 0;
     ctx.c = 0;
 
 #pragma unroll
-    for (j = KEY_LEN; j < 128; ++j)
+    for (j = 0; j < 128; ++j)
     {
         ctx.b[j] = 0;
     }
@@ -264,12 +269,12 @@ __global__ void prehash(
     //====================================================================//
     //  Hash public key, message & one-time public key
     //====================================================================//
-    for (j = 0; ctx.c < 128 && j < KEY_LEN * 3; ++j)
+    for (j = 0; ctx.c < 128 && j < KEY_LEN * 3 * sizeof(uint8_t); ++j)
     {
         ctx.b[ctx.c++] = ((const uint8_t *)rem)[j];
     }
 
-    while (j < KEY_LEN * 3)
+    while (j < KEY_LEN * 3 * sizeof(uint8_t))
     {
         ctx.t[0] += ctx.c;
         ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
@@ -311,7 +316,7 @@ __global__ void prehash(
 
         ctx.c = 0;
        
-        while (ctx.c < 128 && j < KEY_LEN * 3)
+        while (ctx.c < 128 && j < KEY_LEN * 3 * sizeof(uint8_t))
         {
             ctx.b[ctx.c++] = ((const uint8_t *)rem)[j++];
         }
@@ -366,7 +371,453 @@ __global__ void prehash(
 
     for (j = 0; j < HASH_LEN; ++j)
     {
-        ((uint8_t *)out)[j] = (ctx.h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
+        ((uint8_t *)p)[j] = (ctx.h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
+    }
+
+    while (valid)
+    {
+        if (
+            p[3] <= FdotQ3 && p[2] <= FdotQ2 && p[1] <= FdotQ1 & p[0] <= FdotQ0
+        ) {
+            valid = 0;
+        } else {
+    //====================================================================//
+    //  Initialize context
+    //====================================================================//
+#pragma unroll
+            for (j = 0; j < 8; ++j)
+            {
+                ctx.h[j] = blake2b_iv[j];
+            }
+
+            ctx.h[0] ^= 0x01010000 ^ (0 << 8) ^ HASH_LEN;
+
+            ctx.t[0] = 0;
+            ctx.t[1] = 0;
+            ctx.c = 0;
+
+#pragma unroll
+            for (j = 0; j < 128; ++j)
+            {
+                ctx.b[j] = 0;
+            }
+
+        ///     //====================================================================//
+        ///     //  Hash key [optional]
+        ///     //====================================================================//
+        ///     for (j = 0; j < KEY_LEN & 0xFFFFFF80; ++j)
+        ///     {
+        ///         while (ctx.c < 128)
+        ///         {
+        ///             ctx.b[ctx.c++] = ((const uint8_t *)key)[j++];
+        ///         }
+        /// 
+        ///         ctx.t[0] += ctx.c;
+        ///         ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
+        /// 
+        /// #pragma unroll
+        ///         for (int i = 0; i < 8; ++i)
+        ///         {
+        ///             v[i] = ctx.h[i];
+        ///             v[i + 8] = blake2b_iv[i];
+        ///         }
+        /// 
+        ///         v[12] ^= ctx.t[0];
+        ///         v[13] ^= ctx.t[1];
+        /// 
+        /// #pragma unroll
+        ///         for (int i = 0; i < 16; i++)
+        ///         {
+        ///             m[i] = B2B_GET64(&ctx.b[8 * i]);
+        ///         }
+        /// 
+        /// #pragma unroll
+        ///         for (int i = 0; i < 12 << 4; i += 16)
+        ///         {
+        ///             B2B_G(0, 4,  8, 12, m[sigma[i + 0]], m[sigma[i + 1]]);
+        ///             B2B_G(1, 5,  9, 13, m[sigma[i + 2]], m[sigma[i + 3]]);
+        ///             B2B_G(2, 6, 10, 14, m[sigma[i + 4]], m[sigma[i + 5]]);
+        ///             B2B_G(3, 7, 11, 15, m[sigma[i + 6]], m[sigma[i + 7]]);
+        ///             B2B_G(0, 5, 10, 15, m[sigma[i + 8]], m[sigma[i + 9]]);
+        ///             B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
+        ///             B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
+        ///             B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
+        ///         }
+        /// 
+        /// #pragma unroll
+        ///         for (int i = 0; i < 8; ++i)
+        ///         {
+        ///             ctx.h[i] ^= v[i] ^ v[i + 8];
+        ///         }
+        /// 
+        ///         ctx.c = 0;
+        /// 
+        ///         ctx.b[ctx.c++] = ((const uint8_t *)key)[j];
+        ///     }
+        /// 
+        ///     while (j < KEY_LEN)
+        ///     {
+        ///         ctx.b[ctx.c++] = ((const uint8_t *)key)[j++];
+        ///     }
+        /// 
+        ///     ctx.c = ((1 - !(KEY_LEN > 0)) << 7) + (!(KEY_LEN > 0)) * ctx.c;
+
+    //====================================================================//
+    //  Hash previous hash
+    //====================================================================//
+            for (j = 0; ctx.c < 128 && j < HASH_LEN; ++j)
+            {
+                ctx.b[ctx.c++] = ((const uint8_t *)p)[j];
+            }
+
+            while (j < HASH_LEN)
+            {
+                ctx.t[0] += ctx.c;
+                ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
+
+#pragma unroll
+                for (int i = 0; i < 8; ++i)
+                {
+                    v[i] = ctx.h[i];
+                    v[i + 8] = blake2b_iv[i];
+                }
+
+                v[12] ^= ctx.t[0];
+                v[13] ^= ctx.t[1];
+
+#pragma unroll
+                for (int i = 0; i < 16; i++)
+                {
+                    m[i] = B2B_GET64(&ctx.b[8 * i]);
+                }
+
+#pragma unroll
+                for (int i = 0; i < 12 << 4; i += 16)
+                {
+                    B2B_G(0, 4,  8, 12, m[sigma[i + 0]], m[sigma[i + 1]]);
+                    B2B_G(1, 5,  9, 13, m[sigma[i + 2]], m[sigma[i + 3]]);
+                    B2B_G(2, 6, 10, 14, m[sigma[i + 4]], m[sigma[i + 5]]);
+                    B2B_G(3, 7, 11, 15, m[sigma[i + 6]], m[sigma[i + 7]]);
+                    B2B_G(0, 5, 10, 15, m[sigma[i + 8]], m[sigma[i + 9]]);
+                    B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
+                    B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
+                    B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
+                }
+
+#pragma unroll
+                for (int i = 0; i < 8; ++i)
+                {
+                    ctx.h[i] ^= v[i] ^ v[i + 8];
+                }
+
+                ctx.c = 0;
+               
+                while (ctx.c < 128 && j < HASH_LEN)
+                {
+                    ctx.b[ctx.c++] = ((const uint8_t *)p)[j++];
+                }
+            }
+
+    //====================================================================//
+    //  Finalize hash
+    //====================================================================//
+            ctx.t[0] += ctx.c;
+            ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
+
+            while (ctx.c < 128)
+            {
+                ctx.b[ctx.c++] = 0;
+            }
+
+#pragma unroll
+            for (int i = 0; i < 8; ++i)
+            {
+                v[i] = ctx.h[i];
+                v[i + 8] = blake2b_iv[i];
+            }
+
+            v[12] ^= ctx.t[0];
+            v[13] ^= ctx.t[1];
+            v[14] = ~v[14];
+
+#pragma unroll
+            for (int i = 0; i < 16; i++)
+            {
+                m[i] = B2B_GET64(&ctx.b[8 * i]);
+            }
+
+#pragma unroll
+            for (int i = 0; i < 12 << 4; i += 16)
+            {
+                B2B_G(0, 4,  8, 12, m[sigma[i + 0]], m[sigma[i + 1]]);
+                B2B_G(1, 5,  9, 13, m[sigma[i + 2]], m[sigma[i + 3]]);
+                B2B_G(2, 6, 10, 14, m[sigma[i + 4]], m[sigma[i + 5]]);
+                B2B_G(3, 7, 11, 15, m[sigma[i + 6]], m[sigma[i + 7]]);
+                B2B_G(0, 5, 10, 15, m[sigma[i + 8]], m[sigma[i + 9]]);
+                B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
+                B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
+                B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
+            }
+
+#pragma unroll
+            for (int i = 0; i < 8; ++i)
+            {
+                ctx.h[i] ^= v[i] ^ v[i + 8];
+            }
+
+            for (j = 0; j < HASH_LEN; ++j)
+            {
+                ((uint8_t *)p)[j] = (ctx.h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
+            }
+        }
+    }
+
+    uint32_t * x = (uint32_t *)p; 
+    uint32_t * y = (uint32_t *)sk; 
+
+    //====================================================================//
+    //  x[0] * y -> res[0, ..., 7, 8]
+    //====================================================================//
+    // initialize res[0, ..., 7]
+#pragma unroll
+    for (int j = 0; j < 8; j += 2)
+    {
+        asm volatile (
+            "mul.lo.u32 %0, %1, %2;": "=r"(res[j]): "r"(x[0]), "r"(y[j])
+        );
+        asm volatile (
+            "mul.hi.u32 %0, %1, %2;": "=r"(res[j + 1]): "r"(x[0]), "r"(y[j])
+        );
+    }
+
+    //====================================================================//
+    asm volatile (
+        "mad.lo.cc.u32 %0, %1, %2, %0;": "+r"(res[1]): "r"(x[0]), "r"(y[1])
+    );
+    asm volatile (
+        "madc.hi.cc.u32 %0, %1, %2, %0;": "+r"(res[2]): "r"(x[0]), "r"(y[1])
+    );
+
+#pragma unroll
+    for (int j = 3; j < 6; j += 2)
+    {
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, %2, %0;": "+r"(res[j]): "r"(x[0]), "r"(y[j])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1, %2, %0;":
+            "+r"(res[j + 1]): "r"(x[0]), "r"(y[j])
+        );
+    }
+
+    asm volatile (
+        "madc.lo.cc.u32 %0, %1, %2, %0;": "+r"(res[7]): "r"(x[0]), "r"(y[7])
+    );
+    // initialize res[8]
+    asm volatile (
+        "madc.hi.u32 %0, %1, %2, 0;": "=r"(res[8]): "r"(x[0]), "r"(y[7])
+    );
+
+    //====================================================================//
+    //  x[i] * y -> res[i, ..., i + 7, i + 8]
+    //====================================================================//
+#pragma unroll
+    for (int i = 1; i < 8; ++i)
+    {
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, %2, %0;": "+r"(res[i]): "r"(x[i]), "r"(y[0])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1, %2, %0;":
+            "+r"(res[i + 1]): "r"(x[i]), "r"(y[0])
+        );
+
+#pragma unroll
+        for (int j = 2; j < 8; j += 2)
+        {
+            asm volatile (
+                "madc.lo.cc.u32 %0, %1, %2, %0;":
+                "+r"(res[i + j]): "r"(x[i]), "r"(y[j])
+            );
+            asm volatile (
+                "madc.hi.cc.u32 %0, %1, %2, %0;":
+                "+r"(res[i + j + 1]): "r"(x[i]), "r"(y[j])
+            );
+        }
+
+    // initialize res[i + 8]
+        asm volatile (
+            "addc.u32 %0, 0, 0;": "=r"(res[i + 8])
+        );
+
+    //====================================================================//
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, %2, %0;":
+            "+r"(res[i + 1]): "r"(x[i]), "r"(y[1])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1, %2, %0;":
+            "+r"(res[i + 2]): "r"(x[i]), "r"(y[1])
+        );
+
+#pragma unroll
+        for (int j = 3; j < 6; j += 2)
+        {
+            asm volatile (
+                "madc.lo.cc.u32 %0, %1, %2, %0;":
+                "+r"(res[i + j]): "r"(x[i]), "r"(y[j])
+            );
+            asm volatile (
+                "madc.hi.cc.u32 %0, %1, %2, %0;":
+                "+r"(res[i + j + 1]): "r"(x[i]), "r"(y[j])
+            );
+        }
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, %2, %0;":
+            "+r"(res[i + 7]): "r"(x[i]), "r"(y[7])
+        );
+        asm volatile (
+            "madc.hi.u32 %0, %1, %2, %0;":
+            "+r"(res[i + 8]): "r"(x[i]), "r"(y[7])
+        );
+    }
+
+    uint32_t * y = (uint32_t *)res; 
+    uint32_t d[2]; 
+    uint32_t med[6];
+    uint32_t carry;
+
+    for (int i = (9 - 1) << 1; i >= 8; i -= 2)
+    {
+        *((uint64_t *)d) = ((res[i >> 1] << 4) | (res[(i >> 1) - 1] >> 60))
+            - (res[i >> 1] >> 60);
+
+        // correct highest 32 bits
+        y[i - 1] = (y[i - 1] & 0x0FFFFFFF) | y[i + 1] & 0x10000000;
+
+    //====================================================================//
+    //  d * q -> med[0, ..., 5]
+    //====================================================================//
+        asm volatile (
+            "mul.lo.u32 %0, %1, "q0_s";": "=r"(med[0]): "r"(d[0])
+        );
+        asm volatile (
+            "mul.hi.u32 %0, %1, "q0_s";": "=r"(med[1]): "r"(d[0])
+        );
+        asm volatile (
+            "mul.lo.u32 %0, %1, "q2_s";": "=r"(med[2]): "r"(d[0])
+        );
+        asm volatile (
+            "mul.hi.u32 %0, %1, "q2_s";": "=r"(med[3]): "r"(d[0])
+        );
+
+    //====================================================================//
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[1]): "r"(d[0])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[2]): "r"(d[0])
+        );
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(med[3]): "r"(d[0])
+        );
+        asm volatile (
+            "madc.hi.u32 %0, %1, "q3_s", 0;": "=r"(med[4]): "r"(d[0])
+        );
+
+    //====================================================================//
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q0_s", %0;": "+r"(med[1]): "r"(d[1])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1, "q0_s", %0;": "+r"(med[2]): "r"(d[1])
+        );
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q2_s", %0;": "+r"(med[3]): "r"(d[1])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1," q2_s", %0;": "+r"(med[4]): "r"(d[1])
+        );
+        asm volatile (
+            "addc.u32 %0, 0, 0;": "=r"(med[5])
+        );
+
+    //====================================================================//
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[2]): "r"(d[1])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[3]): "r"(d[1])
+        );
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(med[4]): "r"(d[1])
+        );
+        asm volatile (
+            "madc.hi.u32 %0, %1, "q3_s", %0;": "+r"(med[5]): "r"(d[1])
+        );
+
+    //====================================================================//
+    //  x[i/2 - 2, i/2 - 3, i/2 - 4] mod q
+    //====================================================================//
+        asm volatile (
+            "sub.cc.u32 %0, %0, %1;": "+r"(y[i - 8]): "r"(med[0])
+        );
+
+#pragma unroll
+        for (int j = 1; j < 6; ++j)
+        {
+            asm volatile (
+                "subc.cc.u32 %0, %0, %1;": "+r"(y[i + j - 8]): "r"(med[j])
+            );
+        }
+
+        asm volatile (
+            "subc.cc.u32 %0, %0, 0;": "+r"(y[i - 2])
+        );
+
+        asm volatile (
+            "subc.cc.u32 %0, %0, 0;": "+r"(y[i - 1])
+        );
+
+    //====================================================================//
+    //  x[i/2 - 2, i/2 - 3, i/2 - 4] correction
+    //====================================================================//
+        asm volatile (
+            "subc.u32 %0, 0, 0;": "=r"(carry)
+        );
+
+        carry = 0 - carry;
+
+    //====================================================================//
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q0_s", %0;": "+r"(y[i - 8]): "r"(carry)
+        );
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(y[i - 7]): "r"(carry)
+        );
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q2_s", %0;": "+r"(y[i - 6]): "r"(carry)
+        );
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(y[i - 5]): "r"(carry)
+        );
+
+    //====================================================================//
+#pragma unroll
+        for (int j = 0; j < 3; ++j)
+        {
+            asm volatile (
+                "addc.cc.u32 %0, %0, 0;": "+r"(y[i + j - 4])
+            );
+        }
+
+        asm volatile (
+            "addc.u32 %0, %0, 0;": "+r"(y[i - 1])
+        );
     }
 
     return;
@@ -421,13 +872,13 @@ void partialHash(
         ctx->h[j] = blake2b_iv[j];
     }
 
-    ctx->h[0] ^= 0x01010000 ^ (KEY_LEN << 8) ^ HASH_LEN;
+    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ HASH_LEN;
 
     ctx->t[0] = 0;
     ctx->t[1] = 0;
     ctx->c = 0;
 
-    for (j = KEY_LEN; j < 128; ++j)
+    for (j = 0; j < 128; ++j)
     {
         ctx->b[j] = 0;
     }

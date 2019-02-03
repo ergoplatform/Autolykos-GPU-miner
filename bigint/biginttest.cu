@@ -34,25 +34,25 @@ int main(int argc, char *argv[])
     uint64_t * y_h = (uint64_t *)malloc(4 * sizeof(uint64_t));
     uint64_t * res_h = (uint64_t *)malloc(8 * sizeof(uint64_t));
 
-    x_h[3] = 0x1000000000000000;
+    // x_h[3] = 0x1000000000000000;
+    // x_h[2] = 0;
+    // x_h[1] = Q1;
+    // x_h[0] = Q0_1;
+    // 
+    // y_h[3] = 0x1000000000000000;
+    // y_h[2] = 0;
+    // y_h[1] = Q1;
+    // y_h[0] = Q0_1;
+
+    x_h[3] = 0;
     x_h[2] = 0;
-    x_h[1] = Q1;
-    x_h[0] = Q0_1;
+    x_h[1] = 0;
+    x_h[0] = 1;
     
     y_h[3] = 0x1000000000000000;
     y_h[2] = 0;
     y_h[1] = Q1;
-    y_h[0] = Q0_1;
-
-    //x_h[3] = 0;
-    //x_h[2] = 0;
-    //x_h[1] = 0;
-    //x_h[0] = 0x100;
-      
-    //y_h[3] = 0x1000000000000000;
-    //y_h[2] = 0;
-    //y_h[1] = Q1;
-    //y_h[0] = Q0;
+    y_h[0] = Q0;
 
     uint32_t * x_d;
     uint32_t * y_d;
@@ -62,90 +62,126 @@ int main(int argc, char *argv[])
     CUDA_CALL(cudaMalloc((void **)&y_d, 8 * sizeof(uint32_t)));
     CUDA_CALL(cudaMalloc((void **)&res_d, 8 * sizeof(uint64_t)));
 
+    /// //====================================================================//
+    /// //  Multiplication mod q test
+    /// //====================================================================//
+    /// for (int i = 1; i < 0xFF; ++i)
+    /// {
+    ///     x_h[0] = Q0 - i;
+    ///     for (int j = 1; j < 0xFF; ++j)
+    ///     {
+    ///         y_h[0] = Q0 - j;
+    ///         CUDA_CALL(cudaMemcpy(
+    ///             x_d, (uint32_t *)x_h, 8 * sizeof(uint32_t),
+    ///             cudaMemcpyHostToDevice
+    ///         ));
+    ///         CUDA_CALL(cudaMemcpy(
+    ///             y_d, (uint32_t *)y_h, 8 * sizeof(uint32_t),
+    ///             cudaMemcpyHostToDevice
+    ///         ));
+
+    ///         mul<<<1, 1>>>(x_d, y_d, (uint32_t *)res_d);
+    ///         mod_q<<<1, 1>>>(8, res_d);
+
+    ///         CUDA_CALL(cudaMemcpy(
+    ///             res_h, res_d, 8 * sizeof(uint64_t), cudaMemcpyDeviceToHost
+    ///         ));
+
+    ///         //printf("%#lx, %#lx,\n%#lx, %#lx\n", res_h[7], res_h[6], res_h[5], res_h[4]);
+
+    ///         if (
+    ///             res_h[3] > 0 || res_h[2] > 0
+    ///             || res_h[1] > 0 || res_h[0] != i * j
+    ///         ) {
+    ///             printf(
+    ///                 "%#lx, %#lx, %#lx, %#lx ",
+    ///                 res_h[3], res_h[2], res_h[1], res_h[0]
+    ///             );
+    ///             printf("\ti * j = %#x\n", i * j);
+    ///         }
+    ///     }
+    ///     printf("i = %d\n", i);
+    /// }
+
+    /// //====================================================================//
+    /// //  Addition mod q test
+    /// //====================================================================//
+    /// for (int i = 1; i < 0xFF; ++i)
+    /// {
+    ///     for (int j = 1; j < 0xFF; ++j)
+    ///     {
+    ///         x_h[3] = 0x1000000000000000;
+    ///         x_h[2] = 0;
+    ///         x_h[1] = Q1;
+    ///         x_h[0] = Q0 + i;
+    ///         y_h[0] = Q0 + j;
+    ///         CUDA_CALL(cudaMemcpy(
+    ///             x_d, (uint32_t *)x_h, 8 * sizeof(uint32_t),
+    ///             cudaMemcpyHostToDevice
+    ///         ));
+    ///         CUDA_CALL(cudaMemcpy(
+    ///             y_d, (uint32_t *)y_h, 8 * sizeof(uint32_t),
+    ///             cudaMemcpyHostToDevice
+    ///         ));
+    ///         CUDA_CALL(cudaMemset((void *)(x_d + 8), 0, 2 * sizeof(uint32_t)));
+
+
+    ///         addc<<<1, 1>>>(x_d, x_d + 8, y_d);
+    ///         mod_q<<<1, 1>>>(5, (uint64_t *)x_d);
+
+    ///         CUDA_CALL(cudaMemcpy(
+    ///             x_h, (uint64_t *)x_d, 5 * sizeof(uint64_t),
+    ///             cudaMemcpyDeviceToHost
+    ///         ));
+
+    ///         if (
+    ///             x_h[4] > 0 || x_h[3] > 0 || x_h[2] > 0
+    ///             || x_h[1] > 0 || x_h[0] != i + j
+    ///         ) {
+    ///             printf(
+    ///                 "%#lx, %#lx, %#lx, %#lx, %#lx ",
+    ///                 x_h[4], x_h[3], x_h[2], x_h[1], x_h[0]
+    ///             );
+    ///             printf("\ti + j = %#x\n", i + j);
+    ///         }
+    ///     }
+    ///     printf("i = %d\n", i);
+    /// }
+
     //====================================================================//
     //  Multiplication mod q test
     //====================================================================//
-    for (int i = 1; i < 0xFF; ++i)
+    for (int j = 1; j < 0xFF; ++j)
     {
-        x_h[0] = Q0 - i;
-        for (int j = 1; j < 0xFF; ++j)
+        x_h[0] = j;
+        CUDA_CALL(cudaMemcpy(
+            x_d, (uint32_t *)x_h, 8 * sizeof(uint32_t),
+            cudaMemcpyHostToDevice
+        ));
+        CUDA_CALL(cudaMemcpy(
+            y_d, (uint32_t *)y_h, 8 * sizeof(uint32_t),
+            cudaMemcpyHostToDevice
+        ));
+
+        mul<<<1, 1>>>(x_d, y_d, (uint32_t *)res_d);
+        //mod_q<<<1, 1>>>(8, res_d);
+
+        CUDA_CALL(cudaMemcpy(
+            res_h, res_d, 8 * sizeof(uint64_t), cudaMemcpyDeviceToHost
+        ));
+
+        //printf("%#lx, %#lx,\n%#lx, %#lx\n", res_h[7], res_h[6], res_h[5], res_h[4]);
+
+        printf(
+            "%lx, %#lx, %#lx, %#lx, %#lx ",
+            res_h[4], res_h[3], res_h[2], res_h[1], res_h[0]
+        );
+        printf("\tj = %#x\n", j);
+
+        if (res_h[4] > 0)
         {
-            y_h[0] = Q0 - j;
-            CUDA_CALL(cudaMemcpy(
-                x_d, (uint32_t *)x_h, 8 * sizeof(uint32_t),
-                cudaMemcpyHostToDevice
-            ));
-            CUDA_CALL(cudaMemcpy(
-                y_d, (uint32_t *)y_h, 8 * sizeof(uint32_t),
-                cudaMemcpyHostToDevice
-            ));
-
-            mul<<<1, 1>>>(x_d, y_d, (uint32_t *)res_d);
-            mod_q<<<1, 1>>>(8, res_d);
-
-            CUDA_CALL(cudaMemcpy(
-                res_h, res_d, 8 * sizeof(uint64_t), cudaMemcpyDeviceToHost
-            ));
-
-            //printf("%#lx, %#lx,\n%#lx, %#lx\n", res_h[7], res_h[6], res_h[5], res_h[4]);
-
-            if (
-                res_h[3] > 0 || res_h[2] > 0
-                || res_h[1] > 0 || res_h[0] != i * j
-            ) {
-                printf(
-                    "%#lx, %#lx, %#lx, %#lx ",
-                    res_h[3], res_h[2], res_h[1], res_h[0]
-                );
-                printf("\ti * j = %#x\n", i * j);
-            }
+            break;
         }
-        printf("i = %d\n", i);
-    }
-
-    //====================================================================//
-    //  Addition mod q test
-    //====================================================================//
-    for (int i = 1; i < 0xFF; ++i)
-    {
-        for (int j = 1; j < 0xFF; ++j)
-        {
-            x_h[3] = 0x1000000000000000;
-            x_h[2] = 0;
-            x_h[1] = Q1;
-            x_h[0] = Q0 + i;
-            y_h[0] = Q0 + j;
-            CUDA_CALL(cudaMemcpy(
-                x_d, (uint32_t *)x_h, 8 * sizeof(uint32_t),
-                cudaMemcpyHostToDevice
-            ));
-            CUDA_CALL(cudaMemcpy(
-                y_d, (uint32_t *)y_h, 8 * sizeof(uint32_t),
-                cudaMemcpyHostToDevice
-            ));
-            CUDA_CALL(cudaMemset((void *)(x_d + 8), 0, 2 * sizeof(uint32_t)));
-
-
-            addc<<<1, 1>>>(x_d, x_d + 8, y_d);
-            mod_q<<<1, 1>>>(5, (uint64_t *)x_d);
-
-            CUDA_CALL(cudaMemcpy(
-                x_h, (uint64_t *)x_d, 5 * sizeof(uint64_t),
-                cudaMemcpyDeviceToHost
-            ));
-
-            if (
-                x_h[4] > 0 || x_h[3] > 0 || x_h[2] > 0
-                || x_h[1] > 0 || x_h[0] != i + j
-            ) {
-                printf(
-                    "%#lx, %#lx, %#lx, %#lx, %#lx ",
-                    x_h[4], x_h[3], x_h[2], x_h[1], x_h[0]
-                );
-                printf("\ti + j = %#x\n", i + j);
-            }
-        }
-        printf("i = %d\n", i);
     }
 
     CUDA_CALL(cudaFree(x_d));
