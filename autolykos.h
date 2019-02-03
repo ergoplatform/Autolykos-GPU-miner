@@ -36,6 +36,15 @@ typedef struct {
     uint32_t c;
 } blake2b_ctx;
 
+__global__ void prehash(
+    const void * data,
+    // message
+    const void * mes,
+    uint32_t meslen,
+    // hashes
+    void * hash
+);
+
 void partialHash(
     // context
     blake2b_ctx * ctx,
@@ -46,18 +55,8 @@ void partialHash(
     uint32_t meslen
 );
 
-__global__ void hash(
-    // optional secret key
-    const void * key,
-    // message
-    const void * mes,
-    uint32_t meslen,
-    // hashes
-    void * hash
-);
-
 __global__ void blockMining(
-    const uint32_t * data,
+    const void * data,
     // precalculated hashes
     const void * hash,
     // pregenerated nonces
