@@ -57,58 +57,63 @@ void initRand(
 ////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char ** argv)
 {
+    // host allocation
+    blake2b_ctx * ctx_h = (blake2b_ctx *)malloc(sizeof(blake2b_ctx));
+    // 256 bits
+    uint32_t * mes_h = (uint32_t *)calloc(8, sizeof(uint32_t)); 
+    // L_SIZE * 256 bits
+    //uint32_t * res_h = (uint32_t *)malloc(L_SIZE * 8 * sizeof(uint32_t)); 
+
+    // device allocation
+    uint32_t * data_d;
+    CUDA_CALL(cudaMalloc(&data_d, BDIM * sizeof(uint32_t)));
+    // L_SIZE * 256 bits
+    uint32_t * res_d;
+    CUDA_CALL(cudaMalloc(&res_d, L_SIZE * 8 * sizeof(uint32_t)));
+
+    int ind = -1;
+
+    // intialize random generator
     curandGenerator_t gen;
     // L_SIZE * 256 bits
     uint32_t * non_d;
     initRand(&gen, &non_d);
 
-    blake2b_ctx * ctx_h = (blake2b_ctx *)malloc(sizeof(blake2b_ctx));
-    // 256 bits
-    uint32_t * mes_h = (uint32_t *)calloc(8, sizeof(uint32_t)); 
-    // L_SIZE * 256 bits
-    uint32_t * res_h = (uint32_t *)malloc(L_SIZE * 4 * sizeof(uint32_t)); 
-
-    blake2b_ctx * ctx_d;
-    CUDA_CALL(cudaMalloc(&ctx_d, BDIM * sizeof(uint32_t)));
-    // L_SIZE * 256 bits
-    uint32_t * res_d;
-    CUDA_CALL(cudaMalloc(&res_d, L_SIZE * 4 * sizeof(uint32_t)));
-
-    int ind = -1;
-
     // secret key
     //>>>genKey();
+    CUDA_CALL(cudaMemcpy(
+        data_d, sk_h, KEY_LEN * sizeof(uint8_t), cudaMemcpyHostToDevice
+    ));
 
     while (1)
     {
-        // one time secret key
-        //>>>genKey()
-        ;
-
         if (ind >= 0)
         {
+            // one time secret key
+            //>>>genKey();
+
             //>>>hash();
         }
 
         // generate nonces
-        CURAND_CALL(curandGenerate(gen, non_d, L_SIZE));
+        CURAND_CALL(curandGenerate(gen, non_d, L_SIZE * 8));
 
         // calculate unfinalized hash of message
-        partialHash(ctx_h, NULL, mes_h, 32);
+        partialHash(ctx_h, sk_h, mes_h, 32);
 
         CUDA_CALL(cudaMemcpy(
-            ctx_d, ctx_h, sizeof(blake2b_ctx), cudaMemcpyHostToDevice
+            data_d + 8, ctx_h, sizeof(blake2b_ctx), cudaMemcpyHostToDevice
         ));
 
         // calculate hashes
-        blockMining<<<GDIM, BDIM>>>(ctx_d, non_d, res_d);
+        blockMining<<<GDIM, BDIM>>>(ctx_d, hash_d, non_d, res_d);
 
         //>>>ind = findSolution(res);
     }
 
     CURAND_CALL(curandDestroyGenerator(gen));
     CUDA_CALL(cudaFree(non));
-    CUDA_CALL(cudaFree(ctx_d));
+    CUDA_CALL(cudaFree(data_d));
     free(ctx_h);
 
     return 0;

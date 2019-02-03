@@ -5,20 +5,24 @@
 #include <stddef.h>
 
 // Parameters
-#define KEY_LEN 32       // in bytes
-#define NON_LEN 32       // in bytes
-#define HASH_LEN 32      // in bytes
-#define K_SIZE 32
-#define B_SIZE 10
-#define N_SIZE 0x4000000 // 2^26
-#define H_SIZE 4         // hashes per thread
-#define L_SIZE 0x3D090   // H_SIZE * 10^6
-#define GDIM 15625
-#define BDIM 64          // GDIM * BDIM = 10^6
-
+#define KEY_LEN  32                 // in bytes
+#define NON_LEN  32                 // in bytes
+#define HASH_LEN 32                 // in bytes
+#define K_SIZE   32
+#define B_SIZE   10
+#define N_SIZE   0x4000000          // 2^26
+#define H_SIZE   4                  // hashes per thread
+#define L_SIZE   0x3D090            // H_SIZE * 10^6
+#define GDIM     15625
+#define BDIM     64                 // GDIM * BDIM = 10^6
 // 64 bits
-#define Q1 0x14DEF9DEA2F79CD6
-#define Q0 0x5812631A5CF5D3ED
+#define Q1       0x14DEF9DEA2F79CD6
+#define Q0       0x5812631A5CF5D3ED
+// 32 bits
+#define q3_s     "0x14DEF9DE"
+#define q2_s     "0xA2F79CD6"
+#define q1_s     "0x5812631A"
+#define q0_s     "0x5CF5D3ED"
 
 // state context
 typedef struct {
@@ -42,28 +46,22 @@ void partialHash(
     uint32_t meslen
 );
 
-__global__ void blockMining(
-    // context
-    blake2b_ctx * ctx,
-    // pregenerated nonces
-    const void * non,
-    // results
-    uint32_t * res
-);
-
 __global__ void hash(
     // optional secret key
     const void * key,
-    uint32_t keylen,
     // message
     const void * mes,
     uint32_t meslen,
+    // hashes
+    void * hash
+);
+
+__global__ void blockMining(
+    const uint32_t * data,
+    // precalculated hashes
+    const void * hash,
     // pregenerated nonces
     const void * non,
-    uint32_t nonlen,
-    // hashes
-    void * out,
-    uint32_t outlen,
     // results
     uint32_t * res
 );

@@ -201,10 +201,11 @@ void partialHash(
 //  Block mining                                                               
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void blockMining(
-    // context
-    blake2b_ctx * mes_ctx,
+    const uint32_t * data,
     // pregenerated nonces
     const void * non,
+    // precalculated hashes
+    const void * hash,
     // results
     uint32_t * res
 ) {
@@ -230,27 +231,34 @@ __global__ void blockMining(
         { 14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3 }
     };
 
+    // local
     uint64_t v[16];
     uint64_t m[16];
-    uint8_t hash[35];
-    blake2b_ctx * ctx;
+    uint32_t ind[K_SIZE];
+    // 5 * 64 bits, if HASH_LEN == 32
+    uint8_t h[HASH_LEN + 4];
 
     uint32_t j;
-    uint32_t ind = threadIdx.x;
+    uint32_t tid = threadIdx.x;
     __shared__ uint32_t shm[64];
 
-    shm[ind] = mes_ctx[ind];
+    shm[tid] = data[tid];
     __syncthreads();
 
+    // shared
+    uint32_t * key = (uint32_t *)shm;
+    blake2b_ctx * ctx;
+
 #pragma unroll
-    for (int k = 0; k < H_SIZE; ++k) 
+    for (int l = 0; l < H_SIZE; ++l) 
     {
-        ctx = (blake2b_ctx *)shm;
+        ctx = (blake2b_ctx *)(shm + 8);
 
-        ind = threadIdx.x + blockDim.x * blockIdx.x
-            + k * gridDim.x * blockDim.x;
+        tid = (
+            threadIdx.x + blockDim.x * blockIdx.x + l * gridDim.x * blockDim.x
+        ) << 3;
 
-        const uint8_t * mes = (const uint8_t *)((const uint32_t *)non + ind);
+        const uint8_t * mes = (const uint8_t *)((const uint32_t *)non + tid);
 
     //====================================================================//
     //  Hash nonce
@@ -309,7 +317,7 @@ __global__ void blockMining(
         }
 
     //====================================================================//
-    //  Finalize hash
+    //  Finalize h
     //====================================================================//
         ctx->t[0] += ctx->c;
         ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
@@ -357,33 +365,189 @@ __global__ void blockMining(
 
         for (j = 0; j < HASH_LEN; ++j)
         {
-            hash[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
+            h[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
         }
 
     //===================================================================//
     //  Generate indices
     //===================================================================//
-        uint32_t indices[K_SIZE];
-
 #pragma unroll
         for (int i = 0; i < 3; ++i)
         {
-            hash[HASH_LEN + i] = hash[i];
+            h[HASH_LEN + i] = h[i];
         }
 
 #pragma unroll
         for (int i = 0; i < K_SIZE; ++i)
         {
-            indices[i] = *((uint32_t *)(hash + i)) & 0x03FFFFFF;
+            ind[i] = *((uint32_t *)(h + i)) & 0x03FFFFFF;
         }
         
     //===================================================================//
     //  Calculate result
     //===================================================================//
-#pragma unroll
-        for (int i = 0; i < K_SIZE; ++i)
-        {
+        uint32_t * r = (uint32_t *)h;
 
+        // first addition of hashes -> r
+        asm volatile (
+            "add.cc.u32 %0, %1, %2;":
+            "=r"(h[0]): "r"(hash[ind[0]][0]), "r"(hash[ind[1]][0])
+        );
+
+#pragma unroll
+        for (int i = 1; i < 8; ++i)
+        {
+            asm volatile (
+                "addc.cc.u32 %0, %1, %2;":
+                "=r"(h[i]): "r"(hash[ind[0]][i]), "r"(hash[ind[1]][i])
+            );
+        }
+
+        asm volatile (
+            "addc.u32 %0, 0, 0;": "=r"(r[8])
+        );
+
+        // remaining additions
+#pragma unroll
+        for (int k = 2; k < K_SIZE; ++k)
+        {
+            asm volatile (
+                "add.cc.u32 %0, %0, %1;": "+r"(r[0]): "r"(hash[ind[k]][0])
+            );
+
+#pragma unroll
+            for (int i = 1; i < 8; ++i)
+            {
+                asm volatile (
+                    "addc.cc.u32 %0, %0, %1;": "+r"(r[i]): "r"(hash[ind[k]][i])
+                );
+            }
+
+            asm volatile (
+                "addc.u32 %0, %0, 0;": "+r"(r[8])
+            );
+        }
+
+        // subtraction of secret key
+        asm volatile (
+            "sub.cc.u32 %0, %0, %1;": "+r"(r[0]): "r"(key[0])
+        );
+
+#pragma unroll
+        for (int i = 1; i < 8; ++i)
+        {
+            asm volatile (
+                "subc.cc.u32 %0, %0, %1;": "+r"(r[i]): "r"(key[i])
+            );
+        }
+
+        asm volatile (
+            "subc.u32 %0, %0, 0;": "+r"(r[8])
+        );
+
+
+    //===================================================================//
+    //  result mod q
+    //===================================================================//
+        uint32_t * med = ind;
+        uint32_t * d = ind + 5; 
+        uint32_t * carry = ind + 6;
+
+        *d = (r[8] << 4) | (r[7] >> 28);
+
+        // correct highest 32 bits
+        r[7] &= 0x0FFFFFFF;
+
+    //====================================================================//
+        asm volatile (
+            "mul.lo.u32 %0, %1, "q0_s";": "=r"(med[0]): "r"(*d)
+        );
+        asm volatile (
+            "mul.hi.u32 %0, %1, "q0_s";": "=r"(med[1]): "r"(*d)
+        );
+        asm volatile (
+            "mul.lo.u32 %0, %1, "q2_s";": "=r"(med[2]): "r"(*d)
+        );
+        asm volatile (
+            "mul.hi.u32 %0, %1, "q2_s";": "=r"(med[3]): "r"(*d)
+        );
+
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[1]): "r"(*d)
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[2]): "r"(*d)
+        );
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(med[3]): "r"(*d)
+        );
+        asm volatile (
+            "madc.hi.u32 %0, %1, "q3_s", 0;": "=r"(med[4]): "r"(*d)
+        );
+
+    //====================================================================//
+        asm volatile (
+            "sub.cc.u32 %0, %0, %1;": "+r"(r[0]): "r"(med[0])
+        );
+
+#pragma unroll
+        for (int i = 1; i < 5; ++i)
+        {
+            asm volatile (
+                "subc.cc.u32 %0, %0, %1;": "+r"(r[i]): "r"(med[i])
+            );
+        }
+
+#pragma unroll
+        for (int i = 5; i < 8; ++i)
+        {
+            asm volatile (
+                "subc.cc.u32 %0, %0, 0;": "+r"(r[i])
+            );
+        }
+
+    //====================================================================//
+        asm volatile (
+            "subc.u32 %0, 0, 0;": "=r"(*carry)
+        );
+
+        *carry = 0 - *carry;
+
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q0_s", %0;": "+r"(r[0]): "r"(*carry)
+        );
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(r[1]): "r"(*carry)
+        );
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q2_s", %0;": "+r"(r[2]): "r"(*carry)
+        );
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(r[3]): "r"(*carry)
+        );
+
+#pragma unroll
+        for (int i = 0; i < 3; ++i)
+        {
+            asm volatile (
+                "addc.cc.u32 %0, %0, 0;": "+r"(r[i + 4])
+            );
+        }
+
+        asm volatile (
+            "addc.u32 %0, %0, 0;": "+r"(r[7])
+        );
+
+    //===================================================================//
+    //  dump result to global memory
+    //===================================================================//
+#pragma unroll
+        for (int i = 0; i < 3; ++i)
+        {
+            res[tid + i] = r[i];
         }
     }
 
