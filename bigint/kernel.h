@@ -4,6 +4,24 @@
 #include <stdint.h>
 #include <stddef.h>
 
+__global__ void addc(
+    // 8 * 32 bits
+    uint32_t * x,
+    // 1 * 32 bits
+    uint32_t * carry,
+    // 8 * 32 bits
+    uint32_t * y
+);
+
+__global__ void subc(
+    // 8 * 32 bits
+    uint32_t * x,
+    // 1 * 32 bits
+    uint32_t * carry,
+    // 8 * 32 bits
+    uint32_t * y
+);
+
 __global__ void mul(
     // 8 * 32 bits
     uint32_t * x,
@@ -21,4 +39,4 @@ __global__ void mod_q(
     // result 4 * 64 bits -> x[0, 1, 2, 3]
 );
 
-#endif 
+#endif // KERNEL_H

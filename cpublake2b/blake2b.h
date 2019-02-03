@@ -1,6 +1,3 @@
-// blake2b.h
-// BLAKE2b Hashing Context and API Prototypes
-
 #ifndef BLAKE2B_H
 #define BLAKE2B_H
 

@@ -1,35 +1,4 @@
-// blake2b.c
-
 #include "blake2b.h"
-
-// Cyclic right rotation.
-#ifndef ROTR64
-#define ROTR64(x, y)  (((x) >> (y)) ^ ((x) << (64 - (y))))
-#endif
-
-// Little-endian byte access.
-#define B2B_GET64(p)                            \
-    (((uint64_t) ((uint8_t *) (p))[0]) ^        \
-    (((uint64_t) ((uint8_t *) (p))[1]) << 8) ^  \
-    (((uint64_t) ((uint8_t *) (p))[2]) << 16) ^ \
-    (((uint64_t) ((uint8_t *) (p))[3]) << 24) ^ \
-    (((uint64_t) ((uint8_t *) (p))[4]) << 32) ^ \
-    (((uint64_t) ((uint8_t *) (p))[5]) << 40) ^ \
-    (((uint64_t) ((uint8_t *) (p))[6]) << 48) ^ \
-    (((uint64_t) ((uint8_t *) (p))[7]) << 56))
-
-// G Mixing function.
-#define B2B_G(a, b, c, d, x, y)     \
-{                                   \
-    v[a] = v[a] + v[b] + x;         \
-    v[d] = ROTR64(v[d] ^ v[a], 32); \
-    v[c] = v[c] + v[d];             \
-    v[b] = ROTR64(v[b] ^ v[c], 24); \
-    v[a] = v[a] + v[b] + y;         \
-    v[d] = ROTR64(v[d] ^ v[a], 16); \
-    v[c] = v[c] + v[d];             \
-    v[b] = ROTR64(v[b] ^ v[c], 63); \
-}
 
 // Initialization Vector.
 static const uint64_t blake2b_iv[8] = {

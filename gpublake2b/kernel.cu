@@ -1,38 +1,5 @@
 #include "blake2b.h"
 
-// Little-endian byte access
-#ifndef B2B_GET64
-#define B2B_GET64(p)                            \
-    (((uint64_t) ((uint8_t *) (p))[0]) ^        \
-    (((uint64_t) ((uint8_t *) (p))[1]) << 8) ^  \
-    (((uint64_t) ((uint8_t *) (p))[2]) << 16) ^ \
-    (((uint64_t) ((uint8_t *) (p))[3]) << 24) ^ \
-    (((uint64_t) ((uint8_t *) (p))[4]) << 32) ^ \
-    (((uint64_t) ((uint8_t *) (p))[5]) << 40) ^ \
-    (((uint64_t) ((uint8_t *) (p))[6]) << 48) ^ \
-    (((uint64_t) ((uint8_t *) (p))[7]) << 56))
-#endif
-
-// Cyclic right rotation
-#ifndef ROTR64
-#define ROTR64(x, y)  (((x) >> (y)) ^ ((x) << (64 - (y))))
-#endif
-
-// G mixing function
-#ifndef B2B_G
-#define B2B_G(a, b, c, d, x, y)     \
-{                                   \
-    v[a] = v[a] + v[b] + x;         \
-    v[d] = ROTR64(v[d] ^ v[a], 32); \
-    v[c] = v[c] + v[d];             \
-    v[b] = ROTR64(v[b] ^ v[c], 24); \
-    v[a] = v[a] + v[b] + y;         \
-    v[d] = ROTR64(v[d] ^ v[a], 16); \
-    v[c] = v[c] + v[d];             \
-    v[b] = ROTR64(v[b] ^ v[c], 63); \
-}
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 //  Hash
 ////////////////////////////////////////////////////////////////////////////////

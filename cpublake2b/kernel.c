@@ -1,4 +1,3 @@
-
 #include "blake2b.h"
 #include <stdlib.h>
 
@@ -8,6 +7,7 @@
 #endif
 
 // Little-endian byte access.
+#ifndef B2B_GET64
 #define B2B_GET64(p)                            \
     (((uint64_t) ((uint8_t *) (p))[0]) ^        \
     (((uint64_t) ((uint8_t *) (p))[1]) << 8) ^  \
@@ -17,8 +17,10 @@
     (((uint64_t) ((uint8_t *) (p))[5]) << 40) ^ \
     (((uint64_t) ((uint8_t *) (p))[6]) << 48) ^ \
     (((uint64_t) ((uint8_t *) (p))[7]) << 56))
+#endif
 
 // G Mixing function.
+#ifndef B2B_G
 #define B2B_G(a, b, c, d, x, y)     \
 {                                   \
     v[a] = v[a] + v[b] + x;         \
@@ -30,8 +32,11 @@
     v[c] = v[c] + v[d];             \
     v[b] = ROTR64(v[b] ^ v[c], 63); \
 }
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 // Hash
+////////////////////////////////////////////////////////////////////////////////
 void blake2b(
     void * out,
     size_t outlen,

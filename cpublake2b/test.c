@@ -1,6 +1,3 @@
-// test_main.c
-// Self test Modules for BLAKE2b and BLAKE2s -- and a stub main().
-
 #include <stdio.h>
 
 #include "blake2b.h"

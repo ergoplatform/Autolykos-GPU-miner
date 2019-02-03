@@ -5,9 +5,16 @@
 #include <stddef.h>
 
 // Parameters
-#define k 32
-#define N 0x4000000 // 2^26
-#define L 0xF4240   // 1000000
+#define KEY_LEN 32       // in bytes
+#define NON_LEN 32       // in bytes
+#define HASH_LEN 32      // in bytes
+#define K_SIZE 32
+#define B_SIZE 10
+#define N_SIZE 0x4000000 // 2^26
+#define H_SIZE 4         // hashes per thread
+#define L_SIZE 0x3D090   // H_SIZE * 10^6
+#define GDIM 15625
+#define BDIM 64          // GDIM * BDIM = 10^6
 
 // 64 bits
 #define Q1 0x14DEF9DEA2F79CD6
@@ -23,24 +30,42 @@ typedef struct {
     uint64_t t[2];
     // counter for b
     uint32_t c;
-    // digest size
-    uint32_t outlen;
 } blake2b_ctx;
 
-__global__ void blockMining(
+void partialHash(
     // context
     blake2b_ctx * ctx,
     // optional secret key
     const void * key,
-    uint32_t keylen,
     // message
-    const void * in,
-    uint32_t inlen,
+    const void * mes,
+    uint32_t meslen
+);
+
+__global__ void blockMining(
+    // context
+    blake2b_ctx * ctx,
     // pregenerated nonces
     const void * non,
+    // results
+    uint32_t * res
+);
+
+__global__ void hash(
+    // optional secret key
+    const void * key,
+    uint32_t keylen,
+    // message
+    const void * mes,
+    uint32_t meslen,
+    // pregenerated nonces
+    const void * non,
+    uint32_t nonlen,
     // hashes
     void * out,
-    uint32_t outlen
+    uint32_t outlen,
+    // results
+    uint32_t * res
 );
 
 #endif // AUTOLYKOS_H
