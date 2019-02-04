@@ -36,41 +36,43 @@
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Hashes precalculation
+//  First iteration of hashes precalculation
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void prehash(
+__global__ void initPrehash(
     const void * data,
     // hashes
-    void * hash
+    uint32_t * hash,
+    uint32_t * next
 ) {
-    // 64 * 32 bits of local memory
-    uint32_t local[64];
-    // 16 * 64 bits 
-    uint64_t * v = (uint64_t *)local;
-    // 16 * 64 bits 
-    uint64_t * m = v + 16;
-
     uint32_t j;
+    uint32_t tid = threadIdx.x;
 
     // shared memory
-    __shared__ uint32_t shared[2 * BDIM];
+    __shared__ uint32_t shared[2 * B_DIM];
 
-    uint32_t tid = threadIdx.x;
-#pragma unroll
-    shared[2 * tid] = ((uint32_t *)data)[2 * tid];
-    shared[2 * tid + 1] = ((uint32_t *)data)[2 * tid + 1];
+    shared[2 * tid] = data[2 * tid];
+    shared[2 * tid + 1] = data[2 * tid + 1];
     __syncthreads();
 
+    // 8 * 64 bits = 64 bytes 
     uint64_t * blake2b_iv = (uint64_t *)shared;
+    // 192 * 8 bits = 192 bytes 
     uint8_t * sigma = (uint8_t *)(shared + 16);
-    uint32_t * sk = shared + 72;
-    uint32_t * rem = shared + 80;
+    //uint32_t * sk = shared + 64;
+    // pk || mes || w
+    uint32_t * rem = shared + 72;
+
+    // local memory
+    // 64 * 32 bits
+    uint32_t local[64];
+
+    // 16 * 64 bits = 128 bytes 
+    uint64_t * v = (uint64_t *)local;
+    // 16 * 64 bits = 128 bytes 
+    uint64_t * m = v + 16;
+    blake2b_ctx * ctx = (blake2b_ctx *)(local + 8);
 
     tid = threadIdx.x + blockDim.x * blockIdx.x;
-    blake2b_ctx ctx;
-    uint32_t valid = 1;
-    uint64_t * p[4];// = (uint64_t *)(hash + ((uint64_t)tid) << 3);
-    uint64_t * res[9];
 
     //====================================================================//
     //  Initialize context
@@ -78,118 +80,60 @@ __global__ void prehash(
 #pragma unroll
     for (j = 0; j < 8; ++j)
     {
-        ctx.h[j] = blake2b_iv[j];
+        ctx->h[j] = blake2b_iv[j];
     }
 
-    ctx.h[0] ^= 0x01010000 ^ (0 << 8) ^ HASH_LEN;
+    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_BYTE_SIZE;
 
-    ctx.t[0] = 0;
-    ctx.t[1] = 0;
-    ctx.c = 0;
+    ctx->t[0] = 0;
+    ctx->t[1] = 0;
+    ctx->c = 0;
 
 #pragma unroll
     for (j = 0; j < 128; ++j)
     {
-        ctx.b[j] = 0;
+        ctx->b[j] = 0;
     }
-
-///     //====================================================================//
-///     //  Hash key [optional]
-///     //====================================================================//
-///     for (j = 0; j < KEY_LEN & 0xFFFFFF80; ++j)
-///     {
-///         while (ctx.c < 128)
-///         {
-///             ctx.b[ctx.c++] = ((const uint8_t *)key)[j++];
-///         }
-/// 
-///         ctx.t[0] += ctx.c;
-///         ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
-/// 
-/// #pragma unroll
-///         for (int i = 0; i < 8; ++i)
-///         {
-///             v[i] = ctx.h[i];
-///             v[i + 8] = blake2b_iv[i];
-///         }
-/// 
-///         v[12] ^= ctx.t[0];
-///         v[13] ^= ctx.t[1];
-/// 
-/// #pragma unroll
-///         for (int i = 0; i < 16; i++)
-///         {
-///             m[i] = B2B_GET64(&ctx.b[8 * i]);
-///         }
-/// 
-/// #pragma unroll
-///         for (int i = 0; i < 12 << 4; i += 16)
-///         {
-///             B2B_G(0, 4,  8, 12, m[sigma[i + 0]], m[sigma[i + 1]]);
-///             B2B_G(1, 5,  9, 13, m[sigma[i + 2]], m[sigma[i + 3]]);
-///             B2B_G(2, 6, 10, 14, m[sigma[i + 4]], m[sigma[i + 5]]);
-///             B2B_G(3, 7, 11, 15, m[sigma[i + 6]], m[sigma[i + 7]]);
-///             B2B_G(0, 5, 10, 15, m[sigma[i + 8]], m[sigma[i + 9]]);
-///             B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
-///             B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
-///             B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
-///         }
-/// 
-/// #pragma unroll
-///         for (int i = 0; i < 8; ++i)
-///         {
-///             ctx.h[i] ^= v[i] ^ v[i + 8];
-///         }
-/// 
-///         ctx.c = 0;
-/// 
-///         ctx.b[ctx.c++] = ((const uint8_t *)key)[j];
-///     }
-/// 
-///     while (j < KEY_LEN)
-///     {
-///         ctx.b[ctx.c++] = ((const uint8_t *)key)[j++];
-///     }
-/// 
-///     ctx.c = ((1 - !(KEY_LEN > 0)) << 7) + (!(KEY_LEN > 0)) * ctx.c;
 
     //====================================================================//
     //  Hash tid
     //====================================================================//
-    for (j = 0; ctx.c < 128 && j < sizeof(uint32_t); ++j)
+#pragma unroll
+    for (j = 0; ctx->c < 128 && j < 4; ++j)
     {
-        ctx.b[ctx.c++] = ((const uint8_t *)tid)[j];
+        ctx->b[ctx->c++] = ((const uint8_t *)&tid)[j];
     }
 
-    while (j < sizeof(uint32_t))
+#pragma unroll
+    while (j < 4)
     {
-        ctx.t[0] += ctx.c;
-        ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
+        ctx->t[0] += ctx->c;
+        ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
 #pragma unroll
         for (int i = 0; i < 8; ++i)
         {
-            v[i] = ctx.h[i];
+            v[i] = ctx->h[i];
             v[i + 8] = blake2b_iv[i];
         }
 
-        v[12] ^= ctx.t[0];
-        v[13] ^= ctx.t[1];
+        v[12] ^= ctx->t[0];
+        v[13] ^= ctx->t[1];
 
 #pragma unroll
         for (int i = 0; i < 16; i++)
         {
-            m[i] = B2B_GET64(&ctx.b[8 * i]);
+            m[i] = B2B_GET64(&ctx->b[8 * i]);
         }
 
 #pragma unroll
-        for (int i = 0; i < 12 << 4; i += 16)
+        for (int i = 0; i < 192; i += 16)
         {
-            B2B_G(0, 4,  8, 12, m[sigma[i + 0]], m[sigma[i + 1]]);
-            B2B_G(1, 5,  9, 13, m[sigma[i + 2]], m[sigma[i + 3]]);
-            B2B_G(2, 6, 10, 14, m[sigma[i + 4]], m[sigma[i + 5]]);
-            B2B_G(3, 7, 11, 15, m[sigma[i + 6]], m[sigma[i + 7]]);
-            B2B_G(0, 5, 10, 15, m[sigma[i + 8]], m[sigma[i + 9]]);
+            B2B_G(0, 4,  8, 12, m[sigma[i +  0]], m[sigma[i +  1]]);
+            B2B_G(1, 5,  9, 13, m[sigma[i +  2]], m[sigma[i +  3]]);
+            B2B_G(2, 6, 10, 14, m[sigma[i +  4]], m[sigma[i +  5]]);
+            B2B_G(3, 7, 11, 15, m[sigma[i +  6]], m[sigma[i +  7]]);
+            B2B_G(0, 5, 10, 15, m[sigma[i +  8]], m[sigma[i +  9]]);
             B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
             B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
             B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
@@ -198,54 +142,55 @@ __global__ void prehash(
 #pragma unroll
         for (int i = 0; i < 8; ++i)
         {
-            ctx.h[i] ^= v[i] ^ v[i + 8];
+            ctx->h[i] ^= v[i] ^ v[i + 8];
         }
 
-        ctx.c = 0;
+        ctx->c = 0;
        
-        while (ctx.c < 128 && j < sizeof(uint32_t))
+#pragma unroll
+        while (ctx->c < 128 && j < 4)
         {
-            ctx.b[ctx.c++] = ((const uint8_t *)tid)[j++];
+            ctx->b[ctx->c++] = ((const uint8_t *)tid)[j++];
         }
     }
 
     //====================================================================//
     //  Hash constant message
     //====================================================================//
-    for (j = 0; ctx.c < 128 && j < sizeof(uint32_t) << 10; ++j)
+    for (j = 0; ctx->c < 128 && j < 0x1000; ++j)
     {
-        ctx.b[ctx.c++] = !(j & 3) * (j >> 2);
+        ctx->b[ctx->c++] = !(j & 3) * (j >> 2);
     }
 
-    while (j < sizeof(uint32_t) << 10)
+    while (j < 0x1000)
     {
-        ctx.t[0] += ctx.c;
-        ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
+        ctx->t[0] += ctx->c;
+        ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
 #pragma unroll
         for (int i = 0; i < 8; ++i)
         {
-            v[i] = ctx.h[i];
+            v[i] = ctx->h[i];
             v[i + 8] = blake2b_iv[i];
         }
 
-        v[12] ^= ctx.t[0];
-        v[13] ^= ctx.t[1];
+        v[12] ^= ctx->t[0];
+        v[13] ^= ctx->t[1];
 
 #pragma unroll
         for (int i = 0; i < 16; i++)
         {
-            m[i] = B2B_GET64(&ctx.b[8 * i]);
+            m[i] = B2B_GET64(&ctx->b[8 * i]);
         }
 
 #pragma unroll
-        for (int i = 0; i < 12 << 4; i += 16)
+        for (int i = 0; i < 192; i += 16)
         {
-            B2B_G(0, 4,  8, 12, m[sigma[i + 0]], m[sigma[i + 1]]);
-            B2B_G(1, 5,  9, 13, m[sigma[i + 2]], m[sigma[i + 3]]);
-            B2B_G(2, 6, 10, 14, m[sigma[i + 4]], m[sigma[i + 5]]);
-            B2B_G(3, 7, 11, 15, m[sigma[i + 6]], m[sigma[i + 7]]);
-            B2B_G(0, 5, 10, 15, m[sigma[i + 8]], m[sigma[i + 9]]);
+            B2B_G(0, 4,  8, 12, m[sigma[i +  0]], m[sigma[i +  1]]);
+            B2B_G(1, 5,  9, 13, m[sigma[i +  2]], m[sigma[i +  3]]);
+            B2B_G(2, 6, 10, 14, m[sigma[i +  4]], m[sigma[i +  5]]);
+            B2B_G(3, 7, 11, 15, m[sigma[i +  6]], m[sigma[i +  7]]);
+            B2B_G(0, 5, 10, 15, m[sigma[i +  8]], m[sigma[i +  9]]);
             B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
             B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
             B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
@@ -254,55 +199,54 @@ __global__ void prehash(
 #pragma unroll
         for (int i = 0; i < 8; ++i)
         {
-            ctx.h[i] ^= v[i] ^ v[i + 8];
+            ctx->h[i] ^= v[i] ^ v[i + 8];
         }
 
-        ctx.c = 0;
+        ctx->c = 0;
        
-        while (ctx.c < 128 && j < sizeof(uint32_t) << 10)
+        for ( ; ctx->c < 128 && j < 0x1000; ++j)
         {
-            ctx.b[ctx.c++] = !(j & 3) * (j >> 2);
-            ++j;
+            ctx->b[ctx->c++] = !(j & 3) * (j >> 2);
         }
     }
 
     //====================================================================//
     //  Hash public key, message & one-time public key
     //====================================================================//
-    for (j = 0; ctx.c < 128 && j < KEY_LEN * 3 * sizeof(uint8_t); ++j)
+    for (j = 0; ctx->c < 128 && j < 3 * NUM_BYTE_SIZE; ++j)
     {
-        ctx.b[ctx.c++] = ((const uint8_t *)rem)[j];
+        ctx->b[ctx->c++] = ((const uint8_t *)rem)[j];
     }
 
-    while (j < KEY_LEN * 3 * sizeof(uint8_t))
+    while (j < 3 * NUM_BYTE_SIZE)
     {
-        ctx.t[0] += ctx.c;
-        ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
+        ctx->t[0] += ctx->c;
+        ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
 #pragma unroll
         for (int i = 0; i < 8; ++i)
         {
-            v[i] = ctx.h[i];
+            v[i] = ctx->h[i];
             v[i + 8] = blake2b_iv[i];
         }
 
-        v[12] ^= ctx.t[0];
-        v[13] ^= ctx.t[1];
+        v[12] ^= ctx->t[0];
+        v[13] ^= ctx->t[1];
 
 #pragma unroll
         for (int i = 0; i < 16; i++)
         {
-            m[i] = B2B_GET64(&ctx.b[8 * i]);
+            m[i] = B2B_GET64(&ctx->b[8 * i]);
         }
 
 #pragma unroll
-        for (int i = 0; i < 12 << 4; i += 16)
+        for (int i = 0; i < 192; i += 16)
         {
-            B2B_G(0, 4,  8, 12, m[sigma[i + 0]], m[sigma[i + 1]]);
-            B2B_G(1, 5,  9, 13, m[sigma[i + 2]], m[sigma[i + 3]]);
-            B2B_G(2, 6, 10, 14, m[sigma[i + 4]], m[sigma[i + 5]]);
-            B2B_G(3, 7, 11, 15, m[sigma[i + 6]], m[sigma[i + 7]]);
-            B2B_G(0, 5, 10, 15, m[sigma[i + 8]], m[sigma[i + 9]]);
+            B2B_G(0, 4,  8, 12, m[sigma[i +  0]], m[sigma[i +  1]]);
+            B2B_G(1, 5,  9, 13, m[sigma[i +  2]], m[sigma[i +  3]]);
+            B2B_G(2, 6, 10, 14, m[sigma[i +  4]], m[sigma[i +  5]]);
+            B2B_G(3, 7, 11, 15, m[sigma[i +  6]], m[sigma[i +  7]]);
+            B2B_G(0, 5, 10, 15, m[sigma[i +  8]], m[sigma[i +  9]]);
             B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
             B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
             B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
@@ -311,53 +255,53 @@ __global__ void prehash(
 #pragma unroll
         for (int i = 0; i < 8; ++i)
         {
-            ctx.h[i] ^= v[i] ^ v[i + 8];
+            ctx->h[i] ^= v[i] ^ v[i + 8];
         }
 
-        ctx.c = 0;
+        ctx->c = 0;
        
-        while (ctx.c < 128 && j < KEY_LEN * 3 * sizeof(uint8_t))
+        while (ctx->c < 128 && j < 3 * NUM_BYTE_SIZE)
         {
-            ctx.b[ctx.c++] = ((const uint8_t *)rem)[j++];
+            ctx->b[ctx->c++] = ((const uint8_t *)rem)[j++];
         }
     }
 
     //====================================================================//
     //  Finalize hash
     //====================================================================//
-    ctx.t[0] += ctx.c;
-    ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
+    ctx->t[0] += ctx->c;
+    ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
-    while (ctx.c < 128)
+    while (ctx->c < 128)
     {
-        ctx.b[ctx.c++] = 0;
+        ctx->b[ctx->c++] = 0;
     }
 
 #pragma unroll
     for (int i = 0; i < 8; ++i)
     {
-        v[i] = ctx.h[i];
+        v[i] = ctx->h[i];
         v[i + 8] = blake2b_iv[i];
     }
 
-    v[12] ^= ctx.t[0];
-    v[13] ^= ctx.t[1];
+    v[12] ^= ctx->t[0];
+    v[13] ^= ctx->t[1];
     v[14] = ~v[14];
 
 #pragma unroll
     for (int i = 0; i < 16; i++)
     {
-        m[i] = B2B_GET64(&ctx.b[8 * i]);
+        m[i] = B2B_GET64(&ctx->b[8 * i]);
     }
 
 #pragma unroll
-    for (int i = 0; i < 12 << 4; i += 16)
+    for (int i = 0; i < 192; i += 16)
     {
-        B2B_G(0, 4,  8, 12, m[sigma[i + 0]], m[sigma[i + 1]]);
-        B2B_G(1, 5,  9, 13, m[sigma[i + 2]], m[sigma[i + 3]]);
-        B2B_G(2, 6, 10, 14, m[sigma[i + 4]], m[sigma[i + 5]]);
-        B2B_G(3, 7, 11, 15, m[sigma[i + 6]], m[sigma[i + 7]]);
-        B2B_G(0, 5, 10, 15, m[sigma[i + 8]], m[sigma[i + 9]]);
+        B2B_G(0, 4,  8, 12, m[sigma[i +  0]], m[sigma[i +  1]]);
+        B2B_G(1, 5,  9, 13, m[sigma[i +  2]], m[sigma[i +  3]]);
+        B2B_G(2, 6, 10, 14, m[sigma[i +  4]], m[sigma[i +  5]]);
+        B2B_G(3, 7, 11, 15, m[sigma[i +  6]], m[sigma[i +  7]]);
+        B2B_G(0, 5, 10, 15, m[sigma[i +  8]], m[sigma[i +  9]]);
         B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
         B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
         B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
@@ -366,270 +310,307 @@ __global__ void prehash(
 #pragma unroll
     for (int i = 0; i < 8; ++i)
     {
-        ctx.h[i] ^= v[i] ^ v[i + 8];
+        ctx->h[i] ^= v[i] ^ v[i + 8];
     }
 
-    for (j = 0; j < HASH_LEN; ++j)
+#pragma unroll
+    for (j = 0; j < NUM_BYTE_SIZE; ++j)
     {
-        ((uint8_t *)p)[j] = (ctx.h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
+        ((uint8_t *)local)[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
     }
 
-    while (valid)
+    //===================================================================//
+    //  Dump hashult to global memory
+    //===================================================================//
+    j = ((uint64_t *)local)[3] <= FQ3 && ((uint64_t *)local)[2] <= FQ2
+        && ((uint64_t *)local)[1] <= FQ1 && ((uint64_t *)local)[0] <= FQ0;
+
+    next[tid] = (1 - !j) * (tid + 1);
+
+#pragma unroll
+    for (int i = 0; i < 8; ++i)
     {
-        if (
-            p[3] <= FdotQ3 && p[2] <= FdotQ2 && p[1] <= FdotQ1 & p[0] <= FdotQ0
-        ) {
-            valid = 0;
-        } else {
+        hash[(tid << 3) + i] = local[i];
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//  Next iteration of hashes precalculation
+////////////////////////////////////////////////////////////////////////////////
+__global__ void sortNext(
+    const void * data,
+    // hashes
+    const void * hash,
+    void * which
+) {
+    // numer of index in which
+    uint32_t tid = threadIdx.x + blockDim.x * blockIdx.x;
+
+    (uint32_t *)which + tid
+        p[3] <= FQ3 && p[2] <= FQ2 && p[1] <= FQ1 & p[0] <= FQ0
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//  Next iteration of hashes precalculation
+////////////////////////////////////////////////////////////////////////////////
+__global__ void updatePrehash(
+    const uint32_t * data,
+    // hashes
+    uint32_t * hash,
+    uint32_t * next
+) {
+    uint32_t j;
+    uint32_t tid = threadIdx.x;
+
+    // shared memory
+    __shared__ uint32_t shared[2 * B_DIM];
+
+    shared[2 * tid] = data[2 * tid];
+    shared[2 * tid + 1] = data[2 * tid + 1];
+    __syncthreads();
+
+    // 8 * 64 bits = 64 bytes 
+    uint64_t * blake2b_iv = (uint64_t *)shared;
+    // 192 * 8 bits = 192 bytes 
+    uint8_t * sigma = (uint8_t *)(shared + 16);
+
+    // local memory
+    // 64 * 32 bits
+    uint32_t local[64];
+
+    // 16 * 64 bits = 128 bytes 
+    uint64_t * v = (uint64_t *)local;
+    // 16 * 64 bits = 128 bytes 
+    uint64_t * m = v + 16;
+    blake2b_ctx * ctx = (blake2b_ctx *)(local + 8);
+
+    tid = threadIdx.x + blockDim.x * blockIdx.x;
+
     //====================================================================//
     //  Initialize context
     //====================================================================//
 #pragma unroll
-            for (j = 0; j < 8; ++j)
-            {
-                ctx.h[j] = blake2b_iv[j];
-            }
+    for (j = 0; j < 8; ++j)
+    {
+        ctx->h[j] = blake2b_iv[j];
+    }
 
-            ctx.h[0] ^= 0x01010000 ^ (0 << 8) ^ HASH_LEN;
+    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_BYTE_SIZE;
 
-            ctx.t[0] = 0;
-            ctx.t[1] = 0;
-            ctx.c = 0;
+    ctx->t[0] = 0;
+    ctx->t[1] = 0;
+    ctx->c = 0;
 
 #pragma unroll
-            for (j = 0; j < 128; ++j)
-            {
-                ctx.b[j] = 0;
-            }
-
-        ///     //====================================================================//
-        ///     //  Hash key [optional]
-        ///     //====================================================================//
-        ///     for (j = 0; j < KEY_LEN & 0xFFFFFF80; ++j)
-        ///     {
-        ///         while (ctx.c < 128)
-        ///         {
-        ///             ctx.b[ctx.c++] = ((const uint8_t *)key)[j++];
-        ///         }
-        /// 
-        ///         ctx.t[0] += ctx.c;
-        ///         ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
-        /// 
-        /// #pragma unroll
-        ///         for (int i = 0; i < 8; ++i)
-        ///         {
-        ///             v[i] = ctx.h[i];
-        ///             v[i + 8] = blake2b_iv[i];
-        ///         }
-        /// 
-        ///         v[12] ^= ctx.t[0];
-        ///         v[13] ^= ctx.t[1];
-        /// 
-        /// #pragma unroll
-        ///         for (int i = 0; i < 16; i++)
-        ///         {
-        ///             m[i] = B2B_GET64(&ctx.b[8 * i]);
-        ///         }
-        /// 
-        /// #pragma unroll
-        ///         for (int i = 0; i < 12 << 4; i += 16)
-        ///         {
-        ///             B2B_G(0, 4,  8, 12, m[sigma[i + 0]], m[sigma[i + 1]]);
-        ///             B2B_G(1, 5,  9, 13, m[sigma[i + 2]], m[sigma[i + 3]]);
-        ///             B2B_G(2, 6, 10, 14, m[sigma[i + 4]], m[sigma[i + 5]]);
-        ///             B2B_G(3, 7, 11, 15, m[sigma[i + 6]], m[sigma[i + 7]]);
-        ///             B2B_G(0, 5, 10, 15, m[sigma[i + 8]], m[sigma[i + 9]]);
-        ///             B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
-        ///             B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
-        ///             B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
-        ///         }
-        /// 
-        /// #pragma unroll
-        ///         for (int i = 0; i < 8; ++i)
-        ///         {
-        ///             ctx.h[i] ^= v[i] ^ v[i + 8];
-        ///         }
-        /// 
-        ///         ctx.c = 0;
-        /// 
-        ///         ctx.b[ctx.c++] = ((const uint8_t *)key)[j];
-        ///     }
-        /// 
-        ///     while (j < KEY_LEN)
-        ///     {
-        ///         ctx.b[ctx.c++] = ((const uint8_t *)key)[j++];
-        ///     }
-        /// 
-        ///     ctx.c = ((1 - !(KEY_LEN > 0)) << 7) + (!(KEY_LEN > 0)) * ctx.c;
+    for (j = 0; j < 128; ++j)
+    {
+        ctx->b[j] = 0;
+    }
 
     //====================================================================//
     //  Hash previous hash
     //====================================================================//
-            for (j = 0; ctx.c < 128 && j < HASH_LEN; ++j)
-            {
-                ctx.b[ctx.c++] = ((const uint8_t *)p)[j];
-            }
+    for (j = 0; ctx->c < 128 && j < NUM_BYTE_SIZE; ++j)
+    {
+        ctx->b[ctx->c++]
+            = ((const uint8_t *)(hash + ((next[tid] - 1) << 3)))[j];
+    }
 
-            while (j < HASH_LEN)
-            {
-                ctx.t[0] += ctx.c;
-                ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
-
-#pragma unroll
-                for (int i = 0; i < 8; ++i)
-                {
-                    v[i] = ctx.h[i];
-                    v[i + 8] = blake2b_iv[i];
-                }
-
-                v[12] ^= ctx.t[0];
-                v[13] ^= ctx.t[1];
+    while (j < NUM_BYTE_SIZE)
+    {
+        ctx->t[0] += ctx->c;
+        ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
 #pragma unroll
-                for (int i = 0; i < 16; i++)
-                {
-                    m[i] = B2B_GET64(&ctx.b[8 * i]);
-                }
+        for (int i = 0; i < 8; ++i)
+        {
+            v[i] = ctx->h[i];
+            v[i + 8] = blake2b_iv[i];
+        }
+
+        v[12] ^= ctx->t[0];
+        v[13] ^= ctx->t[1];
 
 #pragma unroll
-                for (int i = 0; i < 12 << 4; i += 16)
-                {
-                    B2B_G(0, 4,  8, 12, m[sigma[i + 0]], m[sigma[i + 1]]);
-                    B2B_G(1, 5,  9, 13, m[sigma[i + 2]], m[sigma[i + 3]]);
-                    B2B_G(2, 6, 10, 14, m[sigma[i + 4]], m[sigma[i + 5]]);
-                    B2B_G(3, 7, 11, 15, m[sigma[i + 6]], m[sigma[i + 7]]);
-                    B2B_G(0, 5, 10, 15, m[sigma[i + 8]], m[sigma[i + 9]]);
-                    B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
-                    B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
-                    B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
-                }
+        for (int i = 0; i < 16; i++)
+        {
+            m[i] = B2B_GET64(&ctx->b[8 * i]);
+        }
 
 #pragma unroll
-                for (int i = 0; i < 8; ++i)
-                {
-                    ctx.h[i] ^= v[i] ^ v[i + 8];
-                }
+        for (int i = 0; i < 192; i += 16)
+        {
+            B2B_G(0, 4,  8, 12, m[sigma[i +  0]], m[sigma[i +  1]]);
+            B2B_G(1, 5,  9, 13, m[sigma[i +  2]], m[sigma[i +  3]]);
+            B2B_G(2, 6, 10, 14, m[sigma[i +  4]], m[sigma[i +  5]]);
+            B2B_G(3, 7, 11, 15, m[sigma[i +  6]], m[sigma[i +  7]]);
+            B2B_G(0, 5, 10, 15, m[sigma[i +  8]], m[sigma[i +  9]]);
+            B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
+            B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
+            B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
+        }
 
-                ctx.c = 0;
-               
-                while (ctx.c < 128 && j < HASH_LEN)
-                {
-                    ctx.b[ctx.c++] = ((const uint8_t *)p)[j++];
-                }
-            }
+#pragma unroll
+        for (int i = 0; i < 8; ++i)
+        {
+            ctx->h[i] ^= v[i] ^ v[i + 8];
+        }
+
+        ctx->c = 0;
+       
+        while (ctx->c < 128 && j < NUM_BYTE_SIZE)
+        {
+            ctx->b[ctx->c++]
+                = ((const uint8_t *)(hash + ((next[tid] - 1) << 3)))[j++];
+        }
+    }
 
     //====================================================================//
     //  Finalize hash
     //====================================================================//
-            ctx.t[0] += ctx.c;
-            ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
+    ctx->t[0] += ctx->c;
+    ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
-            while (ctx.c < 128)
-            {
-                ctx.b[ctx.c++] = 0;
-            }
-
-#pragma unroll
-            for (int i = 0; i < 8; ++i)
-            {
-                v[i] = ctx.h[i];
-                v[i + 8] = blake2b_iv[i];
-            }
-
-            v[12] ^= ctx.t[0];
-            v[13] ^= ctx.t[1];
-            v[14] = ~v[14];
-
-#pragma unroll
-            for (int i = 0; i < 16; i++)
-            {
-                m[i] = B2B_GET64(&ctx.b[8 * i]);
-            }
-
-#pragma unroll
-            for (int i = 0; i < 12 << 4; i += 16)
-            {
-                B2B_G(0, 4,  8, 12, m[sigma[i + 0]], m[sigma[i + 1]]);
-                B2B_G(1, 5,  9, 13, m[sigma[i + 2]], m[sigma[i + 3]]);
-                B2B_G(2, 6, 10, 14, m[sigma[i + 4]], m[sigma[i + 5]]);
-                B2B_G(3, 7, 11, 15, m[sigma[i + 6]], m[sigma[i + 7]]);
-                B2B_G(0, 5, 10, 15, m[sigma[i + 8]], m[sigma[i + 9]]);
-                B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
-                B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
-                B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
-            }
-
-#pragma unroll
-            for (int i = 0; i < 8; ++i)
-            {
-                ctx.h[i] ^= v[i] ^ v[i + 8];
-            }
-
-            for (j = 0; j < HASH_LEN; ++j)
-            {
-                ((uint8_t *)p)[j] = (ctx.h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
-            }
-        }
+    while (ctx->c < 128)
+    {
+        ctx->b[ctx->c++] = 0;
     }
 
-    uint32_t * x = (uint32_t *)p; 
-    uint32_t * y = (uint32_t *)sk; 
+#pragma unroll
+    for (int i = 0; i < 8; ++i)
+    {
+        v[i] = ctx->h[i];
+        v[i + 8] = blake2b_iv[i];
+    }
+
+    v[12] ^= ctx->t[0];
+    v[13] ^= ctx->t[1];
+    v[14] = ~v[14];
+
+#pragma unroll
+    for (int i = 0; i < 16; i++)
+    {
+        m[i] = B2B_GET64(&ctx->b[8 * i]);
+    }
+
+#pragma unroll
+    for (int i = 0; i < 192; i += 16)
+    {
+        B2B_G(0, 4,  8, 12, m[sigma[i +  0]], m[sigma[i +  1]]);
+        B2B_G(1, 5,  9, 13, m[sigma[i +  2]], m[sigma[i +  3]]);
+        B2B_G(2, 6, 10, 14, m[sigma[i +  4]], m[sigma[i +  5]]);
+        B2B_G(3, 7, 11, 15, m[sigma[i +  6]], m[sigma[i +  7]]);
+        B2B_G(0, 5, 10, 15, m[sigma[i +  8]], m[sigma[i +  9]]);
+        B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
+        B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
+        B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
+    }
+
+#pragma unroll
+    for (int i = 0; i < 8; ++i)
+    {
+        ctx->h[i] ^= v[i] ^ v[i + 8];
+    }
+
+    for (j = 0; j < NUM_BYTE_SIZE; ++j)
+    {
+        ((uint8_t *)local)[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
+    }
+    //===================================================================//
+    //  Dump hashult to global memory
+    //===================================================================//
+    j = ((uint64_t *)local)[3] <= FQ3 && ((uint64_t *)local)[2] <= FQ2
+        && ((uint64_t *)local)[1] <= FQ1 && ((uint64_t *)local)[0] <= FQ0;
+
+    next[tid] *= 1 - !j;
+
+#pragma unroll
+    for (int i = 0; i < 8; ++i)
+    {
+        hash[((next[tid] - 1) << 3) + i] = local[i];
+    }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//  Hash * secret key mod q
+////////////////////////////////////////////////////////////////////////////////
+__global__ void finalizePrehash(
+    const uint32_t * data,
+    // hashes
+    uint32_t * hash
+) {
+    uint32_t tid = threadIdx.x;
+
+    // shared memory
+    __shared__ uint32_t shared[B_DIM];
+    shared[tid] = data[tid + 64];
+    __syncthreads();
+    // 8 * 32 bits = 32 bytes
+    uint32_t * sk = shared;
+
+    // local memory
+    uint32_t r[18];
+    r[16] = r[17] = 0;
+
+    tid = threadIdx.x + blockDim.x * blockIdx.x;
+    uint32_t * x = hash + (tid << 3); 
 
     //====================================================================//
-    //  x[0] * y -> res[0, ..., 7, 8]
+    //  x[0] * y -> r[0, ..., 7, 8]
     //====================================================================//
-    // initialize res[0, ..., 7]
+    // initialize r[0, ..., 7]
 #pragma unroll
     for (int j = 0; j < 8; j += 2)
     {
         asm volatile (
-            "mul.lo.u32 %0, %1, %2;": "=r"(res[j]): "r"(x[0]), "r"(y[j])
+            "mul.lo.u32 %0, %1, %2;": "=r"(r[j]): "r"(x[0]), "r"(sk[j])
         );
         asm volatile (
-            "mul.hi.u32 %0, %1, %2;": "=r"(res[j + 1]): "r"(x[0]), "r"(y[j])
+            "mul.hi.u32 %0, %1, %2;": "=r"(r[j + 1]): "r"(x[0]), "r"(sk[j])
         );
     }
 
     //====================================================================//
     asm volatile (
-        "mad.lo.cc.u32 %0, %1, %2, %0;": "+r"(res[1]): "r"(x[0]), "r"(y[1])
+        "mad.lo.cc.u32 %0, %1, %2, %0;": "+r"(r[1]): "r"(x[0]), "r"(sk[1])
     );
     asm volatile (
-        "madc.hi.cc.u32 %0, %1, %2, %0;": "+r"(res[2]): "r"(x[0]), "r"(y[1])
+        "madc.hi.cc.u32 %0, %1, %2, %0;": "+r"(r[2]): "r"(x[0]), "r"(sk[1])
     );
 
 #pragma unroll
     for (int j = 3; j < 6; j += 2)
     {
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, %2, %0;": "+r"(res[j]): "r"(x[0]), "r"(y[j])
+            "madc.lo.cc.u32 %0, %1, %2, %0;": "+r"(r[j]): "r"(x[0]), "r"(sk[j])
         );
         asm volatile (
             "madc.hi.cc.u32 %0, %1, %2, %0;":
-            "+r"(res[j + 1]): "r"(x[0]), "r"(y[j])
+            "+r"(r[j + 1]): "r"(x[0]), "r"(sk[j])
         );
     }
 
     asm volatile (
-        "madc.lo.cc.u32 %0, %1, %2, %0;": "+r"(res[7]): "r"(x[0]), "r"(y[7])
+        "madc.lo.cc.u32 %0, %1, %2, %0;": "+r"(r[7]): "r"(x[0]), "r"(sk[7])
     );
-    // initialize res[8]
+    // initialize r[8]
     asm volatile (
-        "madc.hi.u32 %0, %1, %2, 0;": "=r"(res[8]): "r"(x[0]), "r"(y[7])
+        "madc.hi.u32 %0, %1, %2, 0;": "=r"(r[8]): "r"(x[0]), "r"(sk[7])
     );
 
     //====================================================================//
-    //  x[i] * y -> res[i, ..., i + 7, i + 8]
+    //  x[i] * sk -> r[i, ..., i + 7, i + 8]
     //====================================================================//
 #pragma unroll
     for (int i = 1; i < 8; ++i)
     {
         asm volatile (
-            "mad.lo.cc.u32 %0, %1, %2, %0;": "+r"(res[i]): "r"(x[i]), "r"(y[0])
+            "mad.lo.cc.u32 %0, %1, %2, %0;": "+r"(r[i]): "r"(x[i]), "r"(sk[0])
         );
         asm volatile (
             "madc.hi.cc.u32 %0, %1, %2, %0;":
-            "+r"(res[i + 1]): "r"(x[i]), "r"(y[0])
+            "+r"(r[i + 1]): "r"(x[i]), "r"(sk[0])
         );
 
 #pragma unroll
@@ -637,27 +618,27 @@ __global__ void prehash(
         {
             asm volatile (
                 "madc.lo.cc.u32 %0, %1, %2, %0;":
-                "+r"(res[i + j]): "r"(x[i]), "r"(y[j])
+                "+r"(r[i + j]): "r"(x[i]), "r"(sk[j])
             );
             asm volatile (
                 "madc.hi.cc.u32 %0, %1, %2, %0;":
-                "+r"(res[i + j + 1]): "r"(x[i]), "r"(y[j])
+                "+r"(r[i + j + 1]): "r"(x[i]), "r"(sk[j])
             );
         }
 
-    // initialize res[i + 8]
+    // initialize r[i + 8]
         asm volatile (
-            "addc.u32 %0, 0, 0;": "=r"(res[i + 8])
+            "addc.u32 %0, 0, 0;": "=r"(r[i + 8])
         );
 
     //====================================================================//
         asm volatile (
             "mad.lo.cc.u32 %0, %1, %2, %0;":
-            "+r"(res[i + 1]): "r"(x[i]), "r"(y[1])
+            "+r"(r[i + 1]): "r"(x[i]), "r"(sk[1])
         );
         asm volatile (
             "madc.hi.cc.u32 %0, %1, %2, %0;":
-            "+r"(res[i + 2]): "r"(x[i]), "r"(y[1])
+            "+r"(r[i + 2]): "r"(x[i]), "r"(sk[1])
         );
 
 #pragma unroll
@@ -665,36 +646,39 @@ __global__ void prehash(
         {
             asm volatile (
                 "madc.lo.cc.u32 %0, %1, %2, %0;":
-                "+r"(res[i + j]): "r"(x[i]), "r"(y[j])
+                "+r"(r[i + j]): "r"(x[i]), "r"(sk[j])
             );
             asm volatile (
                 "madc.hi.cc.u32 %0, %1, %2, %0;":
-                "+r"(res[i + j + 1]): "r"(x[i]), "r"(y[j])
+                "+r"(r[i + j + 1]): "r"(x[i]), "r"(sk[j])
             );
         }
 
         asm volatile (
             "madc.lo.cc.u32 %0, %1, %2, %0;":
-            "+r"(res[i + 7]): "r"(x[i]), "r"(y[7])
+            "+r"(r[i + 7]): "r"(x[i]), "r"(sk[7])
         );
         asm volatile (
             "madc.hi.u32 %0, %1, %2, %0;":
-            "+r"(res[i + 8]): "r"(x[i]), "r"(y[7])
+            "+r"(r[i + 8]): "r"(x[i]), "r"(sk[7])
         );
     }
 
-    uint32_t * y = (uint32_t *)res; 
+    //====================================================================//
+    //  mod q
+    //====================================================================//
+    uint64_t * y = (uint64_t *)r; 
     uint32_t d[2]; 
     uint32_t med[6];
     uint32_t carry;
 
-    for (int i = (9 - 1) << 1; i >= 8; i -= 2)
+    for (int i = 16; i >= 8; i -= 2)
     {
-        *((uint64_t *)d) = ((res[i >> 1] << 4) | (res[(i >> 1) - 1] >> 60))
-            - (res[i >> 1] >> 60);
+        *((uint64_t *)d) = ((y[i >> 1] << 4) | (y[(i >> 1) - 1] >> 60))
+            - (y[i >> 1] >> 60);
 
         // correct highest 32 bits
-        y[i - 1] = (y[i - 1] & 0x0FFFFFFF) | y[i + 1] & 0x10000000;
+        r[i - 1] = (r[i - 1] & 0x0FFFFFFF) | r[i + 1] & 0x10000000;
 
     //====================================================================//
     //  d * q -> med[0, ..., 5]
@@ -758,30 +742,30 @@ __global__ void prehash(
         );
 
     //====================================================================//
-    //  x[i/2 - 2, i/2 - 3, i/2 - 4] mod q
+    //  r[i/2 - 2, i/2 - 3, i/2 - 4] mod q
     //====================================================================//
         asm volatile (
-            "sub.cc.u32 %0, %0, %1;": "+r"(y[i - 8]): "r"(med[0])
+            "sub.cc.u32 %0, %0, %1;": "+r"(r[i - 8]): "r"(med[0])
         );
 
 #pragma unroll
         for (int j = 1; j < 6; ++j)
         {
             asm volatile (
-                "subc.cc.u32 %0, %0, %1;": "+r"(y[i + j - 8]): "r"(med[j])
+                "subc.cc.u32 %0, %0, %1;": "+r"(r[i + j - 8]): "r"(med[j])
             );
         }
 
         asm volatile (
-            "subc.cc.u32 %0, %0, 0;": "+r"(y[i - 2])
+            "subc.cc.u32 %0, %0, 0;": "+r"(r[i - 2])
         );
 
         asm volatile (
-            "subc.cc.u32 %0, %0, 0;": "+r"(y[i - 1])
+            "subc.cc.u32 %0, %0, 0;": "+r"(r[i - 1])
         );
 
     //====================================================================//
-    //  x[i/2 - 2, i/2 - 3, i/2 - 4] correction
+    //  r[i/2 - 2, i/2 - 3, i/2 - 4] correction
     //====================================================================//
         asm volatile (
             "subc.u32 %0, 0, 0;": "=r"(carry)
@@ -791,19 +775,19 @@ __global__ void prehash(
 
     //====================================================================//
         asm volatile (
-            "mad.lo.cc.u32 %0, %1, "q0_s", %0;": "+r"(y[i - 8]): "r"(carry)
+            "mad.lo.cc.u32 %0, %1, "q0_s", %0;": "+r"(r[i - 8]): "r"(carry)
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(y[i - 7]): "r"(carry)
+            "madc.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(r[i - 7]): "r"(carry)
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q2_s", %0;": "+r"(y[i - 6]): "r"(carry)
+            "madc.lo.cc.u32 %0, %1, "q2_s", %0;": "+r"(r[i - 6]): "r"(carry)
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(y[i - 5]): "r"(carry)
+            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(r[i - 5]): "r"(carry)
         );
 
     //====================================================================//
@@ -811,14 +795,23 @@ __global__ void prehash(
         for (int j = 0; j < 3; ++j)
         {
             asm volatile (
-                "addc.cc.u32 %0, %0, 0;": "+r"(y[i + j - 4])
+                "addc.cc.u32 %0, %0, 0;": "+r"(r[i + j - 4])
             );
         }
 
         asm volatile (
-            "addc.u32 %0, %0, 0;": "+r"(y[i - 1])
+            "addc.u32 %0, %0, 0;": "+r"(r[i - 1])
         );
     }
+
+    //===================================================================//
+    //  Dump result to global memory
+    //===================================================================//
+#pragma unroll
+        for (int i = 0; i < 8; ++i)
+        {
+            hash[(tid << 3) + i] = r[i];
+        }
 
     return;
 }
@@ -826,7 +819,7 @@ __global__ void prehash(
 ////////////////////////////////////////////////////////////////////////////////
 //  Unfinalized hash of message
 ////////////////////////////////////////////////////////////////////////////////
-void partialHash(
+void initHash(
     // context
     blake2b_ctx * ctx,
     // optional secret key
@@ -843,19 +836,19 @@ void partialHash(
         0x1F83D9ABFB41BD6B, 0x5BE0CD19137E2179
     };
 
-    const uint8_t sigma[12][16] = {
-        { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
-        { 14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3 },
-        { 11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4 },
-        { 7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8 },
-        { 9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13 },
-        { 2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9 },
-        { 12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11 },
-        { 13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10 },
-        { 6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5 },
-        { 10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0 },
-        { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
-        { 14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3 }
+    const uint8_t sigma[192] = {
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+        14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3,
+        11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4,
+        7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8,
+        9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13,
+        2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9,
+        12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11,
+        13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10,
+        6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5,
+        10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0,
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+        14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3
     };
 
     int i;
@@ -872,7 +865,7 @@ void partialHash(
         ctx->h[j] = blake2b_iv[j];
     }
 
-    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ HASH_LEN;
+    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_BYTE_SIZE;
 
     ctx->t[0] = 0;
     ctx->t[1] = 0;
@@ -882,58 +875,6 @@ void partialHash(
     {
         ctx->b[j] = 0;
     }
-
-///     //====================================================================//
-///     //  Hash key [optional]
-///     //====================================================================//
-///     for (j = 0; j < KEY_LEN; ++j)
-///     {
-///         if (ctx->c == 128)
-///         {
-///             ctx->t[0] += ctx->c;
-///             ctx->t[1] += (ctx->t[0] < ctx->c)? 1: 0;
-/// 
-///             for (i = 0; i < 8; ++i)
-///             {
-///                 v[i] = ctx->h[i];
-///                 v[i + 8] = blake2b_iv[i];
-///             }
-/// 
-///             v[12] ^= ctx->t[0];
-///             v[13] ^= ctx->t[1];
-/// 
-///             for (i = 0; i < 16; i++)
-///             {
-///                 m[i] = B2B_GET64(&ctx->b[8 * i]);
-///             }
-/// 
-///             for (i = 0; i < 12; ++i)
-///             {
-///                 B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
-///                 B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
-///                 B2B_G(2, 6, 10, 14, m[sigma[i][ 4]], m[sigma[i][ 5]]);
-///                 B2B_G(3, 7, 11, 15, m[sigma[i][ 6]], m[sigma[i][ 7]]);
-///                 B2B_G(0, 5, 10, 15, m[sigma[i][ 8]], m[sigma[i][ 9]]);
-///                 B2B_G(1, 6, 11, 12, m[sigma[i][10]], m[sigma[i][11]]);
-///                 B2B_G(2, 7,  8, 13, m[sigma[i][12]], m[sigma[i][13]]);
-///                 B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
-///             }
-/// 
-///             for (i = 0; i < 8; ++i)
-///             {
-///                 ctx->h[i] ^= v[i] ^ v[i + 8];
-///             }
-/// 
-///             ctx->c = 0;
-///         }
-/// 
-///         ctx->b[ctx->c++] = ((const uint8_t *)key)[j];
-///     }
-/// 
-///     if (KEY_LEN > 0)
-///     {
-///         ctx->c = 128;
-///     }
 
     //====================================================================//
     //  Hash message
@@ -959,16 +900,16 @@ void partialHash(
                 m[i] = B2B_GET64(&ctx->b[8 * i]);
             }
 
-            for (i = 0; i < 12; ++i)
+            for (i = 0; i < 192; i += 16)
             {
-                B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
-                B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
-                B2B_G(2, 6, 10, 14, m[sigma[i][ 4]], m[sigma[i][ 5]]);
-                B2B_G(3, 7, 11, 15, m[sigma[i][ 6]], m[sigma[i][ 7]]);
-                B2B_G(0, 5, 10, 15, m[sigma[i][ 8]], m[sigma[i][ 9]]);
-                B2B_G(1, 6, 11, 12, m[sigma[i][10]], m[sigma[i][11]]);
-                B2B_G(2, 7,  8, 13, m[sigma[i][12]], m[sigma[i][13]]);
-                B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
+                B2B_G(0, 4,  8, 12, m[sigma[i +  0]], m[sigma[i +  1]]);
+                B2B_G(1, 5,  9, 13, m[sigma[i +  2]], m[sigma[i +  3]]);
+                B2B_G(2, 6, 10, 14, m[sigma[i +  4]], m[sigma[i +  5]]);
+                B2B_G(3, 7, 11, 15, m[sigma[i +  6]], m[sigma[i +  7]]);
+                B2B_G(0, 5, 10, 15, m[sigma[i +  8]], m[sigma[i +  9]]);
+                B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
+                B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
+                B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
             }
 
             for (i = 0; i < 8; ++i)
@@ -989,88 +930,95 @@ void partialHash(
 //  Block mining                                                               
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void blockMining(
-    const void * data,
+    // hash constants & secret key
+    const uint32_t * data,
     // pregenerated nonces
-    const void * non,
+    const uint32_t * non,
     // precalculated hashes
-    const void * hash,
+    const uint32_t * hash,
     // results
     uint32_t * res
 ) {
-    // 64 * 32 bits of local memory
-    uint32_t local[64];
-    // 16 * 64 bits 
-    uint64_t * v = (uint64_t *)local;
-    // 16 * 64 bits 
-    uint64_t * m = v + 16;
-    // K_SIZE * 32 bits
-    uint32_t * ind = local;
-    // HASH_LEN * 8 + 32 bits
-    uint8_t * h = (uint8_t *)(ind + K_SIZE);
-
     uint32_t j;
+    uint32_t tid = threadIdx.x;
 
     // shared memory
-    __shared__ uint32_t shared[2 * BDIM];
+    // 8 * B_DIM bytes  
+    __shared__ uint32_t shared[2 * B_DIM];
 
-    uint64_t tid = threadIdx.x;
-    shared[2 * tid] = ((uint32_t *)data)[2 * tid];
-    shared[2 * tid + 1] = ((uint32_t *)data)[2 * tid + 1];
+    shared[2 * tid] = data[2 * tid];
+    shared[2 * tid + 1] = data[2 * tid + 1];
     __syncthreads();
 
+    // 8 * 64 bits = 64 bytes
     uint64_t * blake2b_iv = (uint64_t *)shared;
+    // 192 * 8 bits = 192 bytes
     uint8_t * sigma = (uint8_t *)(shared + 16);
+    // 8 * 32 bits = 32 bytes
     uint32_t * sk = shared + 64;
-    blake2b_ctx ctx;
+
+    // local memory
+    // 936 bytes
+    uint32_t local[118];
+
+    // 128 bytes 
+    uint64_t * v = (uint64_t *)local;
+    // 128 bytes 
+    uint64_t * m = v + 16;
+    // (4 * K_LEN) bytes
+    uint32_t * ind = local;
+    // (NUM_BYTE_SIZE + 4) bytes
+    uint8_t * h = (uint8_t *)(ind + K_LEN);
+    // 212 bytes 
+    blake2b_ctx * ctx = (blake2b_ctx *)(local + 8);
 
 #pragma unroll
-    for (int l = 0; l < H_SIZE; ++l) 
+    for (int l = 0; l < H_LEN; ++l) 
     {
-        ctx = *(blake2b_ctx *)(shared + 64 + KEY_LEN / sizeof(uint32_t));
+        ctx = (blake2b_ctx *)(shared + 64 + (NUM_BYTE_SIZE >> 2));
 
-        tid = (
-            threadIdx.x + blockDim.x * blockIdx.x + l * gridDim.x * blockDim.x
-        ) << 3;
+        tid = threadIdx.x + blockDim.x * blockIdx.x
+            + l * gridDim.x * blockDim.x;
 
-        const uint8_t * mes = (const uint8_t *)((const uint32_t *)non + tid);
+        const uint8_t * mes = (const uint8_t *)(non + (tid << 3));
 
     //====================================================================//
     //  Hash nonce
     //====================================================================//
-        for (j = 0; ctx.c < 128 && j < NON_LEN; ++j)
+        for (j = 0; ctx->c < 128 && j < NUM_BYTE_SIZE; ++j)
         {
-            ctx.b[ctx.c++] = mes[j];
+            ctx->b[ctx->c++] = mes[j];
         }
 
-        while (j < NON_LEN)
+        while (j < NUM_BYTE_SIZE)
         {
-            ctx.t[0] += ctx.c;
-            ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
+            ctx->t[0] += ctx->c;
+            ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
 #pragma unroll
             for (int i = 0; i < 8; ++i)
             {
-                v[i] = ctx.h[i];
+                v[i] = ctx->h[i];
                 v[i + 8] = blake2b_iv[i];
             }
 
-            v[12] ^= ctx.t[0];
-            v[13] ^= ctx.t[1];
+            v[12] ^= ctx->t[0];
+            v[13] ^= ctx->t[1];
 
 #pragma unroll
             for (int i = 0; i < 16; i++)
             {
-                m[i] = B2B_GET64(&ctx.b[8 * i]);
+                m[i] = B2B_GET64(&ctx->b[8 * i]);
             }
 
 #pragma unroll
-            for (int i = 0; i < 12 << 4; i += 16)
+            for (int i = 0; i < 192; i += 16)
             {
-                B2B_G(0, 4,  8, 12, m[sigma[i + 0]], m[sigma[i + 1]]);
-                B2B_G(1, 5,  9, 13, m[sigma[i + 2]], m[sigma[i + 3]]);
-                B2B_G(2, 6, 10, 14, m[sigma[i + 4]], m[sigma[i + 5]]);
-                B2B_G(3, 7, 11, 15, m[sigma[i + 6]], m[sigma[i + 7]]);
-                B2B_G(0, 5, 10, 15, m[sigma[i + 8]], m[sigma[i + 9]]);
+                B2B_G(0, 4,  8, 12, m[sigma[i +  0]], m[sigma[i +  1]]);
+                B2B_G(1, 5,  9, 13, m[sigma[i +  2]], m[sigma[i +  3]]);
+                B2B_G(2, 6, 10, 14, m[sigma[i +  4]], m[sigma[i +  5]]);
+                B2B_G(3, 7, 11, 15, m[sigma[i +  6]], m[sigma[i +  7]]);
+                B2B_G(0, 5, 10, 15, m[sigma[i +  8]], m[sigma[i +  9]]);
                 B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
                 B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
                 B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
@@ -1079,53 +1027,53 @@ __global__ void blockMining(
 #pragma unroll
             for (int i = 0; i < 8; ++i)
             {
-                ctx.h[i] ^= v[i] ^ v[i + 8];
+                ctx->h[i] ^= v[i] ^ v[i + 8];
             }
 
-            ctx.c = 0;
+            ctx->c = 0;
            
-            while (ctx.c < 128 && j < NON_LEN)
+            while (ctx->c < 128 && j < NUM_BYTE_SIZE)
             {
-                ctx.b[ctx.c++] = mes[j++];
+                ctx->b[ctx->c++] = mes[j++];
             }
         }
 
     //====================================================================//
     //  Finalize hash
     //====================================================================//
-        ctx.t[0] += ctx.c;
-        ctx.t[1] += 1 - !(ctx.t[0] < ctx.c);
+        ctx->t[0] += ctx->c;
+        ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
 
-        while (ctx.c < 128)
+        while (ctx->c < 128)
         {
-            ctx.b[ctx.c++] = 0;
+            ctx->b[ctx->c++] = 0;
         }
 
 #pragma unroll
         for (int i = 0; i < 8; ++i)
         {
-            v[i] = ctx.h[i];
+            v[i] = ctx->h[i];
             v[i + 8] = blake2b_iv[i];
         }
 
-        v[12] ^= ctx.t[0];
-        v[13] ^= ctx.t[1];
+        v[12] ^= ctx->t[0];
+        v[13] ^= ctx->t[1];
         v[14] = ~v[14];
 
 #pragma unroll
         for (int i = 0; i < 16; i++)
         {
-            m[i] = B2B_GET64(&ctx.b[8 * i]);
+            m[i] = B2B_GET64(&ctx->b[8 * i]);
         }
 
 #pragma unroll
-        for (int i = 0; i < 12 << 4; i += 16)
+        for (int i = 0; i < 192; i += 16)
         {
-            B2B_G(0, 4,  8, 12, m[sigma[i + 0]], m[sigma[i + 1]]);
-            B2B_G(1, 5,  9, 13, m[sigma[i + 2]], m[sigma[i + 3]]);
-            B2B_G(2, 6, 10, 14, m[sigma[i + 4]], m[sigma[i + 5]]);
-            B2B_G(3, 7, 11, 15, m[sigma[i + 6]], m[sigma[i + 7]]);
-            B2B_G(0, 5, 10, 15, m[sigma[i + 8]], m[sigma[i + 9]]);
+            B2B_G(0, 4,  8, 12, m[sigma[i +  0]], m[sigma[i +  1]]);
+            B2B_G(1, 5,  9, 13, m[sigma[i +  2]], m[sigma[i +  3]]);
+            B2B_G(2, 6, 10, 14, m[sigma[i +  4]], m[sigma[i +  5]]);
+            B2B_G(3, 7, 11, 15, m[sigma[i +  6]], m[sigma[i +  7]]);
+            B2B_G(0, 5, 10, 15, m[sigma[i +  8]], m[sigma[i +  9]]);
             B2B_G(1, 6, 11, 12, m[sigma[i + 10]], m[sigma[i + 11]]);
             B2B_G(2, 7,  8, 13, m[sigma[i + 12]], m[sigma[i + 13]]);
             B2B_G(3, 4,  9, 14, m[sigma[i + 14]], m[sigma[i + 15]]);
@@ -1134,12 +1082,12 @@ __global__ void blockMining(
 #pragma unroll
         for (int i = 0; i < 8; ++i)
         {
-            ctx.h[i] ^= v[i] ^ v[i + 8];
+            ctx->h[i] ^= v[i] ^ v[i + 8];
         }
 
-        for (j = 0; j < HASH_LEN; ++j)
+        for (j = 0; j < NUM_BYTE_SIZE; ++j)
         {
-            h[j] = (ctx.h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
+            h[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
         }
 
     //===================================================================//
@@ -1148,27 +1096,26 @@ __global__ void blockMining(
 #pragma unroll
         for (int i = 0; i < 3; ++i)
         {
-            h[HASH_LEN + i] = h[i];
+            h[NUM_BYTE_SIZE + i] = h[i];
         }
 
 #pragma unroll
-        for (int i = 0; i < K_SIZE; ++i)
+        for (int i = 0; i < K_LEN; ++i)
         {
-            ind[i] = *((uint32_t *)(h + i)) & 0x03FFFFFF;
+            ind[i] = *((uint32_t *)(h + i)) & N_MASK;
         }
         
     //===================================================================//
     //  Calculate result
     //===================================================================//
+        uint32_t * p = hashes;
+        // 36 bytes
         uint32_t * r = (uint32_t *)h;
-        uint32_t * p = (uint32_t *)hashes;
 
         // first addition of hashes -> r
         asm volatile (
             "add.cc.u32 %0, %1, %2;":
-                "=r"(r[0]):
-                "r"(p[((uint64_t)(ind[0]) << 3)]),
-                "r"(p[((uint64_t)(ind[1]) << 3)])
+                "=r"(r[0]): "r"(p[(ind[0] << 3)]), "r"(p[(ind[1] << 3)])
         );
 
 #pragma unroll
@@ -1176,9 +1123,7 @@ __global__ void blockMining(
         {
             asm volatile (
                 "addc.cc.u32 %0, %1, %2;":
-                "=r"(r[i]):
-                "r"(p[((uint64_t)(ind[0]) << 3) + i]),
-                "r"(p[((uint64_t)(ind[1]) << 3) + i])
+                "=r"(r[i]): "r"(p[(ind[0] << 3) + i]), "r"(p[(ind[1] << 3) + i])
             );
         }
 
@@ -1188,11 +1133,10 @@ __global__ void blockMining(
 
         // remaining additions
 #pragma unroll
-        for (int k = 2; k < K_SIZE; ++k)
+        for (int k = 2; k < K_LEN; ++k)
         {
             asm volatile (
-                "add.cc.u32 %0, %0, %1;":
-                "+r"(r[0]): "r"(p[((uint64_t)(ind[k]) << 3)])
+                "add.cc.u32 %0, %0, %1;": "+r"(r[0]): "r"(p[ind[k] << 3])
             );
 
 #pragma unroll
@@ -1200,7 +1144,7 @@ __global__ void blockMining(
             {
                 asm volatile (
                     "addc.cc.u32 %0, %0, %1;":
-                    "+r"(r[i]): "r"(p[((uint64_t)(ind[k]) << 3) + i])
+                    "+r"(r[i]): "r"(p[(ind[k] << 3) + i])
                 );
             }
 
@@ -1230,7 +1174,9 @@ __global__ void blockMining(
     //===================================================================//
     //  Result mod q
     //===================================================================//
+        // 20 bytes
         uint32_t * med = ind;
+        // 4 bytes
         uint32_t * d = ind + 5; 
 
         *d = (r[8] << 4) | (r[7] >> 28);
@@ -1327,7 +1273,7 @@ __global__ void blockMining(
 #pragma unroll
         for (int i = 0; i < 8; ++i)
         {
-            res[tid + i] = r[i];
+            res[(tid << 3) + i] = r[i];
         }
     }
 
