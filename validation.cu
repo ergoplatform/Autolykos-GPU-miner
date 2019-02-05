@@ -1,3 +1,5 @@
+// validation.cu
+
 #include "autolykos.h"
 #include <cuda.h>
 #include <curand.h>
@@ -5,7 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //  Unfinalized hash of message
 ////////////////////////////////////////////////////////////////////////////////
-void initHash(
+void initMining(
     // context
     blake2b_ctx * ctx,
     // optional secret key
@@ -124,7 +126,7 @@ __global__ void blockMining(
     const uint32_t * hash,
     // results
     uint32_t * res,
-    uint32_t * next
+    uint32_t * unfinalized
 ) {
     uint32_t j;
     uint32_t tid = threadIdx.x;
@@ -295,14 +297,13 @@ __global__ void blockMining(
     //===================================================================//
     //  Calculate result
     //===================================================================//
-        uint32_t * p = hashes;
         // 36 bytes
         uint32_t * r = (uint32_t *)h;
 
         // first addition of hashes -> r
         asm volatile (
             "add.cc.u32 %0, %1, %2;":
-                "=r"(r[0]): "r"(p[(ind[0] << 3)]), "r"(p[(ind[1] << 3)])
+                "=r"(r[0]): "r"(hash[(ind[0] << 3)]), "r"(hash[(ind[1] << 3)])
         );
 
 #pragma unroll
@@ -310,7 +311,9 @@ __global__ void blockMining(
         {
             asm volatile (
                 "addc.cc.u32 %0, %1, %2;":
-                "=r"(r[i]): "r"(p[(ind[0] << 3) + i]), "r"(p[(ind[1] << 3) + i])
+                "=r"(r[i]):
+                "r"(hash[(ind[0] << 3) + i]),
+                "r"(hash[(ind[1] << 3) + i])
             );
         }
 
@@ -323,7 +326,7 @@ __global__ void blockMining(
         for (int k = 2; k < K_LEN; ++k)
         {
             asm volatile (
-                "add.cc.u32 %0, %0, %1;": "+r"(r[0]): "r"(p[ind[k] << 3])
+                "add.cc.u32 %0, %0, %1;": "+r"(r[0]): "r"(hash[ind[k] << 3])
             );
 
 #pragma unroll
@@ -331,7 +334,7 @@ __global__ void blockMining(
             {
                 asm volatile (
                     "addc.cc.u32 %0, %0, %1;":
-                    "+r"(r[i]): "r"(p[(ind[k] << 3) + i])
+                    "+r"(r[i]): "r"(hash[(ind[k] << 3) + i])
                 );
             }
 
@@ -460,7 +463,7 @@ __global__ void blockMining(
         j = ((uint64_t *)r)[3] == 0 && ((uint64_t *)r)[2] == 0
             && ((uint64_t *)r)[1] == 0 && ((uint64_t *)r)[0] <= B_LEN;
 
-        next[tid] = 1 - !j;
+        unfinalized[tid] = 1 - !j;
 
 #pragma unroll
         for (int i = 0; i < 8; ++i)
@@ -472,3 +475,4 @@ __global__ void blockMining(
     return;
 }
 
+// validation.cu

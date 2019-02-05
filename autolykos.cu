@@ -1,3 +1,5 @@
+// autolykos.cu
+
 #include "autolykos.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,251 +7,18 @@
 #include <cuda.h>
 #include <curand.h>
 
-#define CUDA_CALL(x) do { if((x) != cudaSuccess) { \
-printf("Error at %s:%d\n",__FILE__,__LINE__);      \
-return EXIT_FAILURE;}} while (0)
-
-#define CURAND_CALL(x) do { if((x) != CURAND_STATUS_SUCCESS) { \
-printf("Error at %s:%d\n",__FILE__,__LINE__);                  \
-return EXIT_FAILURE;}} while (0)
-
-// Little-endian byte access
-#ifndef B2B_GET64
-#define B2B_GET64(p)                            \
-    (((uint64_t) ((uint8_t *) (p))[0]) ^        \
-    (((uint64_t) ((uint8_t *) (p))[1]) << 8) ^  \
-    (((uint64_t) ((uint8_t *) (p))[2]) << 16) ^ \
-    (((uint64_t) ((uint8_t *) (p))[3]) << 24) ^ \
-    (((uint64_t) ((uint8_t *) (p))[4]) << 32) ^ \
-    (((uint64_t) ((uint8_t *) (p))[5]) << 40) ^ \
-    (((uint64_t) ((uint8_t *) (p))[6]) << 48) ^ \
-    (((uint64_t) ((uint8_t *) (p))[7]) << 56))
-#endif
-
-// Cyclic right rotation
-#ifndef ROTR64
-#define ROTR64(x, y)  (((x) >> (y)) ^ ((x) << (64 - (y))))
-#endif
-
-// G mixing function
-#ifndef B2B_G
-#define B2B_G(a, b, c, d, x, y)     \
-{                                   \
-    v[a] = v[a] + v[b] + x;         \
-    v[d] = ROTR64(v[d] ^ v[a], 32); \
-    v[c] = v[c] + v[d];             \
-    v[b] = ROTR64(v[b] ^ v[c], 24); \
-    v[a] = v[a] + v[b] + y;         \
-    v[d] = ROTR64(v[d] ^ v[a], 16); \
-    v[c] = v[c] + v[d];             \
-    v[b] = ROTR64(v[b] ^ v[c], 63); \
-}
-#endif
-
-////////////////////////////////////////////////////////////////////////////////
-// template <unsigned int blockSize, bool nIsPow2>
-// __global__ void
-// reduce6(uint32_t *g_idata, uint32_t *g_odata, uint32_t n)
-// {
-//     // Handle to thread block group
-//     cg::thread_block cta = cg::this_thread_block();
-//     uint32_t * sdata = SharedMemory<uint32_t>();
-// 
-//     // perform first level of reduction,
-//     // reading from global memory, writing to shared memory
-//     unsigned int tid = threadIdx.x;
-//     unsigned int i = blockIdx.x * blockSize * 2 + threadIdx.x;
-//     unsigned int gridSize = blockSize * 2 * gridDim.x;
-// 
-//     uint32_t mySum = 0;
-// 
-//     // we reduce multiple elements per thread.  The number is determined by the
-//     // number of active thread blocks (via gridDim).  More blocks will result
-//     // in a larger gridSize and therefore fewer elements per thread
-//     while (i < n)
-//     {
-//         mySum += g_idata[i];
-// 
-//         // ensure we don't read out of bounds -- this is optimized away for powerOf2 sized arrays
-//         if (nIsPow2 || i + blockSize < n)
-//             mySum += g_idata[i+blockSize];
-// 
-//         i += gridSize;
-//     }
-// 
-//     // each thread puts its local sum into shared memory
-//     sdata[tid] = mySum;
-//     cg::sync(cta);
-// 
-// 
-//     // do reduction in shared mem
-//     if ((blockSize >= 512) && (tid < 256))
-//     {
-//         sdata[tid] = mySum = mySum + sdata[tid + 256];
-//     }
-// 
-//     cg::sync(cta);
-// 
-//     if ((blockSize >= 256) &&(tid < 128))
-//     {
-//         sdata[tid] = mySum = mySum + sdata[tid + 128];
-//     }
-// 
-//     cg::sync(cta);
-// 
-//     if ((blockSize >= 128) && (tid <  64))
-//     {
-//        sdata[tid] = mySum = mySum + sdata[tid +  64];
-//     }
-// 
-//     cg::sync(cta);
-// 
-// #if (__CUDA_ARCH__ >= 300 )
-//     if (tid < 32)
-//     {
-//         cg::coalesced_group active = cg::coalesced_threads();
-// 
-//         // Fetch final intermediate sum from 2nd warp
-//         if (blockSize >=  64) mySum += sdata[tid + 32];
-//         // Reduce final warp using shuffle
-//         for (int offset = warpSize / 2; offset > 0; offset /= 2) 
-//         {
-//              mySum += active.shfl_down(mySum, offset);
-//         }
-//     }
-// #else
-//     // fully unroll reduction within a single warp
-//     if ((blockSize >=  64) && (tid < 32))
-//     {
-//         sdata[tid] = mySum = mySum + sdata[tid + 32];
-//     }
-// 
-//     cg::sync(cta);
-// 
-//     if ((blockSize >=  32) && (tid < 16))
-//     {
-//         sdata[tid] = mySum = mySum + sdata[tid + 16];
-//     }
-// 
-//     cg::sync(cta);
-// 
-//     if ((blockSize >=  16) && (tid <  8))
-//     {
-//         sdata[tid] = mySum = mySum + sdata[tid +  8];
-//     }
-// 
-//     cg::sync(cta);
-// 
-//     if ((blockSize >=   8) && (tid <  4))
-//     {
-//         sdata[tid] = mySum = mySum + sdata[tid +  4];
-//     }
-// 
-//     cg::sync(cta);
-// 
-//     if ((blockSize >=   4) && (tid <  2))
-//     {
-//         sdata[tid] = mySum = mySum + sdata[tid +  2];
-//     }
-// 
-//     cg::sync(cta);
-// 
-//     if ((blockSize >=   2) && ( tid <  1))
-//     {
-//         sdata[tid] = mySum = mySum + sdata[tid +  1];
-//     }
-// 
-//     cg::sync(cta);
-// #endif
-// 
-//     // write result for this block to global mem
-//     if (tid == 0) g_odata[blockIdx.x] = mySum;
-// }
-////////////////////////////////////////////////////////////////////////////////
-
-template <uint32_t blockSize>
-__device__ void warpReduce(volatile uint32_t * sdata, uint32_t tid)
-{
-    if (blockSize >= 64) { sdata[tid] += sdata[tid + 32]; }
-    if (blockSize >= 32) { sdata[tid] += sdata[tid + 16]; }
-    if (blockSize >= 16) { sdata[tid] += sdata[tid +  8]; }
-    if (blockSize >=  8) { sdata[tid] += sdata[tid +  4]; }
-    if (blockSize >=  4) { sdata[tid] += sdata[tid +  2]; }
-    if (blockSize >=  2) { sdata[tid] += sdata[tid +  1]; }
-}
-
-template <uint32_t blockSize>
-__global__ void reduce(
-    uint32_t * g_idata,
-    uint32_t * g_odata,
-    uint32_t len
-) {
-    __shared__ uint32_t sdata[len];
-
-    uint32_t tid = threadIdx.x;
-    uint32_t i = blockIdx.x * blockSize * 2 + tid;
-    uint32_t gridSize = blockSize * 2 * gridDim.x;
-
-    sdata[tid] = 0;
-
-    for ( ; i < len; i += gridSize)
-    {
-        sdata[tid] += g_idata[i] + g_idata[i + blockSize];
-    }
-
-    __syncthreads();
-
-    //if (blockSize >= 512)
-    //{
-    //    if (tid < 256) { sdata[tid] += sdata[tid + 256]; }
-    //    __syncthreads();
-    //}
-
-    //if (blockSize >= 256)
-    //{
-    //    if (tid < 128) { sdata[tid] += sdata[tid + 128]; }
-    //    __syncthreads();
-    //}
-
-    //if (blockSize >= 128)
-    //{
-    //    if (tid < 64) { sdata[tid] += sdata[tid + 64]; }
-    //    __syncthreads();
-    //}
-
-    if (tid < 32)
-    {
-        warpReduce(sdata, tid);
-    }
-
-    if (tid == 0)
-    {
-        g_odata[blockIdx.x] = sdata[0];
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//  Initialize random generator
-////////////////////////////////////////////////////////////////////////////////
-void initRand(
-    curandGenerator_t * gen,
-    uint32_t ** non
-) {
-    CURAND_CALL(curandCreateGenerator(gen, CURAND_RNG_PSEUDO_MTGP32));
-    CUDA_CALL(cudaMalloc((void **)non, L_SIZE * 4 * sizeof(uint32_t)));
-
-    time_t rawtime;
-    time(&rawtime);
-    CURAND_CALL(curandSetPseudoRandomGeneratorSeed(gen, (uint64_t)rawtime));
-
-    return;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //  Main cycle
 ////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char ** argv)
 {
+    //====================================================================//
+    //  Host memory
+    //====================================================================//
+    int ind = 0;
+
+    // BLAKE_2B_256 params
+    // 64 bytes
     const uint64_t blake2b_iv[8] = {
         0x6A09E667F3BCC908, 0xBB67AE8584CAA73B,
         0x3C6EF372FE94F82B, 0xA54FF53A5F1D36F1,
@@ -257,7 +26,9 @@ int main(int argc, char ** argv)
         0x1F83D9ABFB41BD6B, 0x5BE0CD19137E2179
     };
 
-    const uint8_t sigma[12 * 16] = {
+    // pemutations of {0, 1, ..., 15}
+    // 192 bytes
+    const uint8_t sigma[192] = {
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
         14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3,
         11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4,
@@ -272,78 +43,159 @@ int main(int argc, char ** argv)
         14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3
     };
 
-    // host allocation
-    blake2b_ctx * ctx_h = (blake2b_ctx *)malloc(sizeof(blake2b_ctx));
-    // 256 bits
-    uint32_t mes_h[8] = {
-        0, 0, 0, 0, 0, 0, 0, 0
-    }; 
+    // 212 bytes
+    blake2b_ctx ctx_h;
 
-    // L_SIZE * 256 bits
-    //uint32_t * res_h = (uint32_t *)malloc(L_SIZE * 8 * sizeof(uint32_t)); 
+    // 8 * 32 bits = 32 bytes
+    uint32_t mes_h[8] = {0, 0, 0, 0, 0, 0, 0, 0}; 
 
-    // device allocation
-    void * data_d;
-    CUDA_CALL(cudaMalloc((void **)&data_d, 2 * BDIM * sizeof(uint32_t)));
-    CUDA_CALL(cudaMemcpy(
-        data_d, (void *)blake2b_iv, 8 * sizeof(uint64_t), cudaMemcpyHostToDevice
-    ));
-    CUDA_CALL(cudaMemcpy(
-        (void *)((uint32_t *)data_d + 16), (void *)sigma, 192,
-        cudaMemcpyHostToDevice
-    ));
+    // L_LEN * 256 bits
+    uint32_t * res_h = (uint32_t *)malloc(L_LEN * 8 * 4); 
 
-    // L_SIZE * 256 bits
+    //====================================================================//
+    //  Device memory
+    //====================================================================//
+    // nonces
+    // 4 * L_LEN * H_LEN bytes
+    uint32_t * non_d;
+    CUDA_CALL(cudaMalloc((void **)&non_d, 4 * L_LEN * H_LEN));
+
+    // data: blake2b_iv || sigma || sk || pk || mes || w || x
+    // (256 + 5 * NUM_BYTE_SIZE) bytes
+    uint32_t * data_d;
+    CUDA_CALL(cudaMalloc((void **)&data_d, 256 + 5 * NUM_BYTE_SIZE));
+
+    // precalculated hashes
+    // NUM_BYTE_SIZE * N_LEN bytes
+    uint32_t * hash_d;
+    CUDA_CALL(cudaMalloc((void **)&hash_d, NUM_BYTE_SIZE * N_LEN));
+
+    // indices of unfinalized hashes
+    // 4 * H_LEN * N_LEN bytes
+    uint32_t * unfinalized_d;
+    CUDA_CALL(cudaMalloc((void **)&unfinalized_d, 8 * H_LEN * N_LEN));
+
+    // 4 * H_LEN * N_LEN bytes
     uint32_t * res_d;
-    CUDA_CALL(cudaMalloc((void **)&res_d, L_SIZE * 8 * sizeof(uint32_t)));
+    CUDA_CALL(cudaMalloc((void **)&res_d, 4 * H_LEN * N_LEN));
 
-    int ind = -1;
-
+    //====================================================================//
+    //  Random generator initialization
+    //====================================================================//
     // intialize random generator
     curandGenerator_t gen;
-    // L_SIZE * 256 bits
-    uint32_t * non_d;
-    initRand(&gen, &non_d);
 
+    CURAND_CALL(curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_MTGP32));
+    
+    time_t rawtime;
+    time(&rawtime);
+    CURAND_CALL(curandSetPseudoRandomGeneratorSeed(gen, (uint64_t)rawtime));
+
+    //====================================================================//
+    /// debug /// uint32_t arr_h[0x4000000];
+
+    /// debug /// for (int i = 0; i < 0x4000000; ++i)
+    /// debug /// {
+    /// debug ///     arr_h[i] = 0;
+    /// debug /// }
+
+    /// debug /// for (int i = 13; i < 0x4000000; i += 7)
+    /// debug /// {
+    /// debug ///     arr_h[i] = i;
+    /// debug /// }
+
+    /// debug /// uint32_t * in_d;
+    /// debug /// uint32_t * out_d;
+
+    /// debug /// CUDA_CALL(cudaMalloc((void **)&in_d, 0x4000000 * 4));
+    /// debug /// CUDA_CALL(cudaMalloc((void **)&out_d, 0x4000000 * 2));
+
+    /// debug /// CUDA_CALL(cudaMemcpy(
+    /// debug ///     (void *)in_d, arr_h, 0x4000000 * 4, cudaMemcpyHostToDevice
+    /// debug /// ));
+
+    /// debug /// printf("%d\n", findNonZero(in_d, out_d));
+
+    /// debug /// CUDA_CALL(cudaFree(in_d));
+    /// debug /// CUDA_CALL(cudaFree(out_d));
+
+    //====================================================================//
     // secret key
-    //>>>genKey();
+    //>>>genSKey();
+    uint32_t sk_h[8] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 1, 2}; 
+    //>>>genPKey();
+    uint32_t pk_h[8] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 3, 4}; 
+
+    //====================================================================//
+    //  Memory: Host -> Device
+    //====================================================================//
     CUDA_CALL(cudaMemcpy(
-        (void *)((uint32_t *)data_d + 64), sk_h, KEY_LEN * sizeof(uint8_t),
-        cudaMemcpyHostToDevice
+        (void *)data_d, (void *)blake2b_iv, 64, cudaMemcpyHostToDevice
+    ));
+    CUDA_CALL(cudaMemcpy(
+        (void *)(data_d + 16), (void *)sigma, 192, cudaMemcpyHostToDevice
+    ));
+    CUDA_CALL(cudaMemcpy(
+        (void *)(data_d + 64), (void)sk_h, NUM_BYTE_SIZE, cudaMemcpyHostToDevice
+    ));
+    CUDA_CALL(cudaMemcpy(
+        (void *)(data_d + 64 + (NUM_BYTE_SIZE >> 2)), (void)pk_h, NUM_BYTE_SIZE, cudaMemcpyHostToDevice
+    ));
+    CUDA_CALL(cudaMemcpy(
+        (void *)(data_d + 64 + 2 * (NUM_BYTE_SIZE >> 2)), (void)mes_h, NUM_BYTE_SIZE, cudaMemcpyHostToDevice
     ));
 
-    while (1)
-    {
-        if (ind >= 0)
-        {
-            // one time secret key
-            //>>>genKey();
+    // one time secret key
+    uint32_t x_h[8] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 5, 6}; 
+    //>>>genPKey();
+    uint32_t w_h[8] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 7, 8}; 
 
-            //>>>hash();
+    while (ind) //>>>(1)
+    {
+        if (ind)
+        {
+            //>>>genSKey();
+            CUDA_CALL(cudaMemcpy(
+                (void *)(data_d + 64 + 4 * (NUM_BYTE_SIZE >> 2)), (void)x_h, NUM_BYTE_SIZE,
+                cudaMemcpyHostToDevice
+            ));
+            //>>>genPKey();
+            CUDA_CALL(cudaMemcpy(
+                (void *)(data_d + 3 * (NUM_BYTE_SIZE >> 2)), (void)w_h, NUM_BYTE_SIZE,
+                cudaMemcpyHostToDevice
+            ));
+
+            initPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data_d, hash_d, unfinalized_d);
+            //>>>updatePrehash(data_d, hash_d, unfinalized_d);
+            finalizePrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data_d, hash_d);
         }
 
         // generate nonces
-        CURAND_CALL(curandGenerate(gen, non_d, L_SIZE * 8));
+        CURAND_CALL(curandGenerate(gen, non_d, 4 * L_LEN * H_LEN));
 
         // calculate unfinalized hash of message
-        partialHash(ctx_h, sk_h, mes_h, 32);
+        initMining(ctx_h, sk_h, mes_h, NUM_BYTE_SIZE);
 
+        // context: host -> device
         CUDA_CALL(cudaMemcpy(
-            (void *)((uint32_t *)data_d + 64 + KEY_LEN / sizeof(uint32_t)),
+            (void *)(data_d + 5 * (NUM_BYTE_SIZE >> 2)),
             (void *)ctx_h, sizeof(blake2b_ctx), cudaMemcpyHostToDevice
         ));
 
         // calculate hashes
-        blockMining<<<GDIM, BDIM>>>(ctx_d, hash_d, non_d, res_d);
-
-        //>>>ind = findSolution(res);
+        blockMining<<<G_DIM, B_DIM>>>(ctx_d, non_d, hash_d, res_d, unfinalized_d);
+        ind = findNonZero(unfinalized_d, out_d + 4 * H_LEN * N_LEN);
     }
 
+    //====================================================================//
     CURAND_CALL(curandDestroyGenerator(gen));
-    CUDA_CALL(cudaFree(non));
+    CUDA_CALL(cudaFree(non_d));
+    CUDA_CALL(cudaFree(res_d));
+    CUDA_CALL(cudaFree(unfinalized_d));
+    CUDA_CALL(cudaFree(hash_d));
     CUDA_CALL(cudaFree(data_d));
-    free(ctx_h);
 
     return 0;
 }
 
+// autolykos.cu

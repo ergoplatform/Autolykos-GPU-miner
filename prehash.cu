@@ -1,3 +1,5 @@
+// prehash.cu
+
 #include "autolykos.h"
 #include <cuda.h>
 #include <curand.h>
@@ -6,19 +8,19 @@
 //  First iteration of hashes precalculation
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void initPrehash(
-    const void * data,
+    const uint32_t * data,
     // hashes
     uint32_t * hash,
-    uint32_t * next
+    uint32_t * unfinalized
 ) {
     uint32_t j;
     uint32_t tid = threadIdx.x;
 
     // shared memory
     __shared__ uint32_t shared[2 * B_DIM];
-
     shared[2 * tid] = data[2 * tid];
     shared[2 * tid + 1] = data[2 * tid + 1];
+
     __syncthreads();
 
     // 8 * 64 bits = 64 bytes 
@@ -292,7 +294,7 @@ __global__ void initPrehash(
     j = ((uint64_t *)local)[3] <= FQ3 && ((uint64_t *)local)[2] <= FQ2
         && ((uint64_t *)local)[1] <= FQ1 && ((uint64_t *)local)[0] <= FQ0;
 
-    next[tid] = (1 - !j) * (tid + 1);
+    unfinalized[tid] = (1 - !j) * (tid + 1);
 
 #pragma unroll
     for (int i = 0; i < 8; ++i)
@@ -302,22 +304,22 @@ __global__ void initPrehash(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Next iteration of hashes precalculation
+//  Unfinalized hashes update
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void updatePrehash(
     const uint32_t * data,
     // hashes
     uint32_t * hash,
-    uint32_t * next
+    uint32_t * unfinalized
 ) {
     uint32_t j;
     uint32_t tid = threadIdx.x;
 
     // shared memory
     __shared__ uint32_t shared[2 * B_DIM];
-
     shared[2 * tid] = data[2 * tid];
     shared[2 * tid + 1] = data[2 * tid + 1];
+
     __syncthreads();
 
     // 8 * 64 bits = 64 bytes 
@@ -336,7 +338,7 @@ __global__ void updatePrehash(
     blake2b_ctx * ctx = (blake2b_ctx *)(local + 8);
 
     tid = threadIdx.x + blockDim.x * blockIdx.x;
-    uint32_t addr = next[tid] - 1;
+    uint32_t addr = unfinalized[tid] - 1;
 
     //====================================================================//
     //  Initialize context
@@ -474,7 +476,7 @@ __global__ void updatePrehash(
     j = ((uint64_t *)local)[3] <= FQ3 && ((uint64_t *)local)[2] <= FQ2
         && ((uint64_t *)local)[1] <= FQ1 && ((uint64_t *)local)[0] <= FQ0;
 
-    next[tid] *= 1 - !j;
+    unfinalized[tid] *= 1 - !j;
 
 #pragma unroll
     for (int i = 0; i < 8; ++i)
@@ -483,9 +485,8 @@ __global__ void updatePrehash(
     }
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
-//  Hash * secret key mod q
+//  Hashes by secret key multiplication mod q 
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void finalizePrehash(
     const uint32_t * data,
@@ -768,3 +769,4 @@ __global__ void finalizePrehash(
     return;
 }
 
+// prehash.cu

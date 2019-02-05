@@ -7,7 +7,8 @@ CFLAGS = -c
 
 SRCDIR = .
 LIBPATH = ./lib/$(LIBNAME)
-SOURCES = $(SRCDIR)/autolykos.cu $(SRCDIR)/main.cu
+SOURCES = $(SRCDIR)/reduction.cu \
+	$(SRCDIR)/autolykos.cu
 OBJECTS = $(SOURCES:.cu=.o)
 
 TESTEXEC = test.out
