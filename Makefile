@@ -7,7 +7,7 @@ CFLAGS = -c
 
 SRCDIR = .
 LIBPATH = ./lib/$(LIBNAME)
-SOURCES = $(SRCDIR)/reduction.cu \
+SOURCES = $(SRCDIR)/reduction.cu $(SRCDIR)/validation.cu $(SRCDIR)/prehash.cu\
 	$(SRCDIR)/autolykos.cu
 OBJECTS = $(SOURCES:.cu=.o)
 

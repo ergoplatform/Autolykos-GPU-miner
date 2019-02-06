@@ -15,7 +15,7 @@ int main(int argc, char ** argv)
     //====================================================================//
     //  Host memory
     //====================================================================//
-    int ind = 0;
+    uint32_t ind = 1;
 
     // BLAKE_2B_256 params
     // 64 bytes
@@ -53,78 +53,62 @@ int main(int argc, char ** argv)
     uint32_t * res_h = (uint32_t *)malloc(L_LEN * 8 * 4); 
 
     //====================================================================//
+    // secret key
+    //>>>genSKey();
+    uint32_t sk_h[8] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 1, 2}; 
+
+    // public key
+    //>>>genPKey();
+    uint32_t pk_h[8] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 3, 4}; 
+
+    // one time secret key
+    //>>>genSKey();
+    uint32_t x_h[8] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 5, 6}; 
+
+    // one time public key
+    //>>>genPKey();
+    uint32_t w_h[8] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 7, 8}; 
+
+    //====================================================================//
     //  Device memory
     //====================================================================//
     // nonces
-    // 4 * L_LEN * H_LEN bytes
+    // H_LEN * L_LEN * 4 bytes // 64 MB
     uint32_t * non_d;
-    CUDA_CALL(cudaMalloc((void **)&non_d, 4 * L_LEN * H_LEN));
+    CUDA_CALL(cudaMalloc((void **)&non_d, H_LEN * L_LEN * 4));
 
     // data: blake2b_iv || sigma || sk || pk || mes || w || x
-    // (256 + 5 * NUM_BYTE_SIZE) bytes
+    // (256 + 5 * NUM_BYTE_SIZE) bytes // ~0 MB
     uint32_t * data_d;
     CUDA_CALL(cudaMalloc((void **)&data_d, 256 + 5 * NUM_BYTE_SIZE));
 
     // precalculated hashes
-    // NUM_BYTE_SIZE * N_LEN bytes
+    // N_LEN * NUM_BYTE_SIZE bytes // 2 GB
     uint32_t * hash_d;
-    CUDA_CALL(cudaMalloc((void **)&hash_d, NUM_BYTE_SIZE * N_LEN));
+    CUDA_CALL(cudaMalloc((void **)&hash_d, (uint32_t)N_LEN * NUM_BYTE_SIZE));
 
     // indices of unfinalized hashes
-    // 4 * H_LEN * N_LEN bytes
+    // H_LEN * N_LEN * 4 bytes // 256 MB
     uint32_t * unfinalized_d;
-    CUDA_CALL(cudaMalloc((void **)&unfinalized_d, 8 * H_LEN * N_LEN));
+    CUDA_CALL(cudaMalloc((void **)&unfinalized_d, (uint32_t)8 * H_LEN * N_LEN));
 
-    // 4 * H_LEN * N_LEN bytes
+    // potential solutions of puzzle
+    // H_LEN * N_LEN * 4 bytes // 256 MB
     uint32_t * res_d;
-    CUDA_CALL(cudaMalloc((void **)&res_d, 4 * H_LEN * N_LEN));
+    CUDA_CALL(cudaMalloc((void **)&res_d, H_LEN * N_LEN * 4));
 
     //====================================================================//
     //  Random generator initialization
     //====================================================================//
-    // intialize random generator
     curandGenerator_t gen;
-
     CURAND_CALL(curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_MTGP32));
     
     time_t rawtime;
+    // get current time (ms)
     time(&rawtime);
+
+    // set seed
     CURAND_CALL(curandSetPseudoRandomGeneratorSeed(gen, (uint64_t)rawtime));
-
-    //====================================================================//
-    /// debug /// uint32_t arr_h[0x4000000];
-
-    /// debug /// for (int i = 0; i < 0x4000000; ++i)
-    /// debug /// {
-    /// debug ///     arr_h[i] = 0;
-    /// debug /// }
-
-    /// debug /// for (int i = 13; i < 0x4000000; i += 7)
-    /// debug /// {
-    /// debug ///     arr_h[i] = i;
-    /// debug /// }
-
-    /// debug /// uint32_t * in_d;
-    /// debug /// uint32_t * out_d;
-
-    /// debug /// CUDA_CALL(cudaMalloc((void **)&in_d, 0x4000000 * 4));
-    /// debug /// CUDA_CALL(cudaMalloc((void **)&out_d, 0x4000000 * 2));
-
-    /// debug /// CUDA_CALL(cudaMemcpy(
-    /// debug ///     (void *)in_d, arr_h, 0x4000000 * 4, cudaMemcpyHostToDevice
-    /// debug /// ));
-
-    /// debug /// printf("%d\n", findNonZero(in_d, out_d));
-
-    /// debug /// CUDA_CALL(cudaFree(in_d));
-    /// debug /// CUDA_CALL(cudaFree(out_d));
-
-    //====================================================================//
-    // secret key
-    //>>>genSKey();
-    uint32_t sk_h[8] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 1, 2}; 
-    //>>>genPKey();
-    uint32_t pk_h[8] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 3, 4}; 
 
     //====================================================================//
     //  Memory: Host -> Device
@@ -136,64 +120,89 @@ int main(int argc, char ** argv)
         (void *)(data_d + 16), (void *)sigma, 192, cudaMemcpyHostToDevice
     ));
     CUDA_CALL(cudaMemcpy(
-        (void *)(data_d + 64), (void)sk_h, NUM_BYTE_SIZE, cudaMemcpyHostToDevice
+        (void *)(data_d + 64), (void *)sk_h, NUM_BYTE_SIZE,
+        cudaMemcpyHostToDevice
     ));
     CUDA_CALL(cudaMemcpy(
-        (void *)(data_d + 64 + (NUM_BYTE_SIZE >> 2)), (void)pk_h, NUM_BYTE_SIZE, cudaMemcpyHostToDevice
+        (void *)(data_d + 64 + (NUM_BYTE_SIZE >> 2)), (void *)pk_h,
+        NUM_BYTE_SIZE, cudaMemcpyHostToDevice
     ));
     CUDA_CALL(cudaMemcpy(
-        (void *)(data_d + 64 + 2 * (NUM_BYTE_SIZE >> 2)), (void)mes_h, NUM_BYTE_SIZE, cudaMemcpyHostToDevice
+        (void *)(data_d + 64 + 2 * (NUM_BYTE_SIZE >> 2)), (void *)mes_h,
+        NUM_BYTE_SIZE, cudaMemcpyHostToDevice
+    ));
+    CUDA_CALL(cudaMemcpy(
+        (void *)(data_d + 64 + 4 * (NUM_BYTE_SIZE >> 2)), (void *)x_h,
+        NUM_BYTE_SIZE, cudaMemcpyHostToDevice
+    ));
+    CUDA_CALL(cudaMemcpy(
+        (void *)(data_d + 64 + 3 * (NUM_BYTE_SIZE >> 2)), (void *)w_h,
+        NUM_BYTE_SIZE, cudaMemcpyHostToDevice
     ));
 
-    // one time secret key
-    uint32_t x_h[8] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 5, 6}; 
-    //>>>genPKey();
-    uint32_t w_h[8] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 7, 8}; 
-
+    clock_t time;
+    //====================================================================//
+    //  Autolykos puzzle cycle
+    //====================================================================//
     while (ind) //>>>(1)
     {
-        if (ind)
+        // on obtaining solution
+        if (ind == 1)
         {
+            time = clock();
             //>>>genSKey();
             CUDA_CALL(cudaMemcpy(
-                (void *)(data_d + 64 + 4 * (NUM_BYTE_SIZE >> 2)), (void)x_h, NUM_BYTE_SIZE,
-                cudaMemcpyHostToDevice
+                (void *)(data_d + 64 + 4 * (NUM_BYTE_SIZE >> 2)), (void *)x_h,
+                NUM_BYTE_SIZE, cudaMemcpyHostToDevice
             ));
             //>>>genPKey();
             CUDA_CALL(cudaMemcpy(
-                (void *)(data_d + 3 * (NUM_BYTE_SIZE >> 2)), (void)w_h, NUM_BYTE_SIZE,
-                cudaMemcpyHostToDevice
+                (void *)(data_d + 64 + 3 * (NUM_BYTE_SIZE >> 2)), (void *)w_h,
+                NUM_BYTE_SIZE, cudaMemcpyHostToDevice
             ));
 
-            initPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data_d, hash_d, unfinalized_d);
+            initPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
+                data_d, hash_d, unfinalized_d)
+            ;
             //>>>updatePrehash(data_d, hash_d, unfinalized_d);
             finalizePrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data_d, hash_d);
+            cudaDeviceSynchronize();
+            time = clock() - time;
         }
 
-        // generate nonces
-        CURAND_CALL(curandGenerate(gen, non_d, 4 * L_LEN * H_LEN));
+        /// // generate nonces
+        /// CURAND_CALL(curandGenerate(gen, non_d, 4 * L_LEN * H_LEN));
 
-        // calculate unfinalized hash of message
-        initMining(ctx_h, sk_h, mes_h, NUM_BYTE_SIZE);
+        /// // calculate unfinalized hash of message
+        /// initMining(&ctx_h, sk_h, mes_h, NUM_BYTE_SIZE);
 
-        // context: host -> device
-        CUDA_CALL(cudaMemcpy(
-            (void *)(data_d + 5 * (NUM_BYTE_SIZE >> 2)),
-            (void *)ctx_h, sizeof(blake2b_ctx), cudaMemcpyHostToDevice
-        ));
+        /// // context: host -> device
+        /// CUDA_CALL(cudaMemcpy(
+        ///     (void *)(data_d + 5 * (NUM_BYTE_SIZE >> 2)),
+        ///     (void *)&ctx_h, sizeof(blake2b_ctx), cudaMemcpyHostToDevice
+        /// ));
 
-        // calculate hashes
-        blockMining<<<G_DIM, B_DIM>>>(ctx_d, non_d, hash_d, res_d, unfinalized_d);
-        ind = findNonZero(unfinalized_d, out_d + 4 * H_LEN * N_LEN);
+        /// // calculate hashes
+        /// blockMining<<<G_DIM, B_DIM>>>(
+        ///     data_d, non_d, hash_d, res_d, unfinalized_d
+        /// );
+
+        // try to find solution
+        // ind = findNonZero(unfinalized_d, unfinalized_d + H_LEN * N_LEN * 4);
+        ind = 0;
     }
 
+    printf("Elapsed time: %.02f\n", (double)(time) / CLOCKS_PER_SEC);
+
+    //====================================================================//
+    //  Free device memory
     //====================================================================//
     CURAND_CALL(curandDestroyGenerator(gen));
     CUDA_CALL(cudaFree(non_d));
-    CUDA_CALL(cudaFree(res_d));
-    CUDA_CALL(cudaFree(unfinalized_d));
     CUDA_CALL(cudaFree(hash_d));
     CUDA_CALL(cudaFree(data_d));
+    CUDA_CALL(cudaFree(unfinalized_d));
+    CUDA_CALL(cudaFree(res_d));
 
     return 0;
 }
