@@ -1,8 +1,8 @@
 // prehash.cu
 
-#include "autolykos.h"
+#include "prehash.h"
+#include "compaction.h"
 #include <cuda.h>
-#include <curand.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 //  First iteration of hashes precalculation
@@ -765,6 +765,50 @@ __global__ void finalizePrehash(
     {
         hash[(tid << 3) + i] = r[i];
     }
+
+    return;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//  Precalculate hashes
+////////////////////////////////////////////////////////////////////////////////
+void prehash(
+    const uint32_t * data,
+    // hashes
+    uint32_t * hash,
+    uint32_t * unfinalized
+) {
+    uint32_t len = N_LEN;
+
+    initPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
+        data_d, hash_d, unfinalized_d
+    );
+
+    compactify(
+        unfinalized_d, len, unfinalized_d + N_LEN, unfinalized_d + 2 * N_LEN
+    );
+    CUDA_CALL(cudaMemcpy(
+        (void *)&len, (void *)(unfinalized_d + 2 * N_LEN)
+        4, cudaMemcpyDeviceToHost
+    ));
+
+    while (len)
+    {
+        updatePrehash<<<1 + (len - 1) / B_DIM, B_DIM>>>(
+            data_d, hash_d, unfinalized_d
+        );
+
+        compactify(
+            unfinalized_d, len, unfinalized_d + N_LEN, unfinalized_d + 2 * N_LEN
+        );
+
+        CUDA_CALL(cudaMemcpy(
+            (void *)&len, (void *)(unfinalized_d + 2 * N_LEN)
+            4, cudaMemcpyDeviceToHost
+        ));
+    }
+
+    finalizePrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data_d, hash_d);
 
     return;
 }

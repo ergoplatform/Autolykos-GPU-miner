@@ -1,0 +1,8 @@
+include Makefile.cpu
+
+ifeq ($(CPU),linux-nv)
+      CXX = nvcc
+      AR = ar
+      COPT = -O3
+      LIBNAME = lib.a
+endif

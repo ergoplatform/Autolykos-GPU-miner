@@ -1,8 +1,7 @@
 // validation.cu
 
-#include "autolykos.h"
+#include "validation.h"
 #include <cuda.h>
-#include <curand.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Unfinalized hash of message

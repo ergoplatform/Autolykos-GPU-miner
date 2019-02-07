@@ -1,6 +1,9 @@
 // autolykos.cu
 
-#include "autolykos.h"
+#include "prehash.h"
+#include "validation.h"
+#include "reduction.h"
+#include "compaction.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -140,10 +143,11 @@ int main(int argc, char ** argv)
         NUM_BYTE_SIZE, cudaMemcpyHostToDevice
     ));
 
-    clock_t time;
     //====================================================================//
     //  Autolykos puzzle cycle
     //====================================================================//
+    clock_t time;
+
     while (ind) //>>>(1)
     {
         // on obtaining solution
@@ -161,11 +165,8 @@ int main(int argc, char ** argv)
                 NUM_BYTE_SIZE, cudaMemcpyHostToDevice
             ));
 
-            initPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
-                data_d, hash_d, unfinalized_d)
-            ;
-            //>>>updatePrehash(data_d, hash_d, unfinalized_d);
-            finalizePrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data_d, hash_d);
+            prehash(data_d, hash_d, unfinalized_d);
+
             cudaDeviceSynchronize();
             time = clock() - time;
         }
