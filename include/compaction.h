@@ -1,11 +1,11 @@
 #ifndef COMPACTION_H
 #define COMPACTION_H
 
-#include "autolykos.h"
+#include "definitions.h"
 
 // increment a counter in a warp
-__device__ int warpInc(
-    uint32_t * c
+__device__ uint32_t warpInc(
+    uint32_t * len
 );
 
 // compactify an array, omit all zeros
@@ -13,7 +13,7 @@ __global__ void compactify(
     const uint32_t * in,
     uint32_t inlen,
     uint32_t * out,
-    uint32_t * c
+    uint32_t * outlen
 );
 
 #endif // COMPACTION_H

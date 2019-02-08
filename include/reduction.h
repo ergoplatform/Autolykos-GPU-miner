@@ -1,7 +1,7 @@
 #ifndef REDUCTION_H
 #define REDUCTION_H
 
-#include "autolykos.h"
+#include "definitions.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Reduction

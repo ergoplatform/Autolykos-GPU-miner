@@ -1,7 +1,7 @@
 // prehash.cu
 
-#include "prehash.h"
-#include "compaction.h"
+#include "../include/prehash.h"
+#include "../include/compaction.h"
 #include <cuda.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -772,45 +772,47 @@ __global__ void finalizePrehash(
 ////////////////////////////////////////////////////////////////////////////////
 //  Precalculate hashes
 ////////////////////////////////////////////////////////////////////////////////
-void prehash(
+int prehash(
     const uint32_t * data,
     // hashes
     uint32_t * hash,
-    uint32_t * unfinalized
+    // indices of out of bounds hashes
+    uint32_t * indices
 ) {
     uint32_t len = N_LEN;
 
-    initPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
-        data_d, hash_d, unfinalized_d
+    // hash index, constant message and public key
+    initPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash, indices);
+
+    // determine indices of out of bounds hashes
+    compactify<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
+        indices, len, indices + N_LEN, indices + 2 * N_LEN
     );
 
-    compactify(
-        unfinalized_d, len, unfinalized_d + N_LEN, unfinalized_d + 2 * N_LEN
-    );
     CUDA_CALL(cudaMemcpy(
-        (void *)&len, (void *)(unfinalized_d + 2 * N_LEN)
-        4, cudaMemcpyDeviceToHost
+        (void *)&len, (void *)(indices + 2 * N_LEN), 4, cudaMemcpyDeviceToHost
     ));
 
     while (len)
     {
-        updatePrehash<<<1 + (len - 1) / B_DIM, B_DIM>>>(
-            data_d, hash_d, unfinalized_d
-        );
+        // rehash out of bounds hashes
+        updatePrehash<<<1 + (len - 1) / B_DIM, B_DIM>>>(data, hash, indices);
 
-        compactify(
-            unfinalized_d, len, unfinalized_d + N_LEN, unfinalized_d + 2 * N_LEN
+        // determine indices of out of bounds hashes
+        compactify<<<1 + (len - 1) / B_DIM, B_DIM>>>(
+            indices, len, indices + N_LEN, indices + 2 * N_LEN
         );
 
         CUDA_CALL(cudaMemcpy(
-            (void *)&len, (void *)(unfinalized_d + 2 * N_LEN)
+            (void *)&len, (void *)(indices + 2 * N_LEN),
             4, cudaMemcpyDeviceToHost
         ));
     }
 
-    finalizePrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data_d, hash_d);
+    // multiply by secret key moq q
+    finalizePrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash);
 
-    return;
+    return 0;
 }
 
 // prehash.cu

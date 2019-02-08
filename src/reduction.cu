@@ -1,6 +1,6 @@
 // reduction.cu
 
-#include "reduction.h"
+#include "../include/reduction.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>

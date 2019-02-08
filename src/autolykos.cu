@@ -1,12 +1,12 @@
 // autolykos.cu
 
-#include "prehash.h"
-#include "validation.h"
-#include "reduction.h"
-#include "compaction.h"
+#include "../include/prehash.h"
+#include "../include/validation.h"
+#include "../include/reduction.h"
+#include "../include/compaction.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <sys/time.h>
 #include <cuda.h>
 #include <curand.h>
 
@@ -146,14 +146,15 @@ int main(int argc, char ** argv)
     //====================================================================//
     //  Autolykos puzzle cycle
     //====================================================================//
-    clock_t time;
+    struct timeval t1, t2;
 
     while (ind) //>>>(1)
     {
+        gettimeofday(&t1, 0);
+
         // on obtaining solution
         if (ind == 1)
         {
-            time = clock();
             //>>>genSKey();
             CUDA_CALL(cudaMemcpy(
                 (void *)(data_d + 64 + 4 * (NUM_BYTE_SIZE >> 2)), (void *)x_h,
@@ -166,10 +167,10 @@ int main(int argc, char ** argv)
             ));
 
             prehash(data_d, hash_d, unfinalized_d);
-
-            cudaDeviceSynchronize();
-            time = clock() - time;
         }
+
+        cudaThreadSynchronize();
+        gettimeofday(&t2, 0);
 
         /// // generate nonces
         /// CURAND_CALL(curandGenerate(gen, non_d, 4 * L_LEN * H_LEN));
@@ -193,7 +194,11 @@ int main(int argc, char ** argv)
         ind = 0;
     }
 
-    printf("Elapsed time: %.02f\n", (double)(time) / CLOCKS_PER_SEC);
+    double time
+        = (1000000. * (t2.tv_sec - t1.tv_sec) + t2.tv_usec - t1.tv_usec)
+        / 1000000.0;
+
+    printf("Time to generate:  %.5f s \n", time);
 
     //====================================================================//
     //  Free device memory

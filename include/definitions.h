@@ -1,6 +1,7 @@
-#ifndef AUTOLYKOS_H
-#define AUTOLYKOS_H
+#ifndef DEFINITIONS_H
+#define DEFINITIONS_H
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -102,4 +103,4 @@ typedef struct {
     uint32_t c;
 } blake2b_ctx;
 
-#endif // AUTOLYKOS_H
+#endif // DEFINITIONS_H

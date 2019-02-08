@@ -285,11 +285,7 @@ int main(int argc, char ** argv)
     printf("\n");
 
     struct timeval t1, t2;
-
     gettimeofday(&t1, 0);
-
-
-
 
     int r = findNonZero(in_d, out_d);
     cudaThreadSynchronize();
@@ -297,7 +293,7 @@ int main(int argc, char ** argv)
 
     gettimeofday(&t2, 0);
 
-    double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
+    double time = (1000000. * (t2.tv_sec - t1.tv_sec) + t2.tv_usec-t1.tv_usec) / 1000.;
     printf("Time to generate:  %3.5f ms \n", time);
 
     for (int i = 0; i < 0x4000000; ++i)

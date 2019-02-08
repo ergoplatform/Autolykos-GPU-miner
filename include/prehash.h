@@ -1,7 +1,7 @@
 #ifndef PREHASH_H
 #define PREHASH_H
 
-#include "autolykos.h"
+#include "definitions.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Prehash calculation
@@ -27,6 +27,15 @@ __global__ void finalizePrehash(
     const uint32_t * data,
     // hashes
     uint32_t * hash
+);
+
+// precalculate hashes
+int prehash(
+    const uint32_t * data,
+    // hashes
+    uint32_t * hash,
+    // indices of out of bounds hashes
+    uint32_t * indices
 );
 
 #endif // PREHASH_H

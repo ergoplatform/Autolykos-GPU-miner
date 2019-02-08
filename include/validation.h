@@ -1,7 +1,7 @@
 #ifndef VALIDATION_H
 #define VALIDATION_H
 
-#include "autolykos.h"
+#include "definitions.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Validation
