@@ -315,7 +315,7 @@ __global__ void blockMining(
         j = ((uint64_t *)r)[3] == 0 && ((uint64_t *)r)[2] == 0
             && ((uint64_t *)r)[1] == 0 && ((uint64_t *)r)[0] <= B_LEN;
 
-        valid[tid] = 1 - !j;
+        valid[tid] = (1 - !j) * (tid + 1);
         res[tid] = ((uint32_t *)r)[0];
     }
 

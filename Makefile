@@ -3,7 +3,7 @@
 
 include Makefile.in
 
-CFLAGS = -c -Xptxas -v -arch sm_70
+CFLAGS = -c -arch sm_70
 
 SRCDIR = ./src
 LIBPATH = ./lib/$(LIBNAME)

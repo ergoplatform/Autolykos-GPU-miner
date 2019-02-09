@@ -218,7 +218,7 @@ uint32_t findNonZero(
     uint32_t * aux
 ) {
     uint32_t res;
-    uint32_t inlen = N_LEN;
+    uint32_t inlen = H_LEN * L_LEN;
     uint32_t gridSize = 1 + (inlen - 1) / (2 * B_DIM);
     uint32_t blockSize = B_DIM;
     uint32_t * tmp;

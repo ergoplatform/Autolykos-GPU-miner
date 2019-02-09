@@ -18,19 +18,15 @@ int main(int argc, char ** argv)
     //====================================================================//
     //  Host memory
     //====================================================================//
-    uint32_t ind = 1;
+    uint32_t ind = 0;
 
     // hash context
-    // 212 bytes
+    // (212 + 4) bytes
     blake2b_ctx ctx_h;
 
     // message stub
     // 8 * 32 bits = 32 bytes
     uint32_t mes_h[8] = {0, 0, 0, 0, 0, 0, 0, 0}; 
-
-    // Autolykos puzzle results
-    // L_LEN * 256 bits
-    uint32_t * res_h = (uint32_t *)malloc(L_LEN * 8 * 4); 
 
     //====================================================================//
     // secret key
@@ -70,12 +66,12 @@ int main(int argc, char ** argv)
     // indices of unfinalized hashes
     // H_LEN * N_LEN * 8 bytes // 512 MB
     uint32_t * indices_d;
-    CUDA_CALL(cudaMalloc((void **)&indices_d, (uint32_t)H_LEN * N_LEN * 8));
+    CUDA_CALL(cudaMalloc((void **)&indices_d, (uint32_t)H_LEN * N_LEN * 16));
 
     // potential solutions of puzzle
-    // H_LEN * N_LEN * 4 bytes // 256 MB
+    // H_LEN * L_LEN * 4 bytes // 256 MB
     uint32_t * res_d;
-    CUDA_CALL(cudaMalloc((void **)&res_d, (uint32_t)H_LEN * N_LEN * 4));
+    CUDA_CALL(cudaMalloc((void **)&res_d, (uint32_t)H_LEN * L_LEN * 4));
 
     //====================================================================//
     //  Random generator initialization
@@ -113,24 +109,18 @@ int main(int argc, char ** argv)
         NUM_BYTE_SIZE, cudaMemcpyHostToDevice
     ));
 
-    /// debug /// printf("%d\n", sizeof(ctx_h));
-    /// debug /// printf("%d\n", sizeof(ctx_h.b));
-    /// debug /// printf("%d\n", sizeof(ctx_h.h));
-    /// debug /// printf("%d\n", sizeof(ctx_h.t));
-    /// debug /// printf("%d\n", sizeof(ctx_h.c));
-
     //====================================================================//
     //  Autolykos puzzle cycle
     //====================================================================//
+    uint32_t is_first = 1;
     struct timeval t1, t2;
 
-    while (ind) //>>>(1)
+    for (int i = 0; !ind && i < 13000; ++i) //>>>(1)
     {
-        gettimeofday(&t1, 0);
+        /// gettimeofday(&t1, 0);
 
         // on obtaining solution
-        /// debug /// if (ind == 1)
-        if (ind)
+        if (is_first)
         {
             //>>>genSKey();
             CUDA_CALL(cudaMemcpy(
@@ -144,14 +134,16 @@ int main(int argc, char ** argv)
             ));
 
             prehash(data_d, hash_d, indices_d);
+            gettimeofday(&t1, 0);
+
+            is_first = 0;
         }
 
-        cudaThreadSynchronize();
-        gettimeofday(&t2, 0);
+        /// CUDA_CALL(cudaThreadSynchronize());
+        /// gettimeofday(&t2, 0);
 
-        /// useful /// gettimeofday(&t1, 0);
         // generate nonces
-        CURAND_CALL(curandGenerate(gen, non_d, L_LEN * H_LEN * NUM_BYTE_SIZE));
+        CURAND_CALL(curandGenerate(gen, non_d, H_LEN * L_LEN * NUM_BYTE_SIZE));
 
         // calculate unfinalized hash of message
         initMining(&ctx_h, mes_h, NUM_BYTE_SIZE);
@@ -166,17 +158,42 @@ int main(int argc, char ** argv)
         blockMining<<<G_DIM, B_DIM>>>(data_d, non_d, hash_d, res_d, indices_d);
 
         // try to find solution
-        ind = findNonZero(indices_d, indices_d + H_LEN * N_LEN * 4);
-        ind = 0;
+        ind = findNonZero(indices_d, indices_d + H_LEN * L_LEN * 4);
+        // printf("%d ", ind);
+        // fflush(stdout);
+        // ind = 0;
 
-        /// useful /// cudaThreadSynchronize();
-        /// useful /// gettimeofday(&t2, 0);
+        /// debug /// uint32_t * indices_h = (uint32_t *)malloc(H_LEN * L_LEN * 4);
+
+        /// debug /// CUDA_CALL(cudaMemcpy(
+        /// debug ///     (void *)indices_h, (void *)indices_d,
+        /// debug ///     H_LEN * L_LEN * 4, cudaMemcpyDeviceToHost
+        /// debug /// ));
+
+        /// debug /// int k = 0;
+        /// debug /// for (int i = 0; i < H_LEN * L_LEN; ++i)
+        /// debug /// {
+        /// debug ///     if (indices_h[i] > 0)
+        /// debug ///     {
+        /// debug ///         printf("%d\n", indices_h[i]);
+        /// debug ///     }
+        /// debug ///     else
+        /// debug ///     {
+        /// debug ///         ++k;
+        /// debug ///     }
+        /// debug /// }
+        /// debug /// printf("%d %d\n", k, H_LEN * L_LEN);
+
+        /// debug /// free(indices_h);
     }
+
+    cudaThreadSynchronize();
+    gettimeofday(&t2, 0);
 
     double time
         = (1000000. * (t2.tv_sec - t1.tv_sec) + t2.tv_usec - t1.tv_usec)
         / 1000000.0;
-    printf("Time to generate:  %.5f (s) \n", time);
+    printf("\nTime to generate:  %.5f (s) \n", time);
 
     //====================================================================//
     //  Free device memory

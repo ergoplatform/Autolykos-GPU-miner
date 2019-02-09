@@ -13,7 +13,7 @@
 // number of indices
 #define K_LEN         32
 // boundary for puzzle
-#define B_LEN         10
+#define B_LEN         0xFFFFFFFF
 // number of precalculated hashes
 #define N_LEN         0x4000000          // 2^26
 // mod 2^26 mask
@@ -21,9 +21,9 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 // total number of hash loads (threads) per round
-#define L_LEN         0x100000           // 2^20
+#define L_LEN         0x400000           // 2^20
 // number of hashes per thread
-#define H_LEN         4                  
+#define H_LEN         1                  
 
 ////////////////////////////////////////////////////////////////////////////////
 // block mining kernel grid & block sizes 
@@ -312,7 +312,7 @@ typedef struct {
     do {                                                  \
         if ((x) != cudaSuccess)                           \
         {                                                 \
-            printf("ERROR AT %s:%d\n",__FILE__,__LINE__); \
+            printf("ERROR at %s:%d\n",__FILE__,__LINE__); \
             return EXIT_FAILURE;                          \
         }                                                 \
     } while (0)
@@ -323,7 +323,7 @@ typedef struct {
 do {                                                  \
     if ((x) != CURAND_STATUS_SUCCESS)                 \
     {                                                 \
-        printf("ERROR AT %s:%d\n",__FILE__,__LINE__); \
+        printf("ERROR at %s:%d\n",__FILE__,__LINE__); \
         return EXIT_FAILURE;                          \
     }                                                 \
 } while (0)
