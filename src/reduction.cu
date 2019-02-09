@@ -9,6 +9,9 @@
 
 namespace cg = cooperative_groups;
 
+////////////////////////////////////////////////////////////////////////////////
+//  Find smallest power of 2 greater then x
+////////////////////////////////////////////////////////////////////////////////
 uint32_t ceilToPower(uint32_t x)
 {
     --x;
@@ -22,63 +25,8 @@ uint32_t ceilToPower(uint32_t x)
     return ++x;
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-//  Find non zero item in warp
-////////////////////////////////////////////////////////////////////////////////
-/// template <uint32_t blockSize>
-/// __device__ void warpNonZero(
-///     volatile uint32_t * sdata,
-///     uint32_t tid
-/// ) {
-///     if (blockSize >= 64) { sdata[tid] += !sdata[tid] * sdata[tid + 32]; }
-///     if (blockSize >= 32) { sdata[tid] += !sdata[tid] * sdata[tid + 16]; }
-///     if (blockSize >= 16) { sdata[tid] += !sdata[tid] * sdata[tid +  8]; }
-///     if (blockSize >=  8) { sdata[tid] += !sdata[tid] * sdata[tid +  4]; }
-///     if (blockSize >=  4) { sdata[tid] += !sdata[tid] * sdata[tid +  2]; }
-///     if (blockSize >=  2) { sdata[tid] += !sdata[tid] * sdata[tid +  1]; }
-/// 
-///     return;
-/// }
-
 ////////////////////////////////////////////////////////////////////////////////
 //  Find non zero item in block
-////////////////////////////////////////////////////////////////////////////////
-/// template <uint32_t blockSize>
-/// __global__ void blockNonZero(
-///     uint32_t * in,
-///     uint32_t inlen,
-///     uint32_t * out
-/// ) {
-///     uint32_t tid = threadIdx.x;
-/// 
-///     __shared__ uint32_t sdata[B_DIM];
-///     sdata[tid] = 0;
-/// 
-///     for (
-///         uint32_t i = 2 * blockIdx.x * blockSize + tid;
-///         i < inlen;
-///         i += 2 * blockSize * gridDim.x
-///     ) {
-///         sdata[tid] += !sdata[tid]
-///             * (in[i] + !(i + blockSize >= inlen) * !in[i] * in[i + blockSize]);
-///     }
-/// 
-///     __syncthreads();
-/// 
-///     if (tid < 32)
-///     {
-///         warpNonZero<blockSize>(sdata, tid);
-///     }
-/// 
-///     if (tid == 0)
-///     {
-///         out[blockIdx.x] = sdata[0];
-///     }
-/// 
-///     return;
-/// }
-
 ////////////////////////////////////////////////////////////////////////////////
 template <uint32_t blockSize>
 __global__ void blockNonZero(
@@ -109,7 +57,10 @@ __global__ void blockNonZero(
     {
         cg::coalesced_group active = cg::coalesced_threads();
 
-        if (blockSize >= 64) ind += !ind * sdata[tid + 32];
+        if (blockSize >= 64)
+        {
+            ind += !ind * sdata[tid + 32];
+        }
 
         for (int offset = warpSize >> 1; offset > 0; offset >>= 1) 
         {
@@ -161,7 +112,12 @@ __global__ void blockNonZero(
 #endif
 
     // write result for this block to global mem
-    if (tid == 0) out[blockIdx.x] = ind;
+    if (tid == 0)
+    {
+        out[blockIdx.x] = ind;
+    }
+
+    return;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

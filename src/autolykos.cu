@@ -49,9 +49,9 @@ int main(int argc, char ** argv)
     //  Device memory
     //====================================================================//
     // nonces
-    // H_LEN * L_LEN * NUM_BYTE_SIZE bytes // 128 MB
+    // H_LEN * L_LEN * NON_BYTE_SIZE bytes // 32 MB
     uint32_t * non_d;
-    CUDA_CALL(cudaMalloc((void **)&non_d, H_LEN * L_LEN * NUM_BYTE_SIZE));
+    CUDA_CALL(cudaMalloc((void **)&non_d, H_LEN * L_LEN * NON_BYTE_SIZE));
 
     // data: pk || mes || w || x || sk || ctx
     // (5 * NUM_BYTE_SIZE + 212 + 4) bytes // ~0 MB
@@ -64,12 +64,12 @@ int main(int argc, char ** argv)
     CUDA_CALL(cudaMalloc((void **)&hash_d, (uint32_t)N_LEN * NUM_BYTE_SIZE));
 
     // indices of unfinalized hashes
-    // H_LEN * N_LEN * 8 bytes // 512 MB
+    // (H_LEN * N_LEN * 8 + 4) bytes // ~512 MB
     uint32_t * indices_d;
-    CUDA_CALL(cudaMalloc((void **)&indices_d, (uint32_t)H_LEN * N_LEN * 16));
+    CUDA_CALL(cudaMalloc((void **)&indices_d, (uint32_t)H_LEN * N_LEN * 8 + 4));
 
     // potential solutions of puzzle
-    // H_LEN * L_LEN * 4 bytes // 256 MB
+    // H_LEN * L_LEN * 4 bytes // 16 MB
     uint32_t * res_d;
     CUDA_CALL(cudaMalloc((void **)&res_d, (uint32_t)H_LEN * L_LEN * 4));
 
@@ -113,9 +113,10 @@ int main(int argc, char ** argv)
     //  Autolykos puzzle cycle
     //====================================================================//
     uint32_t is_first = 1;
+    int i;
     struct timeval t1, t2;
 
-    for (int i = 0; !ind && i < 13000; ++i) //>>>(1)
+    for (i = 0; !ind && i < 18700; ++i) //>>>(1)
     {
         /// gettimeofday(&t1, 0);
 
@@ -134,6 +135,7 @@ int main(int argc, char ** argv)
             ));
 
             prehash(data_d, hash_d, indices_d);
+
             gettimeofday(&t1, 0);
 
             is_first = 0;
@@ -143,7 +145,7 @@ int main(int argc, char ** argv)
         /// gettimeofday(&t2, 0);
 
         // generate nonces
-        CURAND_CALL(curandGenerate(gen, non_d, H_LEN * L_LEN * NUM_BYTE_SIZE));
+        CURAND_CALL(curandGenerate(gen, non_d, H_LEN * L_LEN * NON_BYTE_SIZE));
 
         // calculate unfinalized hash of message
         initMining(&ctx_h, mes_h, NUM_BYTE_SIZE);
@@ -155,7 +157,9 @@ int main(int argc, char ** argv)
         ));
 
         // calculate hashes
-        blockMining<<<G_DIM, B_DIM>>>(data_d, non_d, hash_d, res_d, indices_d);
+        blockMining<<<1 + (L_LEN - 1) / B_DIM, B_DIM>>>(
+            data_d, non_d, hash_d, res_d, indices_d
+        );
 
         // try to find solution
         ind = findNonZero(indices_d, indices_d + H_LEN * L_LEN * 4);
@@ -193,7 +197,13 @@ int main(int argc, char ** argv)
     double time
         = (1000000. * (t2.tv_sec - t1.tv_sec) + t2.tv_usec - t1.tv_usec)
         / 1000000.0;
-    printf("\nTime to generate:  %.5f (s) \n", time);
+    printf("Time to generate: %.5f (s) \n", time);
+
+    if (ind)
+    {
+        printf("ind = %d, i = %d\n", ind, i - 1);
+        fflush(stdout);
+    }
 
     //====================================================================//
     //  Free device memory

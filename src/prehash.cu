@@ -134,7 +134,7 @@ __global__ void initPrehash(
 #pragma unroll
     for (int i = 0; i < 8; ++i)
     {
-        hash[(tid << 3) + i] = ldata[i];
+        hash[tid * (NUM_BYTE_SIZE >> 2) + i] = ldata[i];
     }
 
     return;
@@ -252,7 +252,7 @@ __global__ void finalizePrehash(
     uint32_t r[18];
     r[16] = r[17] = 0;
 
-    uint32_t * h = hash + (tid << 3); 
+    uint32_t * h = hash + tid * (NUM_BYTE_SIZE >> 2); 
 
     tid += blockDim.x * blockIdx.x;
 
@@ -510,7 +510,7 @@ __global__ void finalizePrehash(
 #pragma unroll
     for (int i = 0; i < 8; ++i)
     {
-        hash[(tid << 3) + i] = r[i];
+        hash[tid * (NUM_BYTE_SIZE >> 2) + i] = r[i];
     }
 
     return;

@@ -8,8 +8,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 //  Constants
 ////////////////////////////////////////////////////////////////////////////////
-// keys, hashes and nonces size in bytes
+// keys and hashes size in bytes
 #define NUM_BYTE_SIZE 32
+// keys and hashes size in bytes
+#define NON_BYTE_SIZE 8
 // number of indices
 #define K_LEN         32
 // boundary for puzzle
@@ -21,14 +23,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 // total number of hash loads (threads) per round
-#define L_LEN         0x400000           // 2^20
+#define L_LEN         0x400000           // 2^22
 // number of hashes per thread
 #define H_LEN         1                  
-
-////////////////////////////////////////////////////////////////////////////////
-// block mining kernel grid & block sizes 
-#define G_DIM         0x4000
-#define B_DIM         64                 // G_DIM * B_DIM = L_LEN
+// mining kernel block size 
+#define B_DIM         64              
 
 ////////////////////////////////////////////////////////////////////////////////
 // 64 bits
@@ -85,16 +84,16 @@ typedef struct {
 #ifndef B2B_G
 #define B2B_G(v, a, b, c, d, x, y)                                          \
 {                                                                           \
-    ((uint64_t *)(v))[a] = ((uint64_t *)(v))[a] + ((uint64_t *)(v))[b] + x; \
+    ((uint64_t *)(v))[a] += ((uint64_t *)(v))[b] + x;                       \
     ((uint64_t *)(v))[d]                                                    \
         = ROTR64(((uint64_t *)(v))[d] ^ ((uint64_t *)(v))[a], 32);          \
-    ((uint64_t *)(v))[c] = ((uint64_t *)(v))[c] + ((uint64_t *)(v))[d];     \
+    ((uint64_t *)(v))[c] += ((uint64_t *)(v))[d];                           \
     ((uint64_t *)(v))[b]                                                    \
         = ROTR64(((uint64_t *)(v))[b] ^ ((uint64_t *)(v))[c], 24);          \
-    ((uint64_t *)(v))[a] = ((uint64_t *)(v))[a] + ((uint64_t *)(v))[b] + y; \
+    ((uint64_t *)(v))[a] += ((uint64_t *)(v))[b] + y;                       \
     ((uint64_t *)(v))[d]                                                    \
         = ROTR64(((uint64_t *)(v))[d] ^ ((uint64_t *)(v))[a], 16);          \
-    ((uint64_t *)(v))[c] = ((uint64_t *)(v))[c] + ((uint64_t *)(v))[d];     \
+    ((uint64_t *)(v))[c] += ((uint64_t *)(v))[d];                           \
     ((uint64_t *)(v))[b]                                                    \
         = ROTR64(((uint64_t *)(v))[b] ^ ((uint64_t *)(v))[c], 63);          \
 }

@@ -98,24 +98,25 @@ __global__ void blockMining(
         tid = threadIdx.x + blockDim.x * blockIdx.x
             + l * gridDim.x * blockDim.x;
 
-        const uint8_t * mes = (const uint8_t *)(non + (tid << 3));
+        const uint8_t * mes
+            = (const uint8_t *)(non + (tid * (NON_BYTE_SIZE >> 2)));
 
     //====================================================================//
     //  Hash nonce
     //====================================================================//
 #pragma unroll
-        for (j = 0; ctx->c < 128 && j < NUM_BYTE_SIZE; ++j)
+        for (j = 0; ctx->c < 128 && j < NON_BYTE_SIZE; ++j)
         {
             ctx->b[ctx->c++] = mes[j];
         }
 
 #pragma unroll
-        for ( ; j < NUM_BYTE_SIZE; )
+        for ( ; j < NON_BYTE_SIZE; )
         {
             B2B_H(ctx, aux);
            
 #pragma unroll
-            for ( ; ctx->c < 128 && j < NUM_BYTE_SIZE; ++j)
+            for ( ; ctx->c < 128 && j < NON_BYTE_SIZE; ++j)
             {
                 ctx->b[ctx->c++] = mes[j];
             }
