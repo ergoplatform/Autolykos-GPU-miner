@@ -26,20 +26,20 @@ uint32_t ceilToPower(uint32_t x)
 ////////////////////////////////////////////////////////////////////////////////
 //  Find non zero item in warp
 ////////////////////////////////////////////////////////////////////////////////
-template <uint32_t blockSize>
-__device__ void warpNonZero(
-    volatile uint32_t * sdata,
-    uint32_t tid
-) {
-    if (blockSize >= 64) { sdata[tid] += !sdata[tid] * sdata[tid + 32]; }
-    if (blockSize >= 32) { sdata[tid] += !sdata[tid] * sdata[tid + 16]; }
-    if (blockSize >= 16) { sdata[tid] += !sdata[tid] * sdata[tid +  8]; }
-    if (blockSize >=  8) { sdata[tid] += !sdata[tid] * sdata[tid +  4]; }
-    if (blockSize >=  4) { sdata[tid] += !sdata[tid] * sdata[tid +  2]; }
-    if (blockSize >=  2) { sdata[tid] += !sdata[tid] * sdata[tid +  1]; }
-
-    return;
-}
+/// template <uint32_t blockSize>
+/// __device__ void warpNonZero(
+///     volatile uint32_t * sdata,
+///     uint32_t tid
+/// ) {
+///     if (blockSize >= 64) { sdata[tid] += !sdata[tid] * sdata[tid + 32]; }
+///     if (blockSize >= 32) { sdata[tid] += !sdata[tid] * sdata[tid + 16]; }
+///     if (blockSize >= 16) { sdata[tid] += !sdata[tid] * sdata[tid +  8]; }
+///     if (blockSize >=  8) { sdata[tid] += !sdata[tid] * sdata[tid +  4]; }
+///     if (blockSize >=  4) { sdata[tid] += !sdata[tid] * sdata[tid +  2]; }
+///     if (blockSize >=  2) { sdata[tid] += !sdata[tid] * sdata[tid +  1]; }
+/// 
+///     return;
+/// }
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Find non zero item in block
@@ -109,10 +109,8 @@ __global__ void blockNonZero(
     {
         cg::coalesced_group active = cg::coalesced_threads();
 
-        // Fetch final intermediate sum from 2nd warp
         if (blockSize >= 64) ind += !ind * sdata[tid + 32];
 
-        // Reduce final warp using shuffle
         for (int offset = warpSize >> 1; offset > 0; offset >>= 1) 
         {
              ind += !ind * active.shfl_down(ind, offset);
@@ -244,7 +242,7 @@ uint32_t findNonZero(
     }
 
     CUDA_CALL(cudaMemcpy(
-        (void *)&res, (void *)data, sizeof(uint32_t), cudaMemcpyDeviceToHost
+        (void *)&res, (void *)data, 4, cudaMemcpyDeviceToHost
     ));
 
     return res;

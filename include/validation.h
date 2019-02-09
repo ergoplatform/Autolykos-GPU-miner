@@ -10,8 +10,6 @@
 void initMining(
     // context
     blake2b_ctx * ctx,
-    // optional secret key
-    const void * key,
     // message
     const void * mes,
     uint32_t meslen
@@ -19,7 +17,7 @@ void initMining(
 
 // block mining iteration
 __global__ void blockMining(
-    // hash constants & secret key
+    // data: pk || mes || w || x || sk || ctx
     const uint32_t * data,
     // pregenerated nonces
     const uint32_t * non,
@@ -27,7 +25,7 @@ __global__ void blockMining(
     const uint32_t * hash,
     // results
     uint32_t * res,
-    uint32_t * unfinalized
+    uint32_t * valid
 );
 
 #endif // VALIDATION_H

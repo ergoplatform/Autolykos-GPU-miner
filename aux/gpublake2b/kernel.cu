@@ -14,15 +14,8 @@ __global__ void blake2b(
 ) {
     uint32_t k;
 
-    uint64_t v[16];
-    uint64_t m[16];
-
-    const uint64_t blake2b_iv[8] = {
-        0x6A09E667F3BCC908, 0xBB67AE8584CAA73B,
-        0x3C6EF372FE94F82B, 0xA54FF53A5F1D36F1,
-        0x510E527FADE682D1, 0x9B05688C2B3E6C1F,
-        0x1F83D9ABFB41BD6B, 0x5BE0CD19137E2179
-    };
+    uint64_t v[32];
+    uint64_t * m = v + 16;
 
     const uint8_t sigma[12][16] = {
         { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
@@ -42,11 +35,7 @@ __global__ void blake2b(
     //====================================================================//
     //  Initialize context
     //====================================================================//
-#pragma unroll
-    for (k = 0; k < 8; ++k)
-    {
-        ctx->h[k] = blake2b_iv[k];
-    }
+    B2B_IV(ctx->h);
 
     ctx->h[0] ^= 0x01010000 ^ (keylen << 8) ^ outlen;
 
@@ -71,45 +60,7 @@ __global__ void blake2b(
             ctx->b[ctx->c++] = ((const uint8_t *)key)[k++];
         }
 
-        ctx->t[0] += ctx->c;
-        ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
-
-#pragma unroll
-        for (int i = 0; i < 8; ++i)
-        {
-            v[i] = ctx->h[i];
-            v[i + 8] = blake2b_iv[i];
-        }
-
-        v[12] ^= ctx->t[0];
-        v[13] ^= ctx->t[1];
-
-#pragma unroll
-        for (int i = 0; i < 16; i++)
-        {
-            m[i] = B2B_GET64(&ctx->b[8 * i]);
-        }
-
-#pragma unroll
-        for (int i = 0; i < 12; ++i)
-        {
-            B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
-            B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
-            B2B_G(2, 6, 10, 14, m[sigma[i][ 4]], m[sigma[i][ 5]]);
-            B2B_G(3, 7, 11, 15, m[sigma[i][ 6]], m[sigma[i][ 7]]);
-            B2B_G(0, 5, 10, 15, m[sigma[i][ 8]], m[sigma[i][ 9]]);
-            B2B_G(1, 6, 11, 12, m[sigma[i][10]], m[sigma[i][11]]);
-            B2B_G(2, 7,  8, 13, m[sigma[i][12]], m[sigma[i][13]]);
-            B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
-        }
-
-#pragma unroll
-        for (int i = 0; i < 8; ++i)
-        {
-            ctx->h[i] ^= v[i] ^ v[i + 8];
-        }
-
-        ctx->c = 0;
+        B2B_H(ctx, v);
 
         ctx->b[ctx->c++] = ((const uint8_t *)key)[k];
     }
@@ -132,45 +83,7 @@ __global__ void blake2b(
 
     while (k < inlen)
     {
-        ctx->t[0] += ctx->c;
-        ctx->t[1] += 1 - !(ctx->t[0] < ctx->c);
-
-#pragma unroll
-        for (int i = 0; i < 8; ++i)
-        {
-            v[i] = ctx->h[i];
-            v[i + 8] = blake2b_iv[i];
-        }
-
-        v[12] ^= ctx->t[0];
-        v[13] ^= ctx->t[1];
-
-#pragma unroll
-        for (int i = 0; i < 16; i++)
-        {
-            m[i] = B2B_GET64(&ctx->b[8 * i]);
-        }
-
-#pragma unroll
-        for (int i = 0; i < 12; ++i)
-        {
-            B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
-            B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
-            B2B_G(2, 6, 10, 14, m[sigma[i][ 4]], m[sigma[i][ 5]]);
-            B2B_G(3, 7, 11, 15, m[sigma[i][ 6]], m[sigma[i][ 7]]);
-            B2B_G(0, 5, 10, 15, m[sigma[i][ 8]], m[sigma[i][ 9]]);
-            B2B_G(1, 6, 11, 12, m[sigma[i][10]], m[sigma[i][11]]);
-            B2B_G(2, 7,  8, 13, m[sigma[i][12]], m[sigma[i][13]]);
-            B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
-        }
-
-#pragma unroll
-        for (int i = 0; i < 8; ++i)
-        {
-            ctx->h[i] ^= v[i] ^ v[i + 8];
-        }
-
-        ctx->c = 0;
+        B2B_H(ctx, v);
        
         while (ctx->c < 128 && k < inlen)
         {
@@ -193,8 +106,9 @@ __global__ void blake2b(
     for (int i = 0; i < 8; ++i)
     {
         v[i] = ctx->h[i];
-        v[i + 8] = blake2b_iv[i];
     }
+
+    B2B_IV(v + 8);
 
     v[12] ^= ctx->t[0];
     v[13] ^= ctx->t[1];
@@ -206,18 +120,7 @@ __global__ void blake2b(
         m[i] = B2B_GET64(&ctx->b[8 * i]);
     }
 
-#pragma unroll
-    for (int i = 0; i < 12; ++i)
-    {
-        B2B_G(0, 4,  8, 12, m[sigma[i][ 0]], m[sigma[i][ 1]]);
-        B2B_G(1, 5,  9, 13, m[sigma[i][ 2]], m[sigma[i][ 3]]);
-        B2B_G(2, 6, 10, 14, m[sigma[i][ 4]], m[sigma[i][ 5]]);
-        B2B_G(3, 7, 11, 15, m[sigma[i][ 6]], m[sigma[i][ 7]]);
-        B2B_G(0, 5, 10, 15, m[sigma[i][ 8]], m[sigma[i][ 9]]);
-        B2B_G(1, 6, 11, 12, m[sigma[i][10]], m[sigma[i][11]]);
-        B2B_G(2, 7,  8, 13, m[sigma[i][12]], m[sigma[i][13]]);
-        B2B_G(3, 4,  9, 14, m[sigma[i][14]], m[sigma[i][15]]);
-    }
+    B2B_MIX(v, m);
 
 #pragma unroll
     for (int i = 0; i < 8; ++i)

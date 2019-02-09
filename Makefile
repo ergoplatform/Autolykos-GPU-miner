@@ -3,12 +3,12 @@
 
 include Makefile.in
 
-CFLAGS = -c
+CFLAGS = -c -Xptxas -v -arch sm_70
 
 SRCDIR = ./src
 LIBPATH = ./lib/$(LIBNAME)
-SOURCES = $(SRCDIR)/reduction.cu $(SRCDIR)/validation.cu \
-		  $(SRCDIR)/compaction.cu $(SRCDIR)/prehash.cu \
+SOURCES = $(SRCDIR)/reduction.cu $(SRCDIR)/compaction.cu \
+		  $(SRCDIR)/prehash.cu $(SRCDIR)/validation.cu \
 		  $(SRCDIR)/autolykos.cu
 OBJECTS = $(SOURCES:.cu=.o)
 
