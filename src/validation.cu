@@ -23,7 +23,7 @@ void initMining(
     //====================================================================//
     B2B_IV(ctx->h);
 
-    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_BYTE_SIZE;
+    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_SIZE_8;
     ctx->t[0] = 0;
     ctx->t[1] = 0;
     ctx->c = 0;
@@ -71,7 +71,8 @@ __global__ void blockMining(
     // 8 * B_DIM bytes  
     __shared__ uint32_t sdata[B_DIM];
 
-    sdata[tid] = data[tid + 4 * (NUM_BYTE_SIZE >> 2)];
+    // B_DIM * 4 bytes
+    sdata[tid] = data[tid + 4 * NUM_SIZE_32];
     __syncthreads();
 
     // 8 * 32 bits = 32 bytes
@@ -85,7 +86,7 @@ __global__ void blockMining(
     uint64_t * aux = (uint64_t *)ldata;
     // (4 * K_LEN) bytes
     uint32_t * ind = ldata;
-    // (NUM_BYTE_SIZE + 4) bytes
+    // (NUM_SIZE_8 + 4) bytes
     uint8_t * h = (uint8_t *)(ind + K_LEN);
     // (212 + 4) bytes 
     blake2b_ctx * ctx = (blake2b_ctx *)(ldata + 64);
@@ -93,30 +94,29 @@ __global__ void blockMining(
 #pragma unroll
     for (int l = 0; l < H_LEN; ++l) 
     {
-        ctx = (blake2b_ctx *)(sdata + (NUM_BYTE_SIZE >> 2));
+        ctx = (blake2b_ctx *)(sdata + NUM_SIZE_32);
 
         tid = threadIdx.x + blockDim.x * blockIdx.x
             + l * gridDim.x * blockDim.x;
 
-        const uint8_t * mes
-            = (const uint8_t *)(non + (tid * (NON_BYTE_SIZE >> 2)));
+        const uint8_t * mes = (const uint8_t *)(non + tid * NONCE_SIZE_32);
 
     //====================================================================//
     //  Hash nonce
     //====================================================================//
 #pragma unroll
-        for (j = 0; ctx->c < 128 && j < NON_BYTE_SIZE; ++j)
+        for (j = 0; ctx->c < 128 && j < NONCE_SIZE_8; ++j)
         {
             ctx->b[ctx->c++] = mes[j];
         }
 
 #pragma unroll
-        for ( ; j < NON_BYTE_SIZE; )
+        for ( ; j < NONCE_SIZE_8; )
         {
             B2B_H(ctx, aux);
            
 #pragma unroll
-            for ( ; ctx->c < 128 && j < NON_BYTE_SIZE; ++j)
+            for ( ; ctx->c < 128 && j < NONCE_SIZE_8; ++j)
             {
                 ctx->b[ctx->c++] = mes[j];
             }
@@ -127,7 +127,8 @@ __global__ void blockMining(
     //====================================================================//
         B2B_H_LAST(ctx, aux);
 
-        for (j = 0; j < NUM_BYTE_SIZE; ++j)
+#pragma unroll
+        for (j = 0; j < NUM_SIZE_8; ++j)
         {
             h[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
         }
@@ -138,7 +139,7 @@ __global__ void blockMining(
 #pragma unroll
         for (int i = 0; i < 3; ++i)
         {
-            h[NUM_BYTE_SIZE + i] = h[i];
+            h[NUM_SIZE_8 + i] = h[i];
         }
 
 #pragma unroll
@@ -156,7 +157,7 @@ __global__ void blockMining(
         // first addition of hashes -> r
         asm volatile (
             "add.cc.u32 %0, %1, %2;":
-            "=r"(r[0]): "r"(hash[(ind[0] << 3)]), "r"(hash[(ind[1] << 3)])
+            "=r"(r[0]): "r"(hash[ind[0] << 3]), "r"(hash[ind[1] << 3])
         );
 
 #pragma unroll
@@ -313,11 +314,16 @@ __global__ void blockMining(
     //===================================================================//
     //  Dump result to global memory
     //===================================================================//
-        j = ((uint64_t *)r)[3] == 0 && ((uint64_t *)r)[2] == 0
-            && ((uint64_t *)r)[1] == 0 && ((uint64_t *)r)[0] <= B_LEN;
+        j = ((uint64_t *)r)[3] <= 0x1FFFFFF && ((uint64_t *)r)[2] <= B_LEN
+            && ((uint64_t *)r)[1] <= B_LEN && ((uint64_t *)r)[0] <= B_LEN;
 
         valid[tid] = (1 - !j) * (tid + 1);
-        res[tid] = ((uint32_t *)r)[0];
+        /// original /// res[tid] = r[0];
+#pragma unroll
+        for (int i = 0; i < 8; ++i)
+        {
+            res[tid * 8 + i] = r[i];
+        }
     }
 
     return;

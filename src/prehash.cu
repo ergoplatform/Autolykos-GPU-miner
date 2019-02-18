@@ -25,7 +25,7 @@ __global__ void initPrehash(
     __syncthreads();
 
     // pk || mes || w
-    // 3 * NUM_BYTE_SIZE bytes
+    // 3 * NUM_SIZE_8 bytes
     uint32_t * rem = sdata;
 
     // local memory
@@ -44,7 +44,7 @@ __global__ void initPrehash(
     //====================================================================//
     B2B_IV(ctx->h);
 
-    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_BYTE_SIZE;
+    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_SIZE_8;
     ctx->t[0] = 0;
     ctx->t[1] = 0;
     ctx->c = 0;
@@ -97,16 +97,16 @@ __global__ void initPrehash(
     //====================================================================//
     //  Hash public key, message & one-time public key
     //====================================================================//
-    for (j = 0; ctx->c < 128 && j < 3 * NUM_BYTE_SIZE; ++j)
+    for (j = 0; ctx->c < 128 && j < 3 * NUM_SIZE_8; ++j)
     {
         ctx->b[ctx->c++] = ((const uint8_t *)rem)[j];
     }
 
-    while (j < 3 * NUM_BYTE_SIZE)
+    while (j < 3 * NUM_SIZE_8)
     {
         B2B_H(ctx, aux);
        
-        while (ctx->c < 128 && j < 3 * NUM_BYTE_SIZE)
+        while (ctx->c < 128 && j < 3 * NUM_SIZE_8)
         {
             ctx->b[ctx->c++] = ((const uint8_t *)rem)[j++];
         }
@@ -118,7 +118,7 @@ __global__ void initPrehash(
     B2B_H_LAST(ctx, aux);
 
 #pragma unroll
-    for (j = 0; j < NUM_BYTE_SIZE; ++j)
+    for (j = 0; j < NUM_SIZE_8; ++j)
     {
         ((uint8_t *)ldata)[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
     }
@@ -132,9 +132,9 @@ __global__ void initPrehash(
     invalid[tid] = (1 - !j) * (tid + 1);
 
 #pragma unroll
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < NUM_SIZE_32; ++i)
     {
-        hash[tid * (NUM_BYTE_SIZE >> 2) + i] = ldata[i];
+        hash[tid * NUM_SIZE_32 + i] = ldata[i];
     }
 
     return;
@@ -167,7 +167,7 @@ __global__ void updatePrehash(
     //====================================================================//
     B2B_IV(ctx->h);
 
-    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_BYTE_SIZE;
+    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_SIZE_8;
     ctx->t[0] = 0;
     ctx->t[1] = 0;
     ctx->c = 0;
@@ -182,20 +182,21 @@ __global__ void updatePrehash(
     //  Hash previous hash
     //====================================================================//
 #pragma unroll
-    for (j = 0; ctx->c < 128 && j < NUM_BYTE_SIZE; ++j)
+    for (j = 0; ctx->c < 128 && j < NUM_SIZE_8; ++j)
     {
-        ctx->b[ctx->c++] = ((const uint8_t *)(hash + (addr << 3)))[j];
+        ctx->b[ctx->c++] = ((const uint8_t *)(hash + addr * NUM_SIZE_32))[j];
     }
 
 #pragma unroll
-    for ( ; j < NUM_BYTE_SIZE; )
+    for ( ; j < NUM_SIZE_8; )
     {
         B2B_H(ctx, aux);
        
 #pragma unroll
-        for ( ; ctx->c < 128 && j < NUM_BYTE_SIZE; ++j)
+        for ( ; ctx->c < 128 && j < NUM_SIZE_8; ++j)
         {
-            ctx->b[ctx->c++] = ((const uint8_t *)(hash + (addr << 3)))[j];
+            ctx->b[ctx->c++]
+                = ((const uint8_t *)(hash + addr * NUM_SIZE_32))[j];
         }
     }
 
@@ -205,7 +206,7 @@ __global__ void updatePrehash(
     B2B_H_LAST(ctx, aux);
 
 #pragma unroll
-    for (j = 0; j < NUM_BYTE_SIZE; ++j)
+    for (j = 0; j < NUM_SIZE_8; ++j)
     {
         ((uint8_t *)ldata)[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
     }
@@ -219,9 +220,9 @@ __global__ void updatePrehash(
     invalid[tid] *= 1 - !j;
 
 #pragma unroll
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < NUM_SIZE_32; ++i)
     {
-        hash[(addr << 3) + i] = ldata[i];
+        hash[addr * NUM_SIZE_32 + i] = ldata[i];
     }
 
     return;
@@ -241,18 +242,18 @@ __global__ void finalizePrehash(
     // shared memory
     __shared__ uint32_t sdata[B_DIM];
 
-    sdata[tid] = data[tid + 3 * (NUM_BYTE_SIZE >> 2)];
+    sdata[tid] = data[tid + 3 * NUM_SIZE_32];
     __syncthreads();
 
     // x
-    // NUM_BYTE_SIZE bytes
+    // NUM_SIZE_8 bytes
     uint32_t * x = sdata;
 
     // local memory
     uint32_t r[18];
     r[16] = r[17] = 0;
 
-    uint32_t * h = hash + tid * (NUM_BYTE_SIZE >> 2); 
+    uint32_t * h = hash + tid * NUM_SIZE_32; 
 
     tid += blockDim.x * blockIdx.x;
 
@@ -508,9 +509,9 @@ __global__ void finalizePrehash(
     //  Dump result to global memory
     //===================================================================//
 #pragma unroll
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < NUM_SIZE_32; ++i)
     {
-        hash[tid * (NUM_BYTE_SIZE >> 2) + i] = r[i];
+        hash[tid * NUM_SIZE_32 + i] = r[i];
     }
 
     return;
