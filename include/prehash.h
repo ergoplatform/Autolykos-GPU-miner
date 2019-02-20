@@ -21,7 +21,8 @@ __global__ void updatePrehash(
     // hashes
     uint32_t * hash,
     // indices of invalid range hashes
-    uint32_t * invalid
+    uint32_t * invalid,
+    const uint32_t len
 );
 
 // hashes by secret key multiplication mod q 

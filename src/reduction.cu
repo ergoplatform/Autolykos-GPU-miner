@@ -105,7 +105,7 @@ __global__ void blockNonZero(
 
     if (blockSize >= 2 && tid < 1)
     {
-        ind = ind + !ind * sdata[tid +  1];
+        sdata[tid] = ind = ind + !ind * sdata[tid +  1];
     }
 
     cg::sync(cta);

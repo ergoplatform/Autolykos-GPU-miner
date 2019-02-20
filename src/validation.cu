@@ -10,9 +10,9 @@ void initMining(
     // context
     blake2b_ctx * ctx,
     // message
-    const void * mes,
+    const uint32_t * mes,
     // message length in bytes
-    uint32_t meslen
+    const uint32_t meslen
 ) {
     int j;
 
@@ -68,7 +68,7 @@ __global__ void blockMining(
     uint32_t tid = threadIdx.x;
 
     // shared memory
-    // 8 * B_DIM bytes  
+    // B_DIM * 4 bytes  
     __shared__ uint32_t sdata[B_DIM];
 
     // B_DIM * 4 bytes
@@ -87,14 +87,14 @@ __global__ void blockMining(
     // (4 * K_LEN) bytes
     uint32_t * ind = ldata;
     // (NUM_SIZE_8 + 4) bytes
-    uint8_t * h = (uint8_t *)(ind + K_LEN);
+    uint32_t * r = ind + K_LEN;
     // (212 + 4) bytes 
     blake2b_ctx * ctx = (blake2b_ctx *)(ldata + 64);
 
 #pragma unroll
     for (int l = 0; l < H_LEN; ++l) 
     {
-        ctx = (blake2b_ctx *)(sdata + NUM_SIZE_32);
+        *ctx = *((blake2b_ctx *)(sdata + NUM_SIZE_32));
 
         tid = threadIdx.x + blockDim.x * blockIdx.x
             + l * gridDim.x * blockDim.x;
@@ -130,7 +130,7 @@ __global__ void blockMining(
 #pragma unroll
         for (j = 0; j < NUM_SIZE_8; ++j)
         {
-            h[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
+            ((uint8_t *)r)[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
         }
 
     //===================================================================//
@@ -139,21 +139,28 @@ __global__ void blockMining(
 #pragma unroll
         for (int i = 0; i < 3; ++i)
         {
-            h[NUM_SIZE_8 + i] = h[i];
+            ((uint8_t *)r)[NUM_SIZE_8 + i] = ((uint8_t *)r)[i];
         }
 
 #pragma unroll
-        for (int i = 0; i < K_LEN; ++i)
-        {
-            ind[i] = *((uint32_t *)(h + i)) & N_MASK;
-        }
+        for (int k = 0; k < K_LEN; k += 4) 
+        { 
+            ind[k] = r[k >> 2] & N_MASK; 
+        
+#pragma unroll 
+            for (int i = 1; i < 4; ++i) 
+            { 
+                ind[k + i] 
+                    = (
+                        (r[k >> 2] << (8 * i))
+                        | (r[(k >> 2) + 1] >> (32 - 8 * i))
+                    ) & N_MASK; 
+            } 
+        } 
         
     //===================================================================//
     //  Calculate result
     //===================================================================//
-        // 36 bytes
-        uint32_t * r = (uint32_t *)h;
-
         // first addition of hashes -> r
         asm volatile (
             "add.cc.u32 %0, %1, %2;":
@@ -175,7 +182,7 @@ __global__ void blockMining(
             "addc.u32 %0, 0, 0;": "=r"(r[8])
         );
 
-        // remaining additions
+     // remaining additions
 #pragma unroll
         for (int k = 2; k < K_LEN; ++k)
         {
@@ -213,7 +220,6 @@ __global__ void blockMining(
         asm volatile (
             "subc.u32 %0, %0, 0;": "+r"(r[8])
         );
-
 
     //===================================================================//
     //  Result mod q
@@ -314,16 +320,19 @@ __global__ void blockMining(
     //===================================================================//
     //  Dump result to global memory
     //===================================================================//
-        j = ((uint64_t *)r)[3] <= 0x1FFFFFF && ((uint64_t *)r)[2] <= B_LEN
-            && ((uint64_t *)r)[1] <= B_LEN && ((uint64_t *)r)[0] <= B_LEN;
+        j = ((uint64_t *)r)[3] <= B3 && ((uint64_t *)r)[2] <= B2
+            && ((uint64_t *)r)[1] <= B1 && ((uint64_t *)r)[0] <= B0;
 
         valid[tid] = (1 - !j) * (tid + 1);
         /// original /// res[tid] = r[0];
+
 #pragma unroll
-        for (int i = 0; i < 8; ++i)
+        for (int i = 0; i < NUM_SIZE_32; ++i)
         {
-            res[tid * 8 + i] = r[i];
+            res[tid * NUM_SIZE_32 + i] = r[i];
         }
+
+        __syncthreads();
     }
 
     return;

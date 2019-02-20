@@ -26,11 +26,13 @@ __device__ uint32_t warpInc(
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void compactify(
     const uint32_t * in,
-    uint32_t inlen,
+    const uint32_t inlen,
     uint32_t * out,
     uint32_t * outlen
 ) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
+
+    /// debug /// if (!tid) *outlen = 0;
 
     for (int i = tid; i < inlen; i += gridDim.x * blockDim.x)
     {

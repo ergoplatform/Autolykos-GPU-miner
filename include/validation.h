@@ -11,8 +11,8 @@ void initMining(
     // context
     blake2b_ctx * ctx,
     // message
-    const void * mes,
-    uint32_t meslen
+    const uint32_t * mes,
+    const uint32_t meslen
 );
 
 // block mining iteration

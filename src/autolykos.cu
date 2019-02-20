@@ -10,26 +10,16 @@
 #include <cuda.h>
 #include <curand.h>
 
-//CURAND_CALL(curandGenerate(gen, non_d, H_LEN * L_LEN * NONCE_SIZE_8));
-int Generate(
-    uint32_t * arr,
-    uint32_t len
+__global__ void generate(
+    uint64_t * arr,
+    uint32_t len,
+    uint64_t base
 ) {
-    uint64_t * tmp = (uint64_t *)malloc(H_LEN * L_LEN * NONCE_SIZE_8); 
+    uint32_t tid = threadIdx.x + blockDim.x * blockIdx.x;
 
-    for (uint32_t i = 0; i < len; ++i)
-    {
-        tmp[i] = i;
-    }
+    if (tid < len) arr[tid] = base + tid;
 
-    CUDA_CALL(cudaMemcpy(
-        (void *)arr, (void *)tmp, H_LEN * L_LEN * NONCE_SIZE_8,
-        cudaMemcpyHostToDevice
-    ));
-
-    free(tmp);
-
-    return 0;
+    return;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,10 +72,13 @@ int main(int argc, char ** argv)
     uint32_t * hash_d;
     CUDA_CALL(cudaMalloc((void **)&hash_d, (uint32_t)N_LEN * NUM_SIZE_8));
 
+    /// debug /// uint32_t * hash_dd;
+    /// debug /// CUDA_CALL(cudaMalloc((void **)&hash_dd, (uint32_t)N_LEN * NUM_SIZE_8));
+
     // indices of unfinalized hashes
     // (H_LEN * N_LEN * 8 + 4) bytes // ~512 MB
     uint32_t * indices_d;
-    CUDA_CALL(cudaMalloc((void **)&indices_d, (uint32_t)H_LEN * N_LEN * 8 + 4));
+    CUDA_CALL(cudaMalloc((void **)&indices_d, H_LEN * N_LEN * 8 + 4));
 
     /// original /// // potential solutions of puzzle
     /// original /// // H_LEN * L_LEN * 4 bytes // 16 MB
@@ -95,20 +88,20 @@ int main(int argc, char ** argv)
     // potential solutions of puzzle
     // H_LEN * L_LEN * 4 * 8 bytes // 16 * 8 MB
     uint32_t * res_d;
-    CUDA_CALL(cudaMalloc((void **)&res_d, (uint32_t)H_LEN * L_LEN * 4 * 8));
+    CUDA_CALL(cudaMalloc((void **)&res_d, H_LEN * L_LEN * 4 * 8));
 
     //====================================================================//
     //  Random generator initialization
     //====================================================================//
-    curandGenerator_t gen;
-    CURAND_CALL(curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_MTGP32));
-    
-    time_t rawtime;
-    // get current time (ms)
-    time(&rawtime);
+    /// original /// curandGenerator_t gen;
+    /// original /// CURAND_CALL(curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_MTGP32));
+    /// original /// 
+    /// original /// time_t rawtime;
+    /// original /// // get current time (ms)
+    /// original /// time(&rawtime);
 
-    // set seed
-    CURAND_CALL(curandSetPseudoRandomGeneratorSeed(gen, (uint64_t)rawtime));
+    /// original /// // set seed
+    /// original /// CURAND_CALL(curandSetPseudoRandomGeneratorSeed(gen, (uint64_t)rawtime));
 
     //====================================================================//
     //  Memory: Host -> Device
@@ -140,8 +133,9 @@ int main(int argc, char ** argv)
     uint32_t is_first = 1;
     int i;
     struct timeval t1, t2;
+    uint64_t base = 0;
 
-    for (i = 0; !ind && i < 17200; ++i) //>>>(1)
+    for (i = 0; !ind && i < 24000; ++i) //>>>(1)
     {
         /// prehash /// gettimeofday(&t1, 0);
 
@@ -160,19 +154,23 @@ int main(int argc, char ** argv)
             ));
 
             prehash(data_d, hash_d, indices_d);
+            /// debug /// prehash(data_d, hash_dd, indices_d);
 
             is_first = 0;
 
             gettimeofday(&t1, 0);
         }
 
-        /// prehash /// CUDA_CALL(cudaThreadSynchronize());
+        /// prehash /// CUDA_CALL(cudaDeviceSynchronize());
         /// prehash /// gettimeofday(&t2, 0);
         /// prehash /// break;
 
         // generate nonces
-        CURAND_CALL(curandGenerate(gen, non_d, H_LEN * L_LEN * NONCE_SIZE_8));
-        /// debug /// Generate(non_d, H_LEN * L_LEN);
+        /// original /// CURAND_CALL(curandGenerate(gen, non_d, H_LEN * L_LEN * NONCE_SIZE_8));
+        generate<<<1 + (H_LEN * L_LEN - 1) / B_DIM, B_DIM>>>(
+            (uint64_t *)non_d, N_LEN, base
+        );
+        base += H_LEN * L_LEN;
 
         // calculate unfinalized hash of message
         initMining(&ctx_h, mes_h, NUM_SIZE_8);
@@ -189,7 +187,8 @@ int main(int argc, char ** argv)
         );
 
         // try to find solution
-        ind = findNonZero(indices_d, indices_d + H_LEN * L_LEN * 4);
+        ind = findNonZero(indices_d, indices_d + H_LEN * L_LEN);
+
         /// debug /// printf("%d ", ind);
         /// debug /// fflush(stdout);
 
@@ -219,7 +218,7 @@ int main(int argc, char ** argv)
         /// debug /// free(indices_h);
     }
 
-    cudaThreadSynchronize();
+    cudaDeviceSynchronize();
     gettimeofday(&t2, 0);
 
     //====================================================================//
@@ -236,15 +235,33 @@ int main(int argc, char ** argv)
     uint32_t * res_h = (uint32_t *)malloc(H_LEN * L_LEN * 4 * 8);
 
     CUDA_CALL(cudaMemcpy(
-        (void *)res_h, (void *)res_d,
-        H_LEN * L_LEN * 4 * 8, cudaMemcpyDeviceToHost
+        (void *)res_h, (void *)res_d, H_LEN * L_LEN * 4 * 8,
+        cudaMemcpyDeviceToHost
     ));
+
+    /// debug /// uint32_t * res_h = (uint32_t *)malloc((uint32_t)N_LEN * NUM_SIZE_8);
+    /// debug /// uint32_t * res_hh = (uint32_t *)malloc((uint32_t)N_LEN * NUM_SIZE_8);
+
+    /// debug /// CUDA_CALL(cudaMemcpy(
+    /// debug ///     (void *)res_h, (void *)hash_d, (uint32_t)N_LEN * NUM_SIZE_8,
+    /// debug ///     cudaMemcpyDeviceToHost
+    /// debug /// ));
+    /// debug /// CUDA_CALL(cudaMemcpy(
+    /// debug ///     (void *)res_hh, (void *)hash_dd, (uint32_t)N_LEN * NUM_SIZE_8,
+    /// debug ///     cudaMemcpyDeviceToHost
+    /// debug /// ));
+
+    /// debug /// for (uint32_t i = 0; i < N_LEN * NUM_SIZE_32; ++i)
+    /// debug /// {
+    /// debug ///     if (res_h[i] != res_hh[i])
+    /// debug ///         printf("ERROR");
+    /// debug /// }
 
     if (ind)
     {
-        printf("ind = %d, i = %d\n", ind, i - 1);
+        printf("ind = %d, i = %d\n", ind - 1, i - 1);
         printf(
-            "%#lX %lX %lX %lX\n",
+            "0x%016lX %016lX %016lX %016lX\n",
             ((uint64_t *)res_h)[(ind - 1) * 4 + 3],
             ((uint64_t *)res_h)[(ind - 1) * 4 + 2],
             ((uint64_t *)res_h)[(ind - 1) * 4 + 1],
@@ -253,12 +270,17 @@ int main(int argc, char ** argv)
         fflush(stdout);
     }
 
+    /// debug /// for (int i = 0; i < H_LEN * L_LEN; ++i)
+    /// debug /// {
+    /// debug ///     printf("%d ", res_h[i]);
+    /// debug /// }
+
     free(res_h);
 
     //====================================================================//
     //  Free device memory
     //====================================================================//
-    // CURAND_CALL(curandDestroyGenerator(gen));
+    /// original /// CURAND_CALL(curandDestroyGenerator(gen));
     CUDA_CALL(cudaFree(non_d));
     CUDA_CALL(cudaFree(hash_d));
     CUDA_CALL(cudaFree(data_d));

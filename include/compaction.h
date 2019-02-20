@@ -11,7 +11,7 @@ __device__ uint32_t warpInc(
 // compactify an array, omit all zeros
 __global__ void compactify(
     const uint32_t * in,
-    uint32_t inlen,
+    const uint32_t inlen,
     uint32_t * out,
     uint32_t * outlen
 );

@@ -23,17 +23,21 @@
 #define N_LEN         0x4000000          // 2^26
 
 // mod 2^26 mask
-#define N_MASK        0x01FFFFFF
+#define N_MASK        0x03FFFFFF
 
 // boundary for puzzle
-#define B_LEN         0xFFFFFFFFFFFFFFFF
+//                      8765432187654321
+#define B3            0x0000000003FFFFFF
+#define B2            0xFFFFFFFFFFFFFFFF
+#define B1            0xFFFFFFFFFFFFFFFF
+#define B0            0xFFFFFFFFFFFFFFFF
 
 ////////////////////////////////////////////////////////////////////////////////
-// total number of hash loads (threads) per iteration
-#define L_LEN         0x400000           // 2^22
-
 // number of hashes per thread
 #define H_LEN         1                  
+
+// total number of hash loads (threads) per iteration
+#define L_LEN         (0x400000 / H_LEN) // 2^22
 
 // mining kernel block size 
 #define B_DIM         64              
@@ -317,24 +321,24 @@ typedef struct {
 
 ////////////////////////////////////////////////////////////////////////////////
 #ifndef CUDA_CALL
-#define CUDA_CALL(x)                                      \
-    do {                                                  \
-        if ((x) != cudaSuccess)                           \
-        {                                                 \
-            printf("ERROR at %s:%d\n",__FILE__,__LINE__); \
-            return EXIT_FAILURE;                          \
-        }                                                 \
+#define CUDA_CALL(x)                                       \
+    do {                                                   \
+        if ((x) != cudaSuccess)                            \
+        {                                                  \
+            printf("ERROR at %s: %d\n",__FILE__,__LINE__); \
+            return EXIT_FAILURE;                           \
+        }                                                  \
     } while (0)
 #endif
 
 #ifndef CURAND_CALL
-#define CURAND_CALL(x)                                \
-do {                                                  \
-    if ((x) != CURAND_STATUS_SUCCESS)                 \
-    {                                                 \
-        printf("ERROR at %s:%d\n",__FILE__,__LINE__); \
-        return EXIT_FAILURE;                          \
-    }                                                 \
+#define CURAND_CALL(x)                                 \
+do {                                                   \
+    if ((x) != CURAND_STATUS_SUCCESS)                  \
+    {                                                  \
+        printf("ERROR at %s: %d\n",__FILE__,__LINE__); \
+        return EXIT_FAILURE;                           \
+    }                                                  \
 } while (0)
 #endif
 

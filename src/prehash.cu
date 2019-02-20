@@ -147,82 +147,88 @@ __global__ void updatePrehash(
     // hashes
     uint32_t * hash,
     // indices of invalid range hashes
-    uint32_t * invalid
+    uint32_t * invalid,
+    const uint32_t len
 ) {
     uint32_t j;
     uint32_t tid = threadIdx.x + blockDim.x * blockIdx.x;
-    uint32_t addr = invalid[tid] - 1;
 
-    // ldata memory
-    // 472 bytes
-    uint32_t ldata[118];
+    if (tid < len)
+    {
+        uint32_t addr = invalid[tid] - 1;
 
-    // 32 * 64 bits = 256 bytes 
-    uint64_t * aux = (uint64_t *)ldata;
-    // (212 + 4) bytes 
-    blake2b_ctx * ctx = (blake2b_ctx *)(ldata + 64);
+        // ldata memory
+        // 472 bytes
+        uint32_t ldata[118];
+
+        // 32 * 64 bits = 256 bytes 
+        uint64_t * aux = (uint64_t *)ldata;
+        // (212 + 4) bytes 
+        blake2b_ctx * ctx = (blake2b_ctx *)(ldata + 64);
 
     //====================================================================//
     //  Initialize context
     //====================================================================//
-    B2B_IV(ctx->h);
+        B2B_IV(ctx->h);
 
-    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_SIZE_8;
-    ctx->t[0] = 0;
-    ctx->t[1] = 0;
-    ctx->c = 0;
+        ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_SIZE_8;
+        ctx->t[0] = 0;
+        ctx->t[1] = 0;
+        ctx->c = 0;
 
 #pragma unroll
-    for (j = 0; j < 128; ++j)
-    {
-        ctx->b[j] = 0;
-    }
+        for (j = 0; j < 128; ++j)
+        {
+            ctx->b[j] = 0;
+        }
 
     //====================================================================//
     //  Hash previous hash
     //====================================================================//
 #pragma unroll
-    for (j = 0; ctx->c < 128 && j < NUM_SIZE_8; ++j)
-    {
-        ctx->b[ctx->c++] = ((const uint8_t *)(hash + addr * NUM_SIZE_32))[j];
-    }
-
-#pragma unroll
-    for ( ; j < NUM_SIZE_8; )
-    {
-        B2B_H(ctx, aux);
-       
-#pragma unroll
-        for ( ; ctx->c < 128 && j < NUM_SIZE_8; ++j)
+        for (j = 0; ctx->c < 128 && j < NUM_SIZE_8; ++j)
         {
             ctx->b[ctx->c++]
                 = ((const uint8_t *)(hash + addr * NUM_SIZE_32))[j];
         }
-    }
+
+#pragma unroll
+        for ( ; j < NUM_SIZE_8; )
+        {
+            B2B_H(ctx, aux);
+           
+#pragma unroll
+            for ( ; ctx->c < 128 && j < NUM_SIZE_8; ++j)
+            {
+                ctx->b[ctx->c++]
+                    = ((const uint8_t *)(hash + addr * NUM_SIZE_32))[j];
+            }
+        }
 
     //====================================================================//
     //  Finalize hash
     //====================================================================//
-    B2B_H_LAST(ctx, aux);
+        B2B_H_LAST(ctx, aux);
 
 #pragma unroll
-    for (j = 0; j < NUM_SIZE_8; ++j)
-    {
-        ((uint8_t *)ldata)[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
-    }
+        for (j = 0; j < NUM_SIZE_8; ++j)
+        {
+            ((uint8_t *)ldata)[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
+        }
 
     //===================================================================//
     //  Dump result to global memory
     //===================================================================//
-    j = ((uint64_t *)ldata)[3] <= FQ3 && ((uint64_t *)ldata)[2] <= FQ2
-        && ((uint64_t *)ldata)[1] <= FQ1 && ((uint64_t *)ldata)[0] <= FQ0;
+        j = ((uint64_t *)ldata)[3] <= FQ3 && ((uint64_t *)ldata)[2] <= FQ2
+            && ((uint64_t *)ldata)[1] <= FQ1 && ((uint64_t *)ldata)[0] <= FQ0;
 
-    invalid[tid] *= 1 - !j;
+        invalid[tid] *= 1 - !j;
 
 #pragma unroll
-    for (int i = 0; i < NUM_SIZE_32; ++i)
-    {
-        hash[addr * NUM_SIZE_32 + i] = ldata[i];
+        for (int i = 0; i < NUM_SIZE_32; ++i)
+        {
+            hash[addr * NUM_SIZE_32 + i] = ldata[i];
+        }
     }
 
     return;
@@ -253,9 +259,9 @@ __global__ void finalizePrehash(
     uint32_t r[18];
     r[16] = r[17] = 0;
 
-    uint32_t * h = hash + tid * NUM_SIZE_32; 
-
     tid += blockDim.x * blockIdx.x;
+
+    uint32_t * h = hash + tid * NUM_SIZE_32; 
 
     //====================================================================//
     //  h[0] * y -> r[0, ..., 7, 8]
@@ -528,34 +534,48 @@ int prehash(
     // indices of invalid range hashes
     uint32_t * invalid
 ) {
-    uint32_t len = N_LEN;
+    uint32_t len = N_LEN; // >= H_LEN * N_LEN -- critical assumption
+
+    uint32_t * ind = invalid;
+    uint32_t * comp = invalid + N_LEN;
+    uint32_t * tmp;
 
     // hash index, constant message and public key
-    initPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash, invalid);
+    initPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash, ind);
 
     // determine indices of out of bounds hashes
     compactify<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
-        invalid, len, invalid + N_LEN, invalid + 2 * N_LEN
+        ind, len, comp, invalid + 2 * N_LEN
     );
 
+    // determine the quantity of invalid hashes
     CUDA_CALL(cudaMemcpy(
         (void *)&len, (void *)(invalid + 2 * N_LEN), 4, cudaMemcpyDeviceToHost
     ));
 
+    tmp = ind;
+    ind = comp;
+    comp = tmp;
+
     while (len)
     {
         // rehash out of bounds hashes
-        updatePrehash<<<1 + (len - 1) / B_DIM, B_DIM>>>(hash, invalid);
+        updatePrehash<<<1 + (len - 1) / B_DIM, B_DIM>>>(hash, ind, len);
 
         // determine indices of out of bounds hashes
         compactify<<<1 + (len - 1) / B_DIM, B_DIM>>>(
-            invalid, len, invalid + N_LEN, invalid + 2 * N_LEN
+            ind, len, comp, invalid + 2 * N_LEN
         );
 
+        // determine the quantity of invalid hashes
         CUDA_CALL(cudaMemcpy(
-            (void *)&len, (void *)(invalid + 2 * N_LEN),
-            4, cudaMemcpyDeviceToHost
+            (void *)&len, (void *)(invalid + 2 * N_LEN), 4,
+            cudaMemcpyDeviceToHost
         ));
+
+        tmp = ind;
+        ind = comp;
+        comp = tmp;
     }
 
     // multiply by secret key moq q
