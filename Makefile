@@ -8,8 +8,8 @@ CFLAGS = -c -arch sm_70 #-Xptxas -v
 SRCDIR = ./src
 LIBPATH = ./lib/$(LIBNAME)
 SOURCES = $(SRCDIR)/reduction.cu $(SRCDIR)/compaction.cu \
-		  $(SRCDIR)/prehash.cu $(SRCDIR)/validation.cu \
-		  $(SRCDIR)/autolykos.cu
+		  $(SRCDIR)/prehash.cu $(SRCDIR)/mining.cu \
+		  $(SRCDIR)/curve25519-donna.cu $(SRCDIR)/autolykos.cu
 OBJECTS = $(SOURCES:.cu=.o)
 
 TESTEXEC = test.out

@@ -105,7 +105,7 @@ __global__ void blockNonZero(
 
     if (blockSize >= 2 && tid < 1)
     {
-        sdata[tid] = ind = ind + !ind * sdata[tid +  1];
+        ind += !ind * sdata[tid +  1];
     }
 
     cg::sync(cta);
@@ -130,8 +130,6 @@ void reduceNonZero(
     uint32_t gridSize,
     uint32_t blockSize
 ) {
-    //printf("AAAA\n");
-    //fflush(stdout);
     switch (blockSize)
     {
         case 64:

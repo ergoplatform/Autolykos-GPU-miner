@@ -27,7 +27,7 @@
 
 // boundary for puzzle
 //                      8765432187654321
-#define B3            0x0000000003FFFFFF
+#define B3            0x000000000FFFFFFF
 #define B2            0xFFFFFFFFFFFFFFFF
 #define B1            0xFFFFFFFFFFFFFFFF
 #define B0            0xFFFFFFFFFFFFFFFF

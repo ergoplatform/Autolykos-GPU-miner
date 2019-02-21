@@ -32,8 +32,6 @@ __global__ void compactify(
 ) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
 
-    /// debug /// if (!tid) *outlen = 0;
-
     for (int i = tid; i < inlen; i += gridDim.x * blockDim.x)
     {
         if (in[i]) out[warpInc(outlen)] = in[i];

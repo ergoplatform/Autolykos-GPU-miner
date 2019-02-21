@@ -1,5 +1,5 @@
-#ifndef VALIDATION_H
-#define VALIDATION_H
+#ifndef MINING_H
+#define MINING_H
 
 #include "definitions.h"
 
@@ -28,4 +28,4 @@ __global__ void blockMining(
     uint32_t * valid
 );
 
-#endif // VALIDATION_H
+#endif // MINING_H

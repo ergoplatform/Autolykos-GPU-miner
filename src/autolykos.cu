@@ -1,15 +1,17 @@
 // autolykos.cu
 
 #include "../include/prehash.h"
-#include "../include/validation.h"
+#include "../include/mining.h"
 #include "../include/reduction.h"
 #include "../include/compaction.h"
+#include "../include/curve25519-donna.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <cuda.h>
 #include <curand.h>
 
+// consequtive nonces
 __global__ void generate(
     uint64_t * arr,
     uint32_t len,
@@ -30,6 +32,8 @@ int main(int argc, char ** argv)
     //====================================================================//
     //  Host memory
     //====================================================================//
+    static const uint8_t basepoint[NUM_SIZE_8] = {9};
+
     // hash context
     // (212 + 4) bytes
     blake2b_ctx ctx_h;
@@ -38,21 +42,35 @@ int main(int argc, char ** argv)
     // NUM_SIZE_8 bytes
     uint32_t mes_h[NUM_SIZE_32] = {0, 0, 0, 0, 0, 0, 0, 1}; 
 
-    // secret key
-    //>>>genSKey();
+    // generate secret key
     uint32_t sk_h[NUM_SIZE_32] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 1, 2}; 
 
-    // public key
-    //>>>genPKey();
-    uint32_t pk_h[NUM_SIZE_32] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 3, 4}; 
+    ((uint8_t *)sk_h)[0] &= 248;
+    ((uint8_t *)sk_h)[31] &= 127;
+    ((uint8_t *)sk_h)[31] |= 64;
 
-    // one time secret key
-    //>>>genSKey();
+    // generate public key
+    /// stub /// uint32_t pk_h[NUM_SIZE_32] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 3, 4}; 
+    uint32_t pk_h[NUM_SIZE_32];
+    curve25519_donna((uint8_t *)pk_h, (uint8_t *)sk_h, basepoint);
+
+    printf("Public key generated\n");
+    fflush(stdout);
+
+    // generate one time secret key
     uint32_t x_h[NUM_SIZE_32] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 5, 6}; 
 
-    // one time public key
-    //>>>genPKey();
-    uint32_t w_h[NUM_SIZE_32] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 7, 8}; 
+    ((uint8_t *)x_h)[0] &= 248;
+    ((uint8_t *)x_h)[31] &= 127;
+    ((uint8_t *)x_h)[31] |= 64;
+
+    // generate one time public key
+    /// stub /// uint32_t w_h[NUM_SIZE_32] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 7, 8}; 
+    uint32_t w_h[NUM_SIZE_32];
+    curve25519_donna((uint8_t *)w_h, (uint8_t *)x_h, basepoint);
+
+    printf("One-time public key generated\n");
+    fflush(stdout);
 
     //====================================================================//
     //  Device memory
@@ -71,9 +89,6 @@ int main(int argc, char ** argv)
     // N_LEN * NUM_SIZE_8 bytes // 2 GB
     uint32_t * hash_d;
     CUDA_CALL(cudaMalloc((void **)&hash_d, (uint32_t)N_LEN * NUM_SIZE_8));
-
-    /// debug /// uint32_t * hash_dd;
-    /// debug /// CUDA_CALL(cudaMalloc((void **)&hash_dd, (uint32_t)N_LEN * NUM_SIZE_8));
 
     // indices of unfinalized hashes
     // (H_LEN * N_LEN * 8 + 4) bytes // ~512 MB
@@ -135,7 +150,7 @@ int main(int argc, char ** argv)
     struct timeval t1, t2;
     uint64_t base = 0;
 
-    for (i = 0; !ind && i < 24000; ++i) //>>>(1)
+    for (i = 0; !ind && i < 24; ++i) //>>>(1)
     {
         /// prehash /// gettimeofday(&t1, 0);
 
@@ -154,7 +169,6 @@ int main(int argc, char ** argv)
             ));
 
             prehash(data_d, hash_d, indices_d);
-            /// debug /// prehash(data_d, hash_dd, indices_d);
 
             is_first = 0;
 
@@ -188,34 +202,6 @@ int main(int argc, char ** argv)
 
         // try to find solution
         ind = findNonZero(indices_d, indices_d + H_LEN * L_LEN);
-
-        /// debug /// printf("%d ", ind);
-        /// debug /// fflush(stdout);
-
-        /// debug /// ind = 0;
-
-        /// debug /// uint32_t * indices_h = (uint32_t *)malloc(H_LEN * L_LEN * 4);
-
-        /// debug /// CUDA_CALL(cudaMemcpy(
-        /// debug ///     (void *)indices_h, (void *)res_d,
-        /// debug ///     H_LEN * L_LEN * 4, cudaMemcpyDeviceToHost
-        /// debug /// ));
-
-        /// debug /// int k = 0;
-        /// debug /// for (int i = 0; i < H_LEN * L_LEN; ++i)
-        /// debug /// {
-        /// debug ///     if (indices_h[i] > 0)
-        /// debug ///     {
-        /// debug ///         printf("%d\n", indices_h[i]);
-        /// debug ///     }
-        /// debug ///     else
-        /// debug ///     {
-        /// debug ///         ++k;
-        /// debug ///     }
-        /// debug /// }
-        /// debug /// printf("%d %d\n", k, H_LEN * L_LEN);
-
-        /// debug /// free(indices_h);
     }
 
     cudaDeviceSynchronize();
@@ -230,7 +216,7 @@ int main(int argc, char ** argv)
     printf("Time to generate: %.5f (s) \n", time);
 
     //====================================================================//
-    //  [DEBUG] Result in index
+    //  [DEBUG] Result with index
     //====================================================================//
     uint32_t * res_h = (uint32_t *)malloc(H_LEN * L_LEN * 4 * 8);
 
@@ -239,27 +225,10 @@ int main(int argc, char ** argv)
         cudaMemcpyDeviceToHost
     ));
 
-    /// debug /// uint32_t * res_h = (uint32_t *)malloc((uint32_t)N_LEN * NUM_SIZE_8);
-    /// debug /// uint32_t * res_hh = (uint32_t *)malloc((uint32_t)N_LEN * NUM_SIZE_8);
-
-    /// debug /// CUDA_CALL(cudaMemcpy(
-    /// debug ///     (void *)res_h, (void *)hash_d, (uint32_t)N_LEN * NUM_SIZE_8,
-    /// debug ///     cudaMemcpyDeviceToHost
-    /// debug /// ));
-    /// debug /// CUDA_CALL(cudaMemcpy(
-    /// debug ///     (void *)res_hh, (void *)hash_dd, (uint32_t)N_LEN * NUM_SIZE_8,
-    /// debug ///     cudaMemcpyDeviceToHost
-    /// debug /// ));
-
-    /// debug /// for (uint32_t i = 0; i < N_LEN * NUM_SIZE_32; ++i)
-    /// debug /// {
-    /// debug ///     if (res_h[i] != res_hh[i])
-    /// debug ///         printf("ERROR");
-    /// debug /// }
-
     if (ind)
     {
         printf("ind = %d, i = %d\n", ind - 1, i - 1);
+
         printf(
             "0x%016lX %016lX %016lX %016lX\n",
             ((uint64_t *)res_h)[(ind - 1) * 4 + 3],
@@ -267,13 +236,9 @@ int main(int argc, char ** argv)
             ((uint64_t *)res_h)[(ind - 1) * 4 + 1],
             ((uint64_t *)res_h)[(ind - 1) * 4]
         );
+
         fflush(stdout);
     }
-
-    /// debug /// for (int i = 0; i < H_LEN * L_LEN; ++i)
-    /// debug /// {
-    /// debug ///     printf("%d ", res_h[i]);
-    /// debug /// }
 
     free(res_h);
 

@@ -1,6 +1,6 @@
-// validation.cu
+// mining.cu
 
-#include "../include/validation.h"
+#include "../include/mining.h"
 #include <cuda.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -338,4 +338,4 @@ __global__ void blockMining(
     return;
 }
 
-// validation.cu
+// mining.cu
