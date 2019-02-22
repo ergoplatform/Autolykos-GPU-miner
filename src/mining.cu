@@ -53,7 +53,7 @@ void initMining(
 //  Block mining                                                               
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void blockMining(
-    // data: pk || mes || w || x || sk || ctx
+    // data: pk || mes || w || padding || x || sk || ctx
     const uint32_t * data,
     // pregenerated nonces
     const uint32_t * non,
@@ -72,7 +72,7 @@ __global__ void blockMining(
     __shared__ uint32_t sdata[B_DIM];
 
     // B_DIM * 4 bytes
-    sdata[tid] = data[tid + 4 * NUM_SIZE_32];
+    sdata[tid] = data[tid + PK2_SIZE_32 + 2 * NUM_SIZE_32];
     __syncthreads();
 
     // 8 * 32 bits = 32 bytes
@@ -173,8 +173,7 @@ __global__ void blockMining(
             asm volatile (
                 "addc.cc.u32 %0, %1, %2;":
                 "=r"(r[i]):
-                "r"(hash[(ind[0] << 3) + i]),
-                "r"(hash[(ind[1] << 3) + i])
+                "r"(hash[(ind[0] << 3) + i]), "r"(hash[(ind[1] << 3) + i])
             );
         }
 
@@ -320,8 +319,14 @@ __global__ void blockMining(
     //===================================================================//
     //  Dump result to global memory
     //===================================================================//
-        j = ((uint64_t *)r)[3] <= B3 && ((uint64_t *)r)[2] <= B2
-            && ((uint64_t *)r)[1] <= B1 && ((uint64_t *)r)[0] <= B0;
+        j = ((uint64_t *)r)[3] < B3
+            || ((uint64_t *)r)[3] == B3 && (
+                ((uint64_t *)r)[2] < B2
+                || ((uint64_t *)r)[2] == B2 && (
+                    ((uint64_t *)r)[1] < B1
+                    || ((uint64_t *)r)[1] == B1 && ((uint64_t *)r)[0] <= B0
+                )
+            );
 
         valid[tid] = (1 - !j) * (tid + 1);
         /// original /// res[tid] = r[0];

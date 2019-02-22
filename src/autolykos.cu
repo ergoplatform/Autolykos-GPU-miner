@@ -32,7 +32,7 @@ int main(int argc, char ** argv)
     //====================================================================//
     //  Host memory
     //====================================================================//
-    static const uint8_t basepoint[NUM_SIZE_8] = {9};
+    /// donna /// static const uint8_t basepoint[NUM_SIZE_8] = {9};
 
     // hash context
     // (212 + 4) bytes
@@ -50,12 +50,11 @@ int main(int argc, char ** argv)
     ((uint8_t *)sk_h)[31] |= 64;
 
     // generate public key
-    /// stub /// uint32_t pk_h[NUM_SIZE_32] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 3, 4}; 
-    uint32_t pk_h[NUM_SIZE_32];
-    curve25519_donna((uint8_t *)pk_h, (uint8_t *)sk_h, basepoint);
-
-    printf("Public key generated\n");
-    fflush(stdout);
+    uint8_t pk_h[PK_SIZE_8] = {
+        0, 0xB, 0xC, 0xD, 0xE, 0xF, 3, 4, 5, 6, 7,
+        0, 0xB, 0xC, 0xD, 0xE, 0xF, 3, 4, 5, 6, 7,
+        0, 0xB, 0xC, 0xD, 0xE, 0xF, 3, 4, 5, 6, 7
+    }; 
 
     // generate one time secret key
     uint32_t x_h[NUM_SIZE_32] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 5, 6}; 
@@ -65,12 +64,11 @@ int main(int argc, char ** argv)
     ((uint8_t *)x_h)[31] |= 64;
 
     // generate one time public key
-    /// stub /// uint32_t w_h[NUM_SIZE_32] = {0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 7, 8}; 
-    uint32_t w_h[NUM_SIZE_32];
-    curve25519_donna((uint8_t *)w_h, (uint8_t *)x_h, basepoint);
-
-    printf("One-time public key generated\n");
-    fflush(stdout);
+    uint8_t w_h[PK_SIZE_8] = {
+        0, 0xA, 0xC, 0xD, 0xE, 0xF, 3, 0xA, 9, 6, 7,
+        0, 0xA, 0xC, 0xD, 0xE, 0xF, 3, 0xA, 9, 6, 7,
+        0, 0xA, 0xC, 0xD, 0xE, 0xF, 3, 0xA, 9, 6, 7
+    }; 
 
     //====================================================================//
     //  Device memory
@@ -80,8 +78,8 @@ int main(int argc, char ** argv)
     uint32_t * non_d;
     CUDA_CALL(cudaMalloc((void **)&non_d, H_LEN * L_LEN * NONCE_SIZE_8));
 
-    // data: pk || mes || w || x || sk || ctx
-    // (5 * NUM_SIZE_8 + 212 + 4) bytes // ~0 MB
+    // data: pk || mes || w || padding || x || sk || ctx
+    // (2 * PK_SIZE_8 + 2 + 3 * NUM_SIZE_8 + 212 + 4) bytes // ~0 MB
     uint32_t * data_d;
     CUDA_CALL(cudaMalloc((void **)&data_d, (NUM_SIZE_8 + B_DIM) * 4));
 
@@ -94,11 +92,6 @@ int main(int argc, char ** argv)
     // (H_LEN * N_LEN * 8 + 4) bytes // ~512 MB
     uint32_t * indices_d;
     CUDA_CALL(cudaMalloc((void **)&indices_d, H_LEN * N_LEN * 8 + 4));
-
-    /// original /// // potential solutions of puzzle
-    /// original /// // H_LEN * L_LEN * 4 bytes // 16 MB
-    /// original /// uint32_t * res_d;
-    /// original /// CUDA_CALL(cudaMalloc((void **)&res_d, (uint32_t)H_LEN * L_LEN * 4));
 
     // potential solutions of puzzle
     // H_LEN * L_LEN * 4 * 8 bytes // 16 * 8 MB
@@ -122,23 +115,17 @@ int main(int argc, char ** argv)
     //  Memory: Host -> Device
     //====================================================================//
     CUDA_CALL(cudaMemcpy(
-        (void *)data_d, (void *)pk_h, NUM_SIZE_8, cudaMemcpyHostToDevice
+        (void *)data_d, (void *)pk_h, PK_SIZE_8, cudaMemcpyHostToDevice
     ));
+
     CUDA_CALL(cudaMemcpy(
-        (void *)(data_d + NUM_SIZE_32), (void *)mes_h, NUM_SIZE_8,
+        (void *)((uint8_t *)data_d + PK_SIZE_8), (void *)mes_h, NUM_SIZE_8,
         cudaMemcpyHostToDevice
     ));
+
     CUDA_CALL(cudaMemcpy(
-        (void *)(data_d + 2 * NUM_SIZE_32), (void *)w_h, NUM_SIZE_8,
-        cudaMemcpyHostToDevice
-    ));
-    CUDA_CALL(cudaMemcpy(
-        (void *)(data_d + 3 * NUM_SIZE_32), (void *)x_h, NUM_SIZE_8,
-        cudaMemcpyHostToDevice
-    ));
-    CUDA_CALL(cudaMemcpy(
-        (void *)(data_d + 4 * NUM_SIZE_32), (void *)sk_h, NUM_SIZE_8,
-        cudaMemcpyHostToDevice
+        (void *)(data_d + PK2_SIZE_32 + 2 * NUM_SIZE_32), (void *)sk_h,
+        NUM_SIZE_8, cudaMemcpyHostToDevice
     ));
 
     //====================================================================//
@@ -150,22 +137,21 @@ int main(int argc, char ** argv)
     struct timeval t1, t2;
     uint64_t base = 0;
 
-    for (i = 0; !ind && i < 24; ++i) //>>>(1)
+    for (i = 0; !ind && i < 24000; ++i) //>>>(1)
     {
         /// prehash /// gettimeofday(&t1, 0);
 
         // on obtaining solution
         if (is_first)
         {
-            //>>>genSKey();
             CUDA_CALL(cudaMemcpy(
-                (void *)(data_d + 3 * NUM_SIZE_32), (void *)x_h,
+                (void *)(data_d + PK2_SIZE_32 + NUM_SIZE_32), (void *)x_h,
                 NUM_SIZE_8, cudaMemcpyHostToDevice
             ));
-            //>>>genPKey();
+
             CUDA_CALL(cudaMemcpy(
-                (void *)(data_d + 2 * NUM_SIZE_32), (void *)w_h,
-                NUM_SIZE_8, cudaMemcpyHostToDevice
+                (void *)((uint8_t *)data_d + PK_SIZE_8 + NUM_SIZE_8),
+                (void *)w_h, PK_SIZE_8, cudaMemcpyHostToDevice
             ));
 
             prehash(data_d, hash_d, indices_d);
@@ -191,7 +177,7 @@ int main(int argc, char ** argv)
 
         // context: host -> device
         CUDA_CALL(cudaMemcpy(
-            (void *)(data_d + 5 * NUM_SIZE_32), (void *)&ctx_h,
+            (void *)(data_d + PK2_SIZE_32 + 3 * NUM_SIZE_32), (void *)&ctx_h,
             sizeof(blake2b_ctx), cudaMemcpyHostToDevice
         ));
 
@@ -213,7 +199,9 @@ int main(int argc, char ** argv)
     double time
         = (1000000. * (t2.tv_sec - t1.tv_sec) + t2.tv_usec - t1.tv_usec)
         / 1000000.0;
-    printf("Time to generate: %.5f (s) \n", time);
+
+    printf("Time: %.5f (s) \n", time);
+    fflush(stdout);
 
     //====================================================================//
     //  [DEBUG] Result with index
@@ -225,9 +213,21 @@ int main(int argc, char ** argv)
         cudaMemcpyDeviceToHost
     ));
 
+    /// debug /// uint32_t * res_h = (uint32_t *)malloc((uint32_t)N_LEN * NUM_SIZE_8);
+
+    /// debug /// CUDA_CALL(cudaMemcpy(
+    /// debug ///     (void *)res_h, (void *)indices_d, (uint32_t)N_LEN * 4,
+    /// debug ///     cudaMemcpyDeviceToHost
+    /// debug /// ));
+
+    /// debug /// for (uint32_t i = 0; i < N_LEN; ++i)
+    /// debug /// {
+    /// debug ///     if (res_h[i] != 0) printf("%d ", res_h[i]);
+    /// debug /// }
+
     if (ind)
     {
-        printf("ind = %d, i = %d\n", ind - 1, i - 1);
+        printf("index = %d, iteration = %d\n", ind - 1, i - 1);
 
         printf(
             "0x%016lX %016lX %016lX %016lX\n",

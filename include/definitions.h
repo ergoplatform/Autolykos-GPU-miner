@@ -8,9 +8,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 //  Constants
 ////////////////////////////////////////////////////////////////////////////////
-// keys and hashes size
+// secret keys and hashes size
 #define NUM_SIZE_8    32
 #define NUM_SIZE_32   (NUM_SIZE_8 >> 2)
+
+// public keys size
+#define PK_SIZE_8     33
+#define PK2_SIZE_32   ((2 * (PK_SIZE_8) + 3) >> 2)
 
 // nonce size
 #define NONCE_SIZE_8  8
@@ -23,10 +27,9 @@
 #define N_LEN         0x4000000          // 2^26
 
 // mod 2^26 mask
-#define N_MASK        0x03FFFFFF
+#define N_MASK        (N_LEN - 1)
 
-// boundary for puzzle
-//                      8765432187654321
+// boundary for puzzle: 8765432187654321
 #define B3            0x000000000FFFFFFF
 #define B2            0xFFFFFFFFFFFFFFFF
 #define B1            0xFFFFFFFFFFFFFFFF
@@ -73,6 +76,8 @@ typedef struct {
     uint32_t c;
 } blake2b_ctx;
 
+////////////////////////////////////////////////////////////////////////////////
+//  Macros for blake2b-256 hashing procedures
 ////////////////////////////////////////////////////////////////////////////////
 // initialization vector
 #ifndef B2B_IV
@@ -249,8 +254,8 @@ typedef struct {
 #endif
 
 // blake2b mixing 
-#ifndef B2B_FINALIZE
-#define B2B_FINALIZE(ctx, aux)                                               \
+#ifndef B2B_FINAL
+#define B2B_FINAL(ctx, aux)                                                  \
 {                                                                            \
     ((uint64_t *)(aux))[16] = ((uint64_t *)(((blake2b_ctx *)(ctx))->b))[ 0]; \
     ((uint64_t *)(aux))[17] = ((uint64_t *)(((blake2b_ctx *)(ctx))->b))[ 1]; \
@@ -299,7 +304,7 @@ typedef struct {
     ((uint64_t *)(aux))[12] ^= ((blake2b_ctx *)(ctx))->t[0]; \
     ((uint64_t *)(aux))[13] ^= ((blake2b_ctx *)(ctx))->t[1]; \
                                                              \
-    B2B_FINALIZE(ctx, aux);                                  \
+    B2B_FINAL(ctx, aux);                                     \
                                                              \
     ((blake2b_ctx *)(ctx))->c = 0;                           \
 }
@@ -315,20 +320,22 @@ typedef struct {
     ((uint64_t *)(aux))[13] ^= ((blake2b_ctx *)(ctx))->t[1]; \
     ((uint64_t *)(aux))[14] = ~((uint64_t *)(aux))[14];      \
                                                              \
-    B2B_FINALIZE(ctx, aux);                                  \
+    B2B_FINAL(ctx, aux);                                     \
 }
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
+//  Wrappers for CUDA & CURAND calls
+////////////////////////////////////////////////////////////////////////////////
 #ifndef CUDA_CALL
-#define CUDA_CALL(x)                                       \
-    do {                                                   \
-        if ((x) != cudaSuccess)                            \
-        {                                                  \
-            printf("ERROR at %s: %d\n",__FILE__,__LINE__); \
-            return EXIT_FAILURE;                           \
-        }                                                  \
-    } while (0)
+#define CUDA_CALL(x)                                   \
+do {                                                   \
+    if ((x) != cudaSuccess)                            \
+    {                                                  \
+        printf("ERROR at %s: %d\n",__FILE__,__LINE__); \
+        return EXIT_FAILURE;                           \
+    }                                                  \
+} while (0)
 #endif
 
 #ifndef CURAND_CALL

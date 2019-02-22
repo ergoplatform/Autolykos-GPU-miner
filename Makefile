@@ -9,7 +9,7 @@ SRCDIR = ./src
 LIBPATH = ./lib/$(LIBNAME)
 SOURCES = $(SRCDIR)/reduction.cu $(SRCDIR)/compaction.cu \
 		  $(SRCDIR)/prehash.cu $(SRCDIR)/mining.cu \
-		  $(SRCDIR)/curve25519-donna.cu $(SRCDIR)/autolykos.cu
+		  $(SRCDIR)/autolykos.cu
 OBJECTS = $(SOURCES:.cu=.o)
 
 TESTEXEC = test.out
