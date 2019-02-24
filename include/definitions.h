@@ -29,12 +29,6 @@
 // mod 2^26 mask
 #define N_MASK        (N_LEN - 1)
 
-// boundary for puzzle: 8765432187654321
-#define B3            0x000000000FFFFFFF
-#define B2            0xFFFFFFFFFFFFFFFF
-#define B1            0xFFFFFFFFFFFFFFFF
-#define B0            0xFFFFFFFFFFFFFFFF
-
 ////////////////////////////////////////////////////////////////////////////////
 // number of hashes per thread
 #define H_LEN         1                  

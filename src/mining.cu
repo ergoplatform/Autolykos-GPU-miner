@@ -53,6 +53,8 @@ void initMining(
 //  Block mining                                                               
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void blockMining(
+    // boundary for puzzle
+    const uint32_t * bound,
     // data: pk || mes || w || padding || x || sk || ctx
     const uint32_t * data,
     // pregenerated nonces
@@ -319,17 +321,17 @@ __global__ void blockMining(
     //===================================================================//
     //  Dump result to global memory
     //===================================================================//
-        j = ((uint64_t *)r)[3] < B3
-            || ((uint64_t *)r)[3] == B3 && (
-                ((uint64_t *)r)[2] < B2
-                || ((uint64_t *)r)[2] == B2 && (
-                    ((uint64_t *)r)[1] < B1
-                    || ((uint64_t *)r)[1] == B1 && ((uint64_t *)r)[0] <= B0
+        j = ((uint64_t *)r)[3] < ((uint64_t *)bound)[3]
+            || ((uint64_t *)r)[3] == ((uint64_t *)bound)[3] && (
+                ((uint64_t *)r)[2] < ((uint64_t *)bound)[2]
+                || ((uint64_t *)r)[2] == ((uint64_t *)bound)[2] && (
+                    ((uint64_t *)r)[1] < ((uint64_t *)bound)[1]
+                    || ((uint64_t *)r)[1] == ((uint64_t *)bound)[1]
+                    && ((uint64_t *)r)[0] <= ((uint64_t *)bound)[0]
                 )
             );
 
         valid[tid] = (1 - !j) * (tid + 1);
-        /// original /// res[tid] = r[0];
 
 #pragma unroll
         for (int i = 0; i < NUM_SIZE_32; ++i)

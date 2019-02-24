@@ -7,3 +7,11 @@ ifeq ($(CPU),linux-nv)
     LIBNAME = lib.a
     LIBS = -lcurand
 endif
+
+ifeq ($(CPU),linux-nv-plain)
+    CXX = nvcc
+    AR = ar
+    COPT = -O3
+    LIBNAME = lib.a
+    LIBS =
+endif
