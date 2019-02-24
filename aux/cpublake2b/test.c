@@ -79,7 +79,25 @@ int blake2b_selftest()
 // Test driver.
 int main(int argc, char **argv)
 {
-    printf("blake2b_selftest() = %s\n", blake2b_selftest() ? "FAIL" : "OK");
+    // for original hash
+    // printf("blake2b_selftest() = %s\n", blake2b_selftest() ? "FAIL" : "OK");
+
+    /// blake2b_ctx ctx;
+    /// uint8_t in[3] = { 0xFF, 0xFF, 0xFF };
+    uint8_t in[3] = { 'a', 'b', 'c' };
+    uint32_t out[8];
+    blake2b(out, 32, NULL, 0, in, 3);
+    // blake2b(out, 32, NULL, 0, NULL, 0);
+
+    printf(
+        "blake2b-256 = 0x%016lX %016lX %016lX %016lX\n",
+        ((uint64_t *)out)[3],
+        ((uint64_t *)out)[2],
+        ((uint64_t *)out)[1],
+        ((uint64_t *)out)[0]
+    );
+
+    fflush(stdout);
 
     return 0;
 }

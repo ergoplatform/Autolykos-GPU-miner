@@ -214,26 +214,32 @@ void blake2b_final(
     {
         ((uint8_t *) out)[k] = (ctx->h[k >> 3] >> (8 * (k & 7))) & 0xFF;
     }
+
+    for (k = 0; k < ctx->outlen; ++k)
+    {
+        /// ((uint8_t *)out)[k] = (ctx->h[3 - (k >> 3)] >> (8 * ((127 - k) & 7))) & 0xFF;
+        ((uint8_t *)out)[k] = (ctx->h[3 - (k >> 3)] >> (((127 - k) & 7) << 3)) & 0xFF;
+    }
 }
 
-/// // Convenience function for all-in-one computation.
-/// int blake2b(
-///     void * out,
-///     size_t outlen,
-///     const void * key,
-///     size_t keylen,
-///     const void * in,
-///     size_t inlen
-/// ) {
-///     blake2b_ctx ctx;
-/// 
-///     if (blake2b_init(&ctx, outlen, key, keylen))
-///     {
-///         return -1;
-///     }
-/// 
-///     blake2b_update(&ctx, in, inlen);
-///     blake2b_final(&ctx, out);
-/// 
-///     return 0;
-/// }
+// Convenience function for all-in-one computation.
+void blake2b(
+    void * out,
+    size_t outlen,
+    const void * key,
+    size_t keylen,
+    const void * in,
+    size_t inlen
+) {
+    blake2b_ctx ctx;
+
+    if (blake2b_init(&ctx, outlen, key, keylen))
+    {
+        return;
+    }
+
+    blake2b_update(&ctx, in, inlen);
+    blake2b_final(&ctx, out);
+
+    return;
+}

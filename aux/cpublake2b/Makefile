@@ -8,7 +8,7 @@ CFLAGS = -c
 SRCDIR = .
 LIBPATH = ./lib/$(LIBNAME)
 
-SOURCES = $(SRCDIR)/test.c $(SRCDIR)/blake2b.c $(SRCDIR)/kernel.c
+SOURCES = $(SRCDIR)/test.c $(SRCDIR)/blake2b.c #$(SRCDIR)/kernel.c
 OBJECTS = $(SOURCES:.c=.o)
 
 TESTEXEC = test.out

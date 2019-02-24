@@ -190,7 +190,7 @@ int main(
     struct timeval t1, t2;
     uint64_t base = 0;
 
-    for (i = 0; !ind; ++i)
+    for (i = 0; !ind && i < 1; ++i)
     {
         /// prehash /// gettimeofday(&t1, 0);
 
@@ -276,43 +276,73 @@ int main(
         cudaMemcpyDeviceToHost
     ));
 
-    if (ind)
-    {
-        printf("iteration = %d, index = %d\n", i - 1, ind - 1);
+    uint32_t * hash_h = (uint32_t *)malloc((uint64_t)N_LEN * NUM_SIZE_8);
 
-        /// printf(
-        ///     "m = 0x%016lX %016lX %016lX %016lX\n",
-        ///     ((uint64_t *)res_h)[3], ((uint64_t *)res_h)[2],
-        ///     ((uint64_t *)res_h)[1], ((uint64_t *)res_h)[0]
-        /// );
+    CUDA_CALL(cudaMemcpy(
+        (void *)hash_h, (void *)hash_d, (uint64_t)N_LEN * NUM_SIZE_8,
+        cudaMemcpyDeviceToHost
+    ));
 
-        /// printf(
-        ///     "pk = 0x%02lX %016lX %016lX %016lX %016lX\n",
-        ///     ((uint64_t *)pk_h)[4], ((uint64_t *)pk_h)[3], ((uint64_t *)pk_h)[2],
-        ///     ((uint64_t *)pk_h)[1], ((uint64_t *)pk_h)[0]
-        /// );
+    /// if (ind)
+    /// {
+    ///     printf("iteration = %d, index = %d\n", i - 1, ind - 1);
 
-        /// printf(
-        ///     "w = 0x%02lX %016lX %016lX %016lX %016lX\n",
-        ///     ((uint64_t *)w_h)[4], ((uint64_t *)w_h)[3], ((uint64_t *)w_h)[2],
-        ///     ((uint64_t *)w_h)[1], ((uint64_t *)w_h)[0]
-        /// );
+    ///     /// printf(
+    ///     ///     "m = 0x%016lX %016lX %016lX %016lX\n",
+    ///     ///     ((uint64_t *)res_h)[3], ((uint64_t *)res_h)[2],
+    ///     ///     ((uint64_t *)res_h)[1], ((uint64_t *)res_h)[0]
+    ///     /// );
 
-        printf("nonce = 0x%016lX\n", ((uint64_t *)nonce_h)[ind - 1]);
+    ///     /// printf(
+    ///     ///     "pk = 0x%02lX %016lX %016lX %016lX %016lX\n",
+    ///     ///     ((uint64_t *)pk_h)[4], ((uint64_t *)pk_h)[3], ((uint64_t *)pk_h)[2],
+    ///     ///     ((uint64_t *)pk_h)[1], ((uint64_t *)pk_h)[0]
+    ///     /// );
 
-        printf(
-            "d = 0x%016lX %016lX %016lX %016lX\n",
-            ((uint64_t *)res_h)[(ind - 1) * 4 + 3],
-            ((uint64_t *)res_h)[(ind - 1) * 4 + 2],
-            ((uint64_t *)res_h)[(ind - 1) * 4 + 1],
-            ((uint64_t *)res_h)[(ind - 1) * 4]
-        );
+    ///     /// printf(
+    ///     ///     "w = 0x%02lX %016lX %016lX %016lX %016lX\n",
+    ///     ///     ((uint64_t *)w_h)[4], ((uint64_t *)w_h)[3], ((uint64_t *)w_h)[2],
+    ///     ///     ((uint64_t *)w_h)[1], ((uint64_t *)w_h)[0]
+    ///     /// );
 
-        fflush(stdout);
-    }
+    ///     printf("nonce = 0x%016lX\n", ((uint64_t *)nonce_h)[ind - 1]);
+
+    ///     printf(
+    ///         "d = 0x%016lX %016lX %016lX %016lX\n",
+    ///         ((uint64_t *)res_h)[(ind - 1) * 4 + 3],
+    ///         ((uint64_t *)res_h)[(ind - 1) * 4 + 2],
+    ///         ((uint64_t *)res_h)[(ind - 1) * 4 + 1],
+    ///         ((uint64_t *)res_h)[(ind - 1) * 4]
+    ///     );
+
+    ///     fflush(stdout);
+    /// }
+
+    printf(
+        "H1 = 0x%016lX %016lX %016lX %016lX\n",
+        ((uint64_t *)res_h)[(1 - 1) * 4 + 3],
+        ((uint64_t *)res_h)[(1 - 1) * 4 + 2],
+        ((uint64_t *)res_h)[(1 - 1) * 4 + 1],
+        ((uint64_t *)res_h)[(1 - 1) * 4]
+    );
+    printf(
+        "H2 = 0x%016lX %016lX %016lX %016lX\n",
+        ((uint64_t *)res_h)[(2 - 1) * 4 + 3],
+        ((uint64_t *)res_h)[(2 - 1) * 4 + 2],
+        ((uint64_t *)res_h)[(2 - 1) * 4 + 1],
+        ((uint64_t *)res_h)[(2 - 1) * 4]
+    );
+    printf(
+        "H3 = 0x%016lX %016lX %016lX %016lX\n",
+        ((uint64_t *)res_h)[(3 - 1) * 4 + 3],
+        ((uint64_t *)res_h)[(3 - 1) * 4 + 2],
+        ((uint64_t *)res_h)[(3 - 1) * 4 + 1],
+        ((uint64_t *)res_h)[(3 - 1) * 4]
+    );
 
     free(res_h);
     free(nonce_h);
+    free(hash_h);
 
     //====================================================================//
     //  Free device memory

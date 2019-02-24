@@ -87,7 +87,8 @@ __global__ void initPrehash(
     //====================================================================//
     for (j = 0; ctx->c < 128 && j < 0x1000; ++j)
     {
-        ctx->b[ctx->c++] = !(j & 3) * (j >> 2);
+        /// ctx->b[ctx->c++] = !(j & 3) * (j >> 2);
+        ctx->b[ctx->c++] = ((j >> 2) >> ((j & 3) << 8)) & 0xFF;
     }
 
     while (j < 0x1000)
@@ -126,7 +127,8 @@ __global__ void initPrehash(
 #pragma unroll
     for (j = 0; j < NUM_SIZE_8; ++j)
     {
-        ((uint8_t *)ldata)[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
+        ((uint8_t *)ldata)[j]
+            = (ctx->h[3 - (j >> 3)] >> (((127 - j) & 7) << 3)) & 0xFF;
     }
 
     //===================================================================//
@@ -343,7 +345,8 @@ __global__ void updatePrehash(
 #pragma unroll
         for (j = 0; j < NUM_SIZE_8; ++j)
         {
-            ((uint8_t *)ldata)[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
+            ((uint8_t *)ldata)[j]
+                = (ctx->h[3 - (j >> 3)] >> (((127 - j) & 7) << 3)) & 0xFF;
         }
 
     //===================================================================//
@@ -725,7 +728,7 @@ int prehash(
     }
 
     // multiply by secret key moq Q
-    finalPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash);
+    /// finalPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash);
 
     return 0;
 }
