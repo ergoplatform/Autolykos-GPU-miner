@@ -319,25 +319,25 @@ int main(
     /// }
 
     printf(
+        "H0 = 0x%016lX %016lX %016lX %016lX\n",
+        ((uint64_t *)res_h)[0 * 4 + 3],
+        ((uint64_t *)res_h)[0 * 4 + 2],
+        ((uint64_t *)res_h)[0 * 4 + 1],
+        ((uint64_t *)res_h)[0 * 4]
+    );
+    printf(
         "H1 = 0x%016lX %016lX %016lX %016lX\n",
-        ((uint64_t *)res_h)[(1 - 1) * 4 + 3],
-        ((uint64_t *)res_h)[(1 - 1) * 4 + 2],
-        ((uint64_t *)res_h)[(1 - 1) * 4 + 1],
-        ((uint64_t *)res_h)[(1 - 1) * 4]
+        ((uint64_t *)res_h)[1 * 4 + 3],
+        ((uint64_t *)res_h)[1 * 4 + 2],
+        ((uint64_t *)res_h)[1 * 4 + 1],
+        ((uint64_t *)res_h)[1 * 4]
     );
     printf(
         "H2 = 0x%016lX %016lX %016lX %016lX\n",
-        ((uint64_t *)res_h)[(2 - 1) * 4 + 3],
-        ((uint64_t *)res_h)[(2 - 1) * 4 + 2],
-        ((uint64_t *)res_h)[(2 - 1) * 4 + 1],
-        ((uint64_t *)res_h)[(2 - 1) * 4]
-    );
-    printf(
-        "H3 = 0x%016lX %016lX %016lX %016lX\n",
-        ((uint64_t *)res_h)[(3 - 1) * 4 + 3],
-        ((uint64_t *)res_h)[(3 - 1) * 4 + 2],
-        ((uint64_t *)res_h)[(3 - 1) * 4 + 1],
-        ((uint64_t *)res_h)[(3 - 1) * 4]
+        ((uint64_t *)res_h)[2 * 4 + 3],
+        ((uint64_t *)res_h)[2 * 4 + 2],
+        ((uint64_t *)res_h)[2 * 4 + 1],
+        ((uint64_t *)res_h)[2 * 4]
     );
 
     free(res_h);

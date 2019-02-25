@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 
 #include "blake2b.h"
 
@@ -96,6 +97,10 @@ int main(int argc, char **argv)
         ((uint64_t *)out)[1],
         ((uint64_t *)out)[0]
     );
+
+    uint32_t a[1] = { 0x100 };
+
+    printf("%"PRIx8"\n", ((uint8_t *)a)[0]);
 
     fflush(stdout);
 

@@ -67,7 +67,7 @@ __global__ void initPrehash(
 #pragma unroll
     for (j = 0; ctx->c < 128 && j < 4; ++j)
     {
-        ctx->b[ctx->c++] = ((const uint8_t *)&tid)[j];
+        ctx->b[ctx->c++] = ((const uint8_t *)&tid)[3 - j];
     }
 
 /// never reached /// #pragma unroll
@@ -85,19 +85,18 @@ __global__ void initPrehash(
     //====================================================================//
     //  Hash constant message
     //====================================================================//
-    for (j = 0; ctx->c < 128 && j < 0x1000; ++j)
+    for (j = 0; ctx->c < 128 && j < 0x2000; ++j)
     {
-        /// ctx->b[ctx->c++] = !(j & 3) * (j >> 2);
-        ctx->b[ctx->c++] = ((j >> 2) >> ((j & 3) << 8)) & 0xFF;
+        ctx->b[ctx->c++] = ((j >> 3) >> ((7 - (j & 7)) << 3)) & 0xFF;
     }
 
-    while (j < 0x1000)
+    while (j < 0x2000)
     {
         B2B_H(ctx, aux);
        
-        for ( ; ctx->c < 128 && j < 0x1000; ++j)
+        for ( ; ctx->c < 128 && j < 0x2000; ++j)
         {
-            ctx->b[ctx->c++] = !(j & 3) * (j >> 2);
+            ctx->b[ctx->c++] = ((j >> 3) >> ((7 - (j & 7)) << 3)) & 0xFF;
         }
     }
 
