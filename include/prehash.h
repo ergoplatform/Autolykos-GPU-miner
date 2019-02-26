@@ -85,8 +85,14 @@ __global__ void updatePrehash(
     const uint32_t len
 );
 
-// hashes by secret key multiplication mod q 
+// hashes modulo Q 
 __global__ void finalPrehash(
+    // hashes
+    uint32_t * hash
+);
+
+// hashes by secret key multiplication modulo Q 
+__global__ void finalPrehashMultSK(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // hashes

@@ -210,15 +210,15 @@ void blake2b_final(
     blake2b_compress(ctx, 1);
 
     // little endian convert and store
-    for (k = 0; k < ctx->outlen; ++k)
-    {
-        ((uint8_t *) out)[k] = (ctx->h[k >> 3] >> (8 * (k & 7))) & 0xFF;
-    }
+    /// for (k = 0; k < ctx->outlen; ++k)
+    /// {
+    ///     ((uint8_t *) out)[k] = (ctx->h[k >> 3] >> (8 * (k & 7))) & 0xFF;
+    /// }
 
     for (k = 0; k < ctx->outlen; ++k)
     {
         /// ((uint8_t *)out)[k] = (ctx->h[3 - (k >> 3)] >> (8 * ((127 - k) & 7))) & 0xFF;
-        ((uint8_t *)out)[k] = (ctx->h[3 - (k >> 3)] >> (((127 - k) & 7) << 3)) & 0xFF;
+        ((uint8_t *)out)[k] = (ctx->h[(k >> 3)] >> ((k & 7) << 3)) & 0xFF;
     }
 }
 

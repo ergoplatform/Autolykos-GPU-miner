@@ -27,43 +27,51 @@ int readInput(
 
     int status;
 
-#define CONVERT(p)                            \
-{                                             \
-    *((uint64_t *)(p))                        \
-    = (((uint64_t)((uint8_t *)(p))[0]) ^      \
-    (((uint64_t)((uint8_t *)(p))[1]) << 8) ^  \
-    (((uint64_t)((uint8_t *)(p))[2]) << 16) ^ \
-    (((uint64_t)((uint8_t *)(p))[3]) << 24) ^ \
-    (((uint64_t)((uint8_t *)(p))[4]) << 32) ^ \
-    (((uint64_t)((uint8_t *)(p))[5]) << 40) ^ \
-    (((uint64_t)((uint8_t *)(p))[6]) << 48) ^ \
-    (((uint64_t)((uint8_t *)(p))[7]) << 56)); \
+#define INPLACE_REVERSE_ENDIAN(p)                \
+{                                                \
+    *((uint64_t *)(p))                           \
+    = ((((uint64_t)((uint8_t *)(p))[0]) << 56) ^ \
+    (((uint64_t)((uint8_t *)(p))[1]) << 48) ^    \
+    (((uint64_t)((uint8_t *)(p))[2]) << 40) ^    \
+    (((uint64_t)((uint8_t *)(p))[3]) << 32) ^    \
+    (((uint64_t)((uint8_t *)(p))[4]) << 24) ^    \
+    (((uint64_t)((uint8_t *)(p))[5]) << 16) ^    \
+    (((uint64_t)((uint8_t *)(p))[6]) << 8) ^     \
+    ((uint64_t)((uint8_t *)(p))[7]));            \
 }
 
-#define SCAN(x)                                                     \
-for (int i = 1; i <= NUM_SIZE_32 >> 1; ++i)                         \
-{                                                                   \
-    status = fscanf(                                                \
-        in, "%"SCNx64"\n", (uint64_t *)(x) + (NUM_SIZE_32 >> 1) - i \
-    );                                                              \
-                                                                    \
-    CONVERT((uint64_t *)(x) + (NUM_SIZE_32 >> 1) - i);              \
+#define SCAN(x)                                  \
+for (int i = 0; i < NUM_SIZE_32 >> 1; ++i)       \
+{                                                \
+    status = fscanf(                             \
+        in, "%"SCNx64"\n", (uint64_t *)(x) + i   \
+    );                                           \
+                                                 \
+    INPLACE_REVERSE_ENDIAN((uint64_t *)(x) + i); \
 }
 
     SCAN(bound);
     SCAN(mes);
     SCAN(sk);
 
-    status = fscanf(in, "%"SCNx8"\n", (uint8_t *)pk + NUM_SIZE_8);
-    SCAN(pk);
+    status = fscanf(in, "%"SCNx8"\n", (uint8_t *)pk);
+    SCAN((uint8_t *)pk + 1);
 
     SCAN(x);
 
-    status = fscanf(in, "%"SCNx8"\n", (uint8_t *)w + NUM_SIZE_8);
-    SCAN(w);
+    status = fscanf(in, "%"SCNx8"\n", (uint8_t *)w);
+    SCAN((uint8_t *)w + 1);
+
+    /// printf(
+    ///     "blake2b-256 = 0x%016lX %016lX %016lX %016lX\n",
+    ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1))),
+    ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 1),
+    ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 2),
+    ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 3)
+    /// );
 
 #undef SCAN
-#undef CONVERT
+#undef INPLACE_REVERSE_ENDIAN
 
     fclose(in);
 
@@ -163,19 +171,23 @@ int main(
     //====================================================================//
     //  Memory: Host -> Device
     //====================================================================//
+    // bound
     CUDA_CALL(cudaMemcpy(
         (void *)bound_d, (void *)bound_h, NUM_SIZE_8, cudaMemcpyHostToDevice
     ));
 
+    // public key
     CUDA_CALL(cudaMemcpy(
         (void *)data_d, (void *)pk_h, PK_SIZE_8, cudaMemcpyHostToDevice
     ));
 
+    // message
     CUDA_CALL(cudaMemcpy(
         (void *)((uint8_t *)data_d + PK_SIZE_8), (void *)mes_h, NUM_SIZE_8,
         cudaMemcpyHostToDevice
     ));
 
+    // secret key
     CUDA_CALL(cudaMemcpy(
         (void *)(data_d + PK2_SIZE_32 + 2 * NUM_SIZE_32), (void *)sk_h,
         NUM_SIZE_8, cudaMemcpyHostToDevice
@@ -214,6 +226,7 @@ int main(
 
             is_first = 0;
 
+            /// mining ///
             gettimeofday(&t1, 0);
         }
 
@@ -276,70 +289,161 @@ int main(
         cudaMemcpyDeviceToHost
     ));
 
-    uint32_t * hash_h = (uint32_t *)malloc((uint64_t)N_LEN * NUM_SIZE_8);
+    uint32_t * hash_h = (uint32_t *)malloc((uint32_t)N_LEN * NUM_SIZE_8);
 
     CUDA_CALL(cudaMemcpy(
-        (void *)hash_h, (void *)hash_d, (uint64_t)N_LEN * NUM_SIZE_8,
+        (void *)hash_h, (void *)hash_d, (uint32_t)N_LEN * NUM_SIZE_8,
         cudaMemcpyDeviceToHost
     ));
 
-    /// if (ind)
-    /// {
-    ///     printf("iteration = %d, index = %d\n", i - 1, ind - 1);
+    /// debug /// uint8_t * data_h = (uint8_t *)malloc(3 * NUM_SIZE_8 + 2 * PK_SIZE_8 + 2);
 
-    ///     /// printf(
-    ///     ///     "m = 0x%016lX %016lX %016lX %016lX\n",
-    ///     ///     ((uint64_t *)res_h)[3], ((uint64_t *)res_h)[2],
-    ///     ///     ((uint64_t *)res_h)[1], ((uint64_t *)res_h)[0]
-    ///     /// );
+    /// debug /// CUDA_CALL(cudaMemcpy(
+    /// debug ///     (void *)data_h, (void *)data_d, 3 * NUM_SIZE_8 + 2 * PK_SIZE_8 + 2,
+    /// debug ///     cudaMemcpyDeviceToHost
+    /// debug /// ));
 
-    ///     /// printf(
-    ///     ///     "pk = 0x%02lX %016lX %016lX %016lX %016lX\n",
-    ///     ///     ((uint64_t *)pk_h)[4], ((uint64_t *)pk_h)[3], ((uint64_t *)pk_h)[2],
-    ///     ///     ((uint64_t *)pk_h)[1], ((uint64_t *)pk_h)[0]
-    ///     /// );
+    /// debug /// printf("DATA = 0x");
+    /// debug /// for (int i = 0; i < NUM_SIZE_8 + 2 * PK_SIZE_8; ++i)
+    /// debug /// {
+    /// debug ///     printf("%"PRIX8, data_h[i]);                                            
+    /// debug /// }
+    /// debug /// printf("\n");
 
-    ///     /// printf(
-    ///     ///     "w = 0x%02lX %016lX %016lX %016lX %016lX\n",
-    ///     ///     ((uint64_t *)w_h)[4], ((uint64_t *)w_h)[3], ((uint64_t *)w_h)[2],
-    ///     ///     ((uint64_t *)w_h)[1], ((uint64_t *)w_h)[0]
-    ///     /// );
+    if (ind)
+    {
+        printf("iteration = %d, index = %d\n", i - 1, ind - 1);
 
-    ///     printf("nonce = 0x%016lX\n", ((uint64_t *)nonce_h)[ind - 1]);
+        /// printf(
+        ///     "m = 0x%016lX %016lX %016lX %016lX\n",
+        ///     ((uint64_t *)res_h)[3], ((uint64_t *)res_h)[2],
+        ///     ((uint64_t *)res_h)[1], ((uint64_t *)res_h)[0]
+        /// );
 
-    ///     printf(
-    ///         "d = 0x%016lX %016lX %016lX %016lX\n",
-    ///         ((uint64_t *)res_h)[(ind - 1) * 4 + 3],
-    ///         ((uint64_t *)res_h)[(ind - 1) * 4 + 2],
-    ///         ((uint64_t *)res_h)[(ind - 1) * 4 + 1],
-    ///         ((uint64_t *)res_h)[(ind - 1) * 4]
-    ///     );
+        /// printf(
+        ///     "pk = 0x%02lX %016lX %016lX %016lX %016lX\n",
+        ///     ((uint64_t *)pk_h)[4], ((uint64_t *)pk_h)[3], ((uint64_t *)pk_h)[2],
+        ///     ((uint64_t *)pk_h)[1], ((uint64_t *)pk_h)[0]
+        /// );
 
-    ///     fflush(stdout);
-    /// }
+        /// printf(
+        ///     "w = 0x%02lX %016lX %016lX %016lX %016lX\n",
+        ///     ((uint64_t *)w_h)[4], ((uint64_t *)w_h)[3], ((uint64_t *)w_h)[2],
+        ///     ((uint64_t *)w_h)[1], ((uint64_t *)w_h)[0]
+        /// );
 
-    printf(
-        "H0 = 0x%016lX %016lX %016lX %016lX\n",
-        ((uint64_t *)res_h)[0 * 4 + 3],
-        ((uint64_t *)res_h)[0 * 4 + 2],
-        ((uint64_t *)res_h)[0 * 4 + 1],
-        ((uint64_t *)res_h)[0 * 4]
-    );
-    printf(
-        "H1 = 0x%016lX %016lX %016lX %016lX\n",
-        ((uint64_t *)res_h)[1 * 4 + 3],
-        ((uint64_t *)res_h)[1 * 4 + 2],
-        ((uint64_t *)res_h)[1 * 4 + 1],
-        ((uint64_t *)res_h)[1 * 4]
-    );
-    printf(
-        "H2 = 0x%016lX %016lX %016lX %016lX\n",
-        ((uint64_t *)res_h)[2 * 4 + 3],
-        ((uint64_t *)res_h)[2 * 4 + 2],
-        ((uint64_t *)res_h)[2 * 4 + 1],
-        ((uint64_t *)res_h)[2 * 4]
-    );
+        printf("nonce = 0x%016lX\n", ((uint64_t *)nonce_h)[ind - 1]);
 
+        printf(
+            "d = 0x%016lX %016lX %016lX %016lX\n",
+            ((uint64_t *)res_h)[(ind - 1) * 4 + 3],
+            ((uint64_t *)res_h)[(ind - 1) * 4 + 2],
+            ((uint64_t *)res_h)[(ind - 1) * 4 + 1],
+            ((uint64_t *)res_h)[(ind - 1) * 4]
+        );
+
+        fflush(stdout);
+    }
+
+    /// debug /// printf(
+    /// debug ///     "H0 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 0 * 4 + 0),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 0 * 4 + 1),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 0 * 4 + 2),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 0 * 4 + 3)
+    /// debug /// );                                            
+
+    /// debug /// printf(                                       
+    /// debug ///     "H1 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 1 * 4 + 0),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 1 * 4 + 1),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 1 * 4 + 2),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 1 * 4 + 3)
+    /// debug /// );                                            
+
+    /// debug /// printf(                                       
+    /// debug ///     "H2 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 2 * 4 + 0),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 2 * 4 + 1),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 2 * 4 + 2),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 2 * 4 + 3)
+    /// debug /// );
+
+    /// debug /// printf(                                       
+    /// debug ///     "H3 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 3 * 4 + 0),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 3 * 4 + 1),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 3 * 4 + 2),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 3 * 4 + 3)
+    /// debug /// );
+
+    /// debug /// printf(                                       
+    /// debug ///     "H67 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 67 * 4 + 0),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 67 * 4 + 1),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 67 * 4 + 2),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 67 * 4 + 3)
+    /// debug /// );
+
+    /// debug /// printf(                                       
+    /// debug ///     "H741 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 741 * 4 + 0),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 741 * 4 + 1),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 741 * 4 + 2),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 741 * 4 + 3)
+    /// debug /// );
+
+    /// debug /// printf(
+    /// debug ///     "H0 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     ((uint64_t *)hash_h)[0 * 4 + 3],
+    /// debug ///     ((uint64_t *)hash_h)[0 * 4 + 2],
+    /// debug ///     ((uint64_t *)hash_h)[0 * 4 + 1],
+    /// debug ///     ((uint64_t *)hash_h)[0 * 4 + 0]
+    /// debug /// );                                            
+
+    /// debug /// printf(                                       
+    /// debug ///     "H1 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     ((uint64_t *)hash_h)[1 * 4 + 3],
+    /// debug ///     ((uint64_t *)hash_h)[1 * 4 + 2],
+    /// debug ///     ((uint64_t *)hash_h)[1 * 4 + 1],
+    /// debug ///     ((uint64_t *)hash_h)[1 * 4 + 0]
+    /// debug /// );                                            
+
+    /// debug /// printf(                                       
+    /// debug ///     "H2 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     ((uint64_t *)hash_h)[2 * 4 + 3],
+    /// debug ///     ((uint64_t *)hash_h)[2 * 4 + 2],
+    /// debug ///     ((uint64_t *)hash_h)[2 * 4 + 1],
+    /// debug ///     ((uint64_t *)hash_h)[2 * 4 + 0]
+    /// debug /// );
+
+    /// debug /// printf(                                       
+    /// debug ///     "H3 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     ((uint64_t *)hash_h)[3 * 4 + 3],
+    /// debug ///     ((uint64_t *)hash_h)[3 * 4 + 2],
+    /// debug ///     ((uint64_t *)hash_h)[3 * 4 + 1],
+    /// debug ///     ((uint64_t *)hash_h)[3 * 4 + 0]
+    /// debug /// );
+
+    /// debug /// printf(                                       
+    /// debug ///     "H67 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     ((uint64_t *)hash_h)[67 * 4 + 3],
+    /// debug ///     ((uint64_t *)hash_h)[67 * 4 + 2],
+    /// debug ///     ((uint64_t *)hash_h)[67 * 4 + 1],
+    /// debug ///     ((uint64_t *)hash_h)[67 * 4 + 0]
+    /// debug /// );
+
+    /// debug /// printf(                                       
+    /// debug ///     "H741 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     ((uint64_t *)hash_h)[741 * 4 + 3],
+    /// debug ///     ((uint64_t *)hash_h)[741 * 4 + 2],
+    /// debug ///     ((uint64_t *)hash_h)[741 * 4 + 1],
+    /// debug ///     ((uint64_t *)hash_h)[741 * 4 + 0]
+    /// debug /// );
+
+    fflush(stdout);
+
+    /// debug /// free(data_h);
     free(res_h);
     free(nonce_h);
     free(hash_h);

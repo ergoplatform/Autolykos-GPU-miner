@@ -10,6 +10,8 @@
 #include "../include/compaction.h"
 #include <cuda.h>
 
+#include <inttypes.h>
+
 ////////////////////////////////////////////////////////////////////////////////
 //  First iteration of hashes precalculation
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,33 +72,27 @@ __global__ void initPrehash(
         ctx->b[ctx->c++] = ((const uint8_t *)&tid)[3 - j];
     }
 
-/// never reached /// #pragma unroll
-/// never reached ///     for ( ; j < 4; )
-/// never reached ///     {
-/// never reached ///         B2B_H(ctx, aux);
-/// never reached ///        
-/// never reached /// #pragma unroll
-/// never reached ///         for ( ; ctx->c < 128 && j < 4; ++j)
-/// never reached ///         {
-/// never reached ///             ctx->b[ctx->c++] = ((const uint8_t *)tid)[j];
-/// never reached ///         }
-/// never reached ///     }
-
     //====================================================================//
     //  Hash constant message
     //====================================================================//
     for (j = 0; ctx->c < 128 && j < 0x2000; ++j)
     {
-        ctx->b[ctx->c++] = ((j >> 3) >> ((7 - (j & 7)) << 3)) & 0xFF;
+        ctx->b[ctx->c++]
+            = (!((7 - (j & 7)) >> 1) * ((j >> 3) >> (((~(j & 7)) & 1) << 3)))
+            & 0xFF;
     }
 
     while (j < 0x2000)
     {
         B2B_H(ctx, aux);
-       
+
         for ( ; ctx->c < 128 && j < 0x2000; ++j)
         {
-            ctx->b[ctx->c++] = ((j >> 3) >> ((7 - (j & 7)) << 3)) & 0xFF;
+            ctx->b[ctx->c++]
+                = (
+                    !((7 - (j & 7)) >> 1)
+                    * ((j >> 3) >> (((~(j & 7)) & 1) << 3))
+                ) & 0xFF;
         }
     }
 
@@ -126,8 +122,8 @@ __global__ void initPrehash(
 #pragma unroll
     for (j = 0; j < NUM_SIZE_8; ++j)
     {
-        ((uint8_t *)ldata)[j]
-            = (ctx->h[3 - (j >> 3)] >> (((127 - j) & 7) << 3)) & 0xFF;
+        ((uint8_t *)ldata)[NUM_SIZE_8 - j - 1]
+            = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
     }
 
     //===================================================================//
@@ -143,12 +139,13 @@ __global__ void initPrehash(
             )
         );
 
-    invalid[tid] = (1 - !j) * (tid + 1);
+    invalid[tid] = (1 - j) * (tid + 1);
 
 #pragma unroll
-    for (int i = 0; i < NUM_SIZE_32; ++i)
+    for (int i = 0; i < NUM_SIZE_8; ++i)
     {
-        hash[tid * NUM_SIZE_32 + i] = ldata[i];
+        ((uint8_t *)hash)[tid * NUM_SIZE_8 + NUM_SIZE_8 - i - 1]
+            = ((uint8_t *)ldata)[i];
     }
 
     return;
@@ -157,119 +154,119 @@ __global__ void initPrehash(
 ////////////////////////////////////////////////////////////////////////////////
 //  Unfinalized first iteration of hashes precalculation
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void unfinalInitPrehash(
-    // data: pk
-    const uint32_t * data,
-    // unfinalized hash contexts
-    blake2b_ctx * uctx
-) {
-    uint32_t j;
-    uint32_t tid = threadIdx.x;
-
-    // shared memory
-    __shared__ uint32_t sdata[B_DIM];
-
-    sdata[tid] = data[tid];
-    __syncthreads();
-
-    // pk
-    // PK_SIZE_8 bytes
-    uint32_t * pk = sdata;
-
-    // local memory
-    // 472 bytes
-    uint32_t ldata[118];
-
-    // 32 * 64 bits = 256 bytes 
-    uint64_t * aux = (uint64_t *)ldata;
-    // (212 + 4) bytes 
-    blake2b_ctx * ctx = (blake2b_ctx *)(ldata + 64);
-
-    tid += blockDim.x * blockIdx.x;
-
-    //====================================================================//
-    //  Initialize context
-    //====================================================================//
-    B2B_IV(ctx->h);
-
-    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_SIZE_8;
-    ctx->t[0] = 0;
-    ctx->t[1] = 0;
-    ctx->c = 0;
-
-#pragma unroll
-    for (j = 0; j < 128; ++j)
-    {
-        ctx->b[j] = 0;
-    }
-
-    //====================================================================//
-    //  Hash tid
-    //====================================================================//
-#pragma unroll
-    for (j = 0; ctx->c < 128 && j < 4; ++j)
-    {
-        ctx->b[ctx->c++] = ((const uint8_t *)&tid)[j];
-    }
-
-/// never reached /// #pragma unroll
-/// never reached ///     for ( ; j < 4; )
-/// never reached ///     {
-/// never reached ///         B2B_H(ctx, aux);
-/// never reached ///        
-/// never reached /// #pragma unroll
-/// never reached ///         for ( ; ctx->c < 128 && j < 4; ++j)
-/// never reached ///         {
-/// never reached ///             ctx->b[ctx->c++] = ((const uint8_t *)tid)[j];
-/// never reached ///         }
-/// never reached ///     }
-
-    //====================================================================//
-    //  Hash constant message
-    //====================================================================//
-    for (j = 0; ctx->c < 128 && j < 0x1000; ++j)
-    {
-        ctx->b[ctx->c++] = !(j & 3) * (j >> 2);
-    }
-
-    while (j < 0x1000)
-    {
-        B2B_H(ctx, aux);
-       
-        for ( ; ctx->c < 128 && j < 0x1000; ++j)
-        {
-            ctx->b[ctx->c++] = !(j & 3) * (j >> 2);
-        }
-    }
-
-    //====================================================================//
-    //  Hash public key
-    //====================================================================//
-#pragma unroll
-    for (j = 0; ctx->c < 128 && j < PK_SIZE_8; ++j)
-    {
-        ctx->b[ctx->c++] = ((const uint8_t *)pk)[j];
-    }
-
-#pragma unroll
-    for ( ; j < PK_SIZE_8; )
-    {
-        B2B_H(ctx, aux);
-       
-#pragma unroll
-        for ( ; ctx->c < 128 && j < PK_SIZE_8; )
-        {
-            ctx->b[ctx->c++] = ((const uint8_t *)pk)[j++];
-        }
-    }
-
-    //===================================================================//
-    //  Dump result to global memory
-    //===================================================================//
-    uctx[tid] = *ctx;
-
-    return;
-}
+/// inoperable /// __global__ void unfinalInitPrehash(
+/// inoperable ///     // data: pk
+/// inoperable ///     const uint32_t * data,
+/// inoperable ///     // unfinalized hash contexts
+/// inoperable ///     blake2b_ctx * uctx
+/// inoperable /// ) {
+/// inoperable ///     uint32_t j;
+/// inoperable ///     uint32_t tid = threadIdx.x;
+/// inoperable /// 
+/// inoperable ///     // shared memory
+/// inoperable ///     __shared__ uint32_t sdata[B_DIM];
+/// inoperable /// 
+/// inoperable ///     sdata[tid] = data[tid];
+/// inoperable ///     __syncthreads();
+/// inoperable /// 
+/// inoperable ///     // pk
+/// inoperable ///     // PK_SIZE_8 bytes
+/// inoperable ///     uint32_t * pk = sdata;
+/// inoperable /// 
+/// inoperable ///     // local memory
+/// inoperable ///     // 472 bytes
+/// inoperable ///     uint32_t ldata[118];
+/// inoperable /// 
+/// inoperable ///     // 32 * 64 bits = 256 bytes 
+/// inoperable ///     uint64_t * aux = (uint64_t *)ldata;
+/// inoperable ///     // (212 + 4) bytes 
+/// inoperable ///     blake2b_ctx * ctx = (blake2b_ctx *)(ldata + 64);
+/// inoperable /// 
+/// inoperable ///     tid += blockDim.x * blockIdx.x;
+/// inoperable /// 
+/// inoperable ///     //====================================================================//
+/// inoperable ///     //  Initialize context
+/// inoperable ///     //====================================================================//
+/// inoperable ///     B2B_IV(ctx->h);
+/// inoperable /// 
+/// inoperable ///     ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_SIZE_8;
+/// inoperable ///     ctx->t[0] = 0;
+/// inoperable ///     ctx->t[1] = 0;
+/// inoperable ///     ctx->c = 0;
+/// inoperable /// 
+/// inoperable /// #pragma unroll
+/// inoperable ///     for (j = 0; j < 128; ++j)
+/// inoperable ///     {
+/// inoperable ///         ctx->b[j] = 0;
+/// inoperable ///     }
+/// inoperable /// 
+/// inoperable ///     //====================================================================//
+/// inoperable ///     //  Hash tid
+/// inoperable ///     //====================================================================//
+/// inoperable /// #pragma unroll
+/// inoperable ///     for (j = 0; ctx->c < 128 && j < 4; ++j)
+/// inoperable ///     {
+/// inoperable ///         ctx->b[ctx->c++] = ((const uint8_t *)&tid)[j];
+/// inoperable ///     }
+/// inoperable /// 
+/// inoperable /// /// never reached /// #pragma unroll
+/// inoperable /// /// never reached ///     for ( ; j < 4; )
+/// inoperable /// /// never reached ///     {
+/// inoperable /// /// never reached ///         B2B_H(ctx, aux);
+/// inoperable /// /// never reached ///        
+/// inoperable /// /// never reached /// #pragma unroll
+/// inoperable /// /// never reached ///         for ( ; ctx->c < 128 && j < 4; ++j)
+/// inoperable /// /// never reached ///         {
+/// inoperable /// /// never reached ///             ctx->b[ctx->c++] = ((const uint8_t *)tid)[j];
+/// inoperable /// /// never reached ///         }
+/// inoperable /// /// never reached ///     }
+/// inoperable /// 
+/// inoperable ///     //====================================================================//
+/// inoperable ///     //  Hash constant message
+/// inoperable ///     //====================================================================//
+/// inoperable ///     for (j = 0; ctx->c < 128 && j < 0x1000; ++j)
+/// inoperable ///     {
+/// inoperable ///         ctx->b[ctx->c++] = !(j & 3) * (j >> 2);
+/// inoperable ///     }
+/// inoperable /// 
+/// inoperable ///     while (j < 0x1000)
+/// inoperable ///     {
+/// inoperable ///         B2B_H(ctx, aux);
+/// inoperable ///        
+/// inoperable ///         for ( ; ctx->c < 128 && j < 0x1000; ++j)
+/// inoperable ///         {
+/// inoperable ///             ctx->b[ctx->c++] = !(j & 3) * (j >> 2);
+/// inoperable ///         }
+/// inoperable ///     }
+/// inoperable /// 
+/// inoperable ///     //====================================================================//
+/// inoperable ///     //  Hash public key
+/// inoperable ///     //====================================================================//
+/// inoperable /// #pragma unroll
+/// inoperable ///     for (j = 0; ctx->c < 128 && j < PK_SIZE_8; ++j)
+/// inoperable ///     {
+/// inoperable ///         ctx->b[ctx->c++] = ((const uint8_t *)pk)[j];
+/// inoperable ///     }
+/// inoperable /// 
+/// inoperable /// #pragma unroll
+/// inoperable ///     for ( ; j < PK_SIZE_8; )
+/// inoperable ///     {
+/// inoperable ///         B2B_H(ctx, aux);
+/// inoperable ///        
+/// inoperable /// #pragma unroll
+/// inoperable ///         for ( ; ctx->c < 128 && j < PK_SIZE_8; )
+/// inoperable ///         {
+/// inoperable ///             ctx->b[ctx->c++] = ((const uint8_t *)pk)[j++];
+/// inoperable ///         }
+/// inoperable ///     }
+/// inoperable /// 
+/// inoperable ///     //===================================================================//
+/// inoperable ///     //  Dump result to global memory
+/// inoperable ///     //===================================================================//
+/// inoperable ///     uctx[tid] = *ctx;
+/// inoperable /// 
+/// inoperable ///     return;
+/// inoperable /// }
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Rehash out of bounds hashes
@@ -344,8 +341,8 @@ __global__ void updatePrehash(
 #pragma unroll
         for (j = 0; j < NUM_SIZE_8; ++j)
         {
-            ((uint8_t *)ldata)[j]
-                = (ctx->h[3 - (j >> 3)] >> (((127 - j) & 7) << 3)) & 0xFF;
+            ((uint8_t *)ldata)[NUM_SIZE_8 - j - 1]
+                = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
         }
 
     //===================================================================//
@@ -361,12 +358,13 @@ __global__ void updatePrehash(
                 )
             );
 
-        invalid[tid] *= 1 - !j;
+        invalid[tid] *= 1 - j;
 
 #pragma unroll
-        for (int i = 0; i < NUM_SIZE_32; ++i)
+        for (int i = 0; i < NUM_SIZE_8; ++i)
         {
-            hash[addr * NUM_SIZE_32 + i] = ldata[i];
+            ((uint8_t *)hash)[addr * NUM_SIZE_8 + NUM_SIZE_8 - i - 1]
+                = ((uint8_t *)ldata)[i];
         }
     }
 
@@ -374,9 +372,185 @@ __global__ void updatePrehash(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Hashes multiplication mod Q by one time secret key 
+//  Hashes modulo Q
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void finalPrehash(
+    // hashes
+    uint32_t * hash
+) {
+    uint32_t tid = threadIdx.x + blockDim.x * blockIdx.x;
+
+    // local memory
+    uint32_t h[10];
+
+#pragma unroll
+    for (int i = 0; i < NUM_SIZE_8; ++i)
+    {
+         ((uint8_t *)h)[i]
+             = ((uint8_t *)hash)[tid * NUM_SIZE_8 + NUM_SIZE_8 - i - 1]; 
+    }
+
+    h[9] = h[8] = 0;
+
+    //====================================================================//
+    //  mod Q
+    //====================================================================//
+    uint32_t d[2]; 
+    uint32_t med[6];
+    uint32_t carry;
+
+#pragma unroll
+    for (int i = 10; i >= 8; i -= 2)
+    {
+        *((uint64_t *)d) = (
+                (((uint64_t *)h)[i >> 1] << 4)
+                | (((uint64_t *)h)[(i >> 1) - 1] >> 60)
+            ) - (((uint64_t *)h)[i >> 1] >> 60);
+
+        // correct highest 32 bits
+        h[i - 1] = (h[i - 1] & 0x0FFFFFFF) | h[i + 1] & 0x10000000;
+
+    //====================================================================//
+    //  d * q -> med[0, ..., 5]
+    //====================================================================//
+        asm volatile (
+            "mul.lo.u32 %0, %1, "q0_s";": "=r"(med[0]): "r"(d[0])
+        );
+        asm volatile (
+            "mul.hi.u32 %0, %1, "q0_s";": "=r"(med[1]): "r"(d[0])
+        );
+        asm volatile (
+            "mul.lo.u32 %0, %1, "q2_s";": "=r"(med[2]): "r"(d[0])
+        );
+        asm volatile (
+            "mul.hi.u32 %0, %1, "q2_s";": "=r"(med[3]): "r"(d[0])
+        );
+
+    //====================================================================//
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[1]): "r"(d[0])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[2]): "r"(d[0])
+        );
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(med[3]): "r"(d[0])
+        );
+        asm volatile (
+            "madc.hi.u32 %0, %1, "q3_s", 0;": "=r"(med[4]): "r"(d[0])
+        );
+
+    //====================================================================//
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q0_s", %0;": "+r"(med[1]): "r"(d[1])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1, "q0_s", %0;": "+r"(med[2]): "r"(d[1])
+        );
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q2_s", %0;": "+r"(med[3]): "r"(d[1])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1," q2_s", %0;": "+r"(med[4]): "r"(d[1])
+        );
+        asm volatile (
+            "addc.u32 %0, 0, 0;": "=r"(med[5])
+        );
+
+    //====================================================================//
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[2]): "r"(d[1])
+        );
+        asm volatile (
+            "madc.hi.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[3]): "r"(d[1])
+        );
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(med[4]): "r"(d[1])
+        );
+        asm volatile (
+            "madc.hi.u32 %0, %1, "q3_s", %0;": "+r"(med[5]): "r"(d[1])
+        );
+
+    //====================================================================//
+    //  r[i/2 - 2, i/2 - 3, i/2 - 4] mod Q
+    //====================================================================//
+        asm volatile (
+            "sub.cc.u32 %0, %0, %1;": "+r"(h[i - 8]): "r"(med[0])
+        );
+
+#pragma unroll
+        for (int j = 1; j < 6; ++j)
+        {
+            asm volatile (
+                "subc.cc.u32 %0, %0, %1;": "+r"(h[i + j - 8]): "r"(med[j])
+            );
+        }
+
+        asm volatile (
+            "subc.cc.u32 %0, %0, 0;": "+r"(h[i - 2])
+        );
+
+        asm volatile (
+            "subc.cc.u32 %0, %0, 0;": "+r"(h[i - 1])
+        );
+
+    //====================================================================//
+    //  r[i/2 - 2, i/2 - 3, i/2 - 4] correction
+    //====================================================================//
+        asm volatile (
+            "subc.u32 %0, 0, 0;": "=r"(carry)
+        );
+
+        carry = 0 - carry;
+
+    //====================================================================//
+        asm volatile (
+            "mad.lo.cc.u32 %0, %1, "q0_s", %0;": "+r"(h[i - 8]): "r"(carry)
+        );
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(h[i - 7]): "r"(carry)
+        );
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q2_s", %0;": "+r"(h[i - 6]): "r"(carry)
+        );
+
+        asm volatile (
+            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(h[i - 5]): "r"(carry)
+        );
+
+    //====================================================================//
+#pragma unroll
+        for (int j = 0; j < 3; ++j)
+        {
+            asm volatile (
+                "addc.cc.u32 %0, %0, 0;": "+r"(h[i + j - 4])
+            );
+        }
+
+        asm volatile (
+            "addc.u32 %0, %0, 0;": "+r"(h[i - 1])
+        );
+    }
+
+    //===================================================================//
+    //  Dump result to global memory
+    //===================================================================//
+#pragma unroll
+    for (int i = 0; i < NUM_SIZE_8; ++i)
+    {
+        ((uint8_t *)hash)[tid * NUM_SIZE_8 + i]
+            = ((uint8_t *)h)[NUM_SIZE_8 - i - 1];
+    }
+
+    return;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//  Hashes multiplication modulo Q by one time secret key 
+////////////////////////////////////////////////////////////////////////////////
+__global__ void finalPrehashMultSK(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // hashes
@@ -396,10 +570,16 @@ __global__ void finalPrehash(
     // NUM_SIZE_8 bytes
     uint32_t * x = sdata;
 
-    // global memory
-    uint32_t * h = hash + tid * NUM_SIZE_32; 
-
     // local memory
+    uint32_t h[NUM_SIZE_32];
+
+#pragma unroll
+    for (int i = 0; i < NUM_SIZE_8; ++i)
+    {
+         ((uint8_t *)h)[i]
+             = ((uint8_t *)hash)[tid * NUM_SIZE_8 + NUM_SIZE_8 - i - 1]; 
+    }
+
     uint32_t r[18];
     r[16] = r[17] = 0;
 
@@ -681,12 +861,28 @@ int prehash(
     uint32_t * ind = invalid;
     uint32_t * comp = invalid + N_LEN;
     uint32_t * tmp;
-    
+
+    uint32_t * indices_h = (uint32_t *)malloc(len * 4);
+
     // put zero to new length 
     CUDA_CALL(cudaMemset((void *)(invalid + 2 * N_LEN), 0, 4));
 
     // hash index, constant message and public key
     initPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash, ind);
+
+    /// debug /// //from//
+    /// debug /// CUDA_CALL(cudaMemcpy(
+    /// debug ///     (void *)indices_h, (void *)ind, len * 4,
+    /// debug ///     cudaMemcpyDeviceToHost
+    /// debug /// ));
+    /// debug /// for (int i = 0; i < len && i < 750; ++i)
+    /// debug /// {
+    /// debug ///     // if (i == 1 || i == 741)
+    /// debug ///         printf("%"PRIx32" ", indices_h[i]);
+    /// debug /// }
+    /// debug /// printf("\n\n");
+    /// debug /// fflush(stdout);
+    /// debug /// //to//
 
     // determine indices of out of bounds hashes
     compactify<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
@@ -701,6 +897,20 @@ int prehash(
     tmp = ind;
     ind = comp;
     comp = tmp;
+
+    /// debug /// //from//
+    /// debug /// CUDA_CALL(cudaMemcpy(
+    /// debug ///     (void *)indices_h, (void *)ind, len * 4,
+    /// debug ///     cudaMemcpyDeviceToHost
+    /// debug /// ));
+    /// debug /// for (int i = 0; i < len && i < 750; ++i)
+    /// debug /// {
+    /// debug ///     // if (i == 1 || i == 741)
+    /// debug ///         printf("%"PRIx32" ", indices_h[i]);
+    /// debug /// }
+    /// debug /// printf("\n\n");
+    /// debug /// fflush(stdout);
+    /// debug /// //to//
 
     while (len)
     {
@@ -727,7 +937,7 @@ int prehash(
     }
 
     // multiply by secret key moq Q
-    /// finalPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash);
+    finalPrehashMultSK<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash);
 
     return 0;
 }

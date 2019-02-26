@@ -230,10 +230,6 @@ typedef struct {
 #ifndef B2B_INIT
 #define B2B_INIT(ctx, aux)                                                  \
 {                                                                           \
-    ((blake2b_ctx *)(ctx))->t[0] += ((blake2b_ctx *)(ctx))->c;              \
-    ((blake2b_ctx *)(ctx))->t[1]                                            \
-        += 1 - !(((blake2b_ctx *)(ctx))->t[0] < ((blake2b_ctx *)(ctx))->c); \
-                                                                            \
     ((uint64_t *)(aux))[0] = ((blake2b_ctx *)(ctx))->h[0];                  \
     ((uint64_t *)(aux))[1] = ((blake2b_ctx *)(ctx))->h[1];                  \
     ((uint64_t *)(aux))[2] = ((blake2b_ctx *)(ctx))->h[2];                  \
@@ -244,6 +240,9 @@ typedef struct {
     ((uint64_t *)(aux))[7] = ((blake2b_ctx *)(ctx))->h[7];                  \
                                                                             \
     B2B_IV(aux + 8);                                                        \
+                                                                            \
+    ((uint64_t *)(aux))[12] ^= ((blake2b_ctx *)(ctx))->t[0];                \
+    ((uint64_t *)(aux))[13] ^= ((blake2b_ctx *)(ctx))->t[1];                \
 }
 #endif
 
@@ -289,15 +288,42 @@ typedef struct {
 }
 #endif
 
+// blake2b intermediate mixing procedure on host
+#ifndef B2B_H_HOST
+#define B2B_H_HOST(ctx, aux)                                                   \
+{                                                                              \
+    ((blake2b_ctx *)(ctx))->t[0] += 128;                                       \
+    ((blake2b_ctx *)(ctx))->t[1] += 1 - !(((blake2b_ctx *)(ctx))->t[0] < 128); \
+                                                                               \
+    B2B_INIT(ctx, aux);                                                        \
+    B2B_FINAL(ctx, aux);                                                       \
+                                                                               \
+    ((blake2b_ctx *)(ctx))->c = 0;                                             \
+}
+#endif
+
 // blake2b intermediate mixing procedure
 #ifndef B2B_H
 #define B2B_H(ctx, aux)                                      \
 {                                                            \
+    asm volatile (                                           \
+        "add.cc.u32 %0, %0, 128;":                           \
+        "+r"(((uint32_t *)((blake2b_ctx *)(ctx))->t)[0])     \
+    );                                                       \
+    asm volatile (                                           \
+        "addc.cc.u32 %0, %0, 0;":                            \
+        "+r"(((uint32_t *)((blake2b_ctx *)(ctx))->t)[1])     \
+    );                                                       \
+    asm volatile (                                           \
+        "addc.cc.u32 %0, %0, 0;":                            \
+        "+r"(((uint32_t *)((blake2b_ctx *)(ctx))->t)[2])     \
+    );                                                       \
+    asm volatile (                                           \
+        "addc.u32 %0, %0, 0;":                               \
+        "+r"(((uint32_t *)((blake2b_ctx *)(ctx))->t)[3])     \
+    );                                                       \
+                                                             \
     B2B_INIT(ctx, aux);                                      \
-                                                             \
-    ((uint64_t *)(aux))[12] ^= ((blake2b_ctx *)(ctx))->t[0]; \
-    ((uint64_t *)(aux))[13] ^= ((blake2b_ctx *)(ctx))->t[1]; \
-                                                             \
     B2B_FINAL(ctx, aux);                                     \
                                                              \
     ((blake2b_ctx *)(ctx))->c = 0;                           \
@@ -306,16 +332,50 @@ typedef struct {
 
 // blake2b last mixing procedure
 #ifndef B2B_H_LAST
-#define B2B_H_LAST(ctx, aux)                                 \
-{                                                            \
-    B2B_INIT(ctx, aux);                                      \
-                                                             \
-    ((uint64_t *)(aux))[12] ^= ((blake2b_ctx *)(ctx))->t[0]; \
-    ((uint64_t *)(aux))[13] ^= ((blake2b_ctx *)(ctx))->t[1]; \
-    ((uint64_t *)(aux))[14] = ~((uint64_t *)(aux))[14];      \
-                                                             \
-    B2B_FINAL(ctx, aux);                                     \
+#define B2B_H_LAST(ctx, aux)                                        \
+{                                                                   \
+    asm volatile (                                                  \
+        "add.cc.u32 %0, %0, %1;":                                   \
+        "+r"(((uint32_t *)((blake2b_ctx *)(ctx))->t)[0]):           \
+        "r"(((blake2b_ctx *)(ctx))->c)                              \
+    );                                                              \
+    asm volatile (                                                  \
+        "addc.cc.u32 %0, %0, 0;":                                   \
+        "+r"(((uint32_t *)((blake2b_ctx *)(ctx))->t)[1])            \
+    );                                                              \
+    asm volatile (                                                  \
+        "addc.cc.u32 %0, %0, 0;":                                   \
+        "+r"(((uint32_t *)((blake2b_ctx *)(ctx))->t)[2])            \
+    );                                                              \
+    asm volatile (                                                  \
+        "addc.u32 %0, %0, 0;":                                      \
+        "+r"(((uint32_t *)((blake2b_ctx *)(ctx))->t)[3])            \
+    );                                                              \
+                                                                    \
+    while (((blake2b_ctx *)(ctx))->c < 128)                         \
+    {                                                               \
+        ((blake2b_ctx *)(ctx))->b[((blake2b_ctx *)(ctx))->c++] = 0; \
+    }                                                               \
+                                                                    \
+    B2B_INIT(ctx, aux);                                             \
+                                                                    \
+    ((uint64_t *)(aux))[14] = ~((uint64_t *)(aux))[14];             \
+                                                                    \
+    B2B_FINAL(ctx, aux);                                            \
 }
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+#ifndef REVERSE_ENDIAN
+#define REVERSE_ENDIAN(p)                      \
+    ((((uint64_t)((uint8_t *)(p))[0]) << 56) ^ \
+    (((uint64_t)((uint8_t *)(p))[1]) << 48) ^  \
+    (((uint64_t)((uint8_t *)(p))[2]) << 40) ^  \
+    (((uint64_t)((uint8_t *)(p))[3]) << 32) ^  \
+    (((uint64_t)((uint8_t *)(p))[4]) << 24) ^  \
+    (((uint64_t)((uint8_t *)(p))[5]) << 16) ^  \
+    (((uint64_t)((uint8_t *)(p))[6]) << 8) ^   \
+    ((uint64_t)((uint8_t *)(p))[7]))
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////

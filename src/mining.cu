@@ -40,7 +40,7 @@ void initMining(
     {
         if (ctx->c == 128)
         {
-            B2B_H(ctx, aux);
+            B2B_H_HOST(ctx, aux);
         }
 
         ctx->b[ctx->c++] = ((const uint8_t *)mes)[j];
@@ -132,8 +132,7 @@ __global__ void blockMining(
 #pragma unroll
         for (j = 0; j < NUM_SIZE_8; ++j)
         {
-            ((uint8_t *)r)[j]
-                = (ctx->h[3 - (j >> 3)] >> (((127 - j) & 7) << 3)) & 0xFF;
+            ((uint8_t *)r)[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
         }
 
     //===================================================================//
@@ -155,8 +154,8 @@ __global__ void blockMining(
             { 
                 ind[k + i] 
                     = (
-                        (r[k >> 2] << (8 * i))
-                        | (r[(k >> 2) + 1] >> (32 - 8 * i))
+                        (r[k >> 2] << (i << 3))
+                        | (r[(k >> 2) + 1] >> (32 - (i << 3)))
                     ) & N_MASK; 
             } 
         } 
@@ -332,7 +331,7 @@ __global__ void blockMining(
                 )
             );
 
-        valid[tid] = (1 - !j) * (tid + 1);
+        valid[tid] = (1 - j) * (tid + 1);
 
 #pragma unroll
         for (int i = 0; i < NUM_SIZE_32; ++i)
