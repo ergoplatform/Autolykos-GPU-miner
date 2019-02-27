@@ -27,30 +27,21 @@ int readInput(
 
     int status;
 
-#define INPLACE_REVERSE_ENDIAN(p)                \
-{                                                \
-    *((uint64_t *)(p))                           \
-    = ((((uint64_t)((uint8_t *)(p))[0]) << 56) ^ \
-    (((uint64_t)((uint8_t *)(p))[1]) << 48) ^    \
-    (((uint64_t)((uint8_t *)(p))[2]) << 40) ^    \
-    (((uint64_t)((uint8_t *)(p))[3]) << 32) ^    \
-    (((uint64_t)((uint8_t *)(p))[4]) << 24) ^    \
-    (((uint64_t)((uint8_t *)(p))[5]) << 16) ^    \
-    (((uint64_t)((uint8_t *)(p))[6]) << 8) ^     \
-    ((uint64_t)((uint8_t *)(p))[7]));            \
+    for (int i = 0; i < NUM_SIZE_32 >> 1; ++i) 
+    {                                           
+        status = fscanf(                         
+            in, "%"SCNx64"\n", (uint64_t *)bound + (NUM_SIZE_32 >> 1) - i - 1
+        );                                    
+    }
+
+#define SCAN(x)                                              \
+for (int i = 0; i < NUM_SIZE_32 >> 1; ++i)                   \
+{                                                            \
+    status = fscanf(in, "%"SCNx64"\n", (uint64_t *)(x) + i); \
+                                                             \
+    INPLACE_REVERSE_ENDIAN((uint64_t *)(x) + i);             \
 }
 
-#define SCAN(x)                                  \
-for (int i = 0; i < NUM_SIZE_32 >> 1; ++i)       \
-{                                                \
-    status = fscanf(                             \
-        in, "%"SCNx64"\n", (uint64_t *)(x) + i   \
-    );                                           \
-                                                 \
-    INPLACE_REVERSE_ENDIAN((uint64_t *)(x) + i); \
-}
-
-    SCAN(bound);
     SCAN(mes);
     SCAN(sk);
 
@@ -71,7 +62,6 @@ for (int i = 0; i < NUM_SIZE_32 >> 1; ++i)       \
     /// );
 
 #undef SCAN
-#undef INPLACE_REVERSE_ENDIAN
 
     fclose(in);
 
@@ -88,7 +78,11 @@ __global__ void generate(
 ) {
     uint32_t tid = threadIdx.x + blockDim.x * blockIdx.x;
 
-    if (tid < len) arr[tid] = base + tid;
+    uint64_t nonce = base + tid;
+
+    INPLACE_REVERSE_ENDIAN(&nonce);
+
+    if (tid < len) arr[tid] = nonce;
 
     return;
 }
@@ -255,6 +249,10 @@ int main(
             bound_d, data_d, nonce_d, hash_d, res_d, indices_d
         );
 
+        //from//
+        break;
+        //to//
+
         // try to find solution
         ind = findNonZero(indices_d, indices_d + H_LEN * L_LEN);
     }
@@ -310,6 +308,7 @@ int main(
     /// debug /// }
     /// debug /// printf("\n");
 
+    ind = 0x23 + 1;
     if (ind)
     {
         printf("iteration = %d, index = %d\n", i - 1, ind - 1);
@@ -341,6 +340,13 @@ int main(
             ((uint64_t *)res_h)[(ind - 1) * 4 + 1],
             ((uint64_t *)res_h)[(ind - 1) * 4]
         );
+        printf(                                       
+            "b = 0x%016lX %016lX %016lX %016lX\n",
+            ((uint64_t *)bound_h)[3],
+            ((uint64_t *)bound_h)[2],
+            ((uint64_t *)bound_h)[1],
+            ((uint64_t *)bound_h)[0]
+        );                                            
 
         fflush(stdout);
     }
@@ -441,7 +447,33 @@ int main(
     /// debug ///     ((uint64_t *)hash_h)[741 * 4 + 0]
     /// debug /// );
 
-    fflush(stdout);
+    /// debug ///for (int i = 0; i < 8; ++i)
+    /// debug ///{
+    /// debug ///    printf(
+    /// debug ///        ///"Ind%d = 0x%08lX ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 1 + i]
+    /// debug ///        "Ind%d = %u ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 2 + i]
+    /// debug ///    );                                            
+    /// debug ///}
+    /// debug ///printf("\n");
+    /// debug ///fflush(stdout);
+    /// debug ///for (int i = 0; i < 8; ++i)
+    /// debug ///{
+    /// debug ///    printf(
+    /// debug ///        ///"Ind%d = 0x%08lX ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 1 + i]
+    /// debug ///        "Ind%d = %u ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 3 + i]
+    /// debug ///    );                                            
+    /// debug ///}
+    /// debug ///printf("\n");
+    /// debug ///fflush(stdout);
+    /// debug ///for (int i = 0; i < 8; ++i)
+    /// debug ///{
+    /// debug ///    printf(
+    /// debug ///        ///"Ind%d = 0x%08lX ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 32 + i]
+    /// debug ///        "Ind%d = %u ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 35 + i]
+    /// debug ///    );                                            
+    /// debug ///}
+    /// debug ///printf("\n");
+    /// debug ///fflush(stdout);
 
     /// debug /// free(data_h);
     free(res_h);

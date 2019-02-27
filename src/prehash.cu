@@ -127,7 +127,7 @@ __global__ void initPrehash(
     }
 
     //===================================================================//
-    //  Dump result to global memory
+    //  Dump result to global memory -- BIG ENDIAN
     //===================================================================//
     j = ((uint64_t *)ldata)[3] < FQ3
         || ((uint64_t *)ldata)[3] == FQ3 && (
@@ -346,7 +346,7 @@ __global__ void updatePrehash(
         }
 
     //===================================================================//
-    //  Dump result to global memory
+    //  Dump result to global memory -- BIG ENDIAN
     //===================================================================//
         j = ((uint64_t *)ldata)[3] < FQ3
             || ((uint64_t *)ldata)[3] == FQ3 && (
@@ -535,7 +535,7 @@ __global__ void finalPrehash(
     }
 
     //===================================================================//
-    //  Dump result to global memory
+    //  Dump result to global memory -- BIG ENDIAN
     //===================================================================//
 #pragma unroll
     for (int i = 0; i < NUM_SIZE_8; ++i)
@@ -834,7 +834,7 @@ __global__ void finalPrehashMultSK(
     }
 
     //===================================================================//
-    //  Dump result to global memory
+    //  Dump result to global memory -- LITTLE ENDIAN
     //===================================================================//
 #pragma unroll
     for (int i = 0; i < NUM_SIZE_32; ++i)
@@ -862,7 +862,7 @@ int prehash(
     uint32_t * comp = invalid + N_LEN;
     uint32_t * tmp;
 
-    uint32_t * indices_h = (uint32_t *)malloc(len * 4);
+    /// debug /// uint32_t * indices_h = (uint32_t *)malloc(len * 4);
 
     // put zero to new length 
     CUDA_CALL(cudaMemset((void *)(invalid + 2 * N_LEN), 0, 4));
@@ -939,6 +939,7 @@ int prehash(
     // multiply by secret key moq Q
     finalPrehashMultSK<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash);
 
+    /// debug /// free(indices_h);
     return 0;
 }
 

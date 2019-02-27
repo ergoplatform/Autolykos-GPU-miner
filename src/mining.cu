@@ -132,14 +132,15 @@ __global__ void blockMining(
 #pragma unroll
         for (j = 0; j < NUM_SIZE_8; ++j)
         {
-            ((uint8_t *)r)[j] = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
+            ((uint8_t *)r)[(j & 0xFFFFFFFC) + (3 - (j & 3))]
+                = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
         }
 
     //===================================================================//
     //  Generate indices
     //===================================================================//
 #pragma unroll
-        for (int i = 0; i < 3; ++i)
+        for (int i = 1; i < 4; ++i)
         {
             ((uint8_t *)r)[NUM_SIZE_8 + i] = ((uint8_t *)r)[i];
         }
@@ -159,6 +160,14 @@ __global__ void blockMining(
                     ) & N_MASK; 
             } 
         } 
+
+/// debug ///        //from//
+/// debug ///#pragma unroll
+/// debug ///        for (int i = 0; i < 8; ++i)
+/// debug ///        {
+/// debug ///            res[tid * NUM_SIZE_32 + i] = ind[i + 24];
+/// debug ///        }
+/// debug ///        //to//
         
     //===================================================================//
     //  Calculate result
