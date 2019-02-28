@@ -653,7 +653,7 @@ __global__ void finalPrehashMultSK(
             );
         }
 
-    // initialize r[i + 8]
+        // initialize r[i + 8]
         asm volatile (
             "addc.u32 %0, 0, 0;": "=r"(r[i + 8])
         );

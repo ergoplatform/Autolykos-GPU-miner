@@ -27,14 +27,15 @@ int readInput(
 
     int status;
 
-    for (int i = 0; i < NUM_SIZE_32 >> 1; ++i) 
-    {                                           
-        status = fscanf(                         
-            in, "%"SCNx64"\n", (uint64_t *)bound + (NUM_SIZE_32 >> 1) - i - 1
-        );                                    
-    }
+#define SCAN_TO_LITTLE_ENDIAN(x)                                        \
+for (int i = 0; i < NUM_SIZE_32 >> 1; ++i)                              \
+{                                                                       \
+    status = fscanf(                                                    \
+        in, "%"SCNx64"\n", (uint64_t *)(x) + (NUM_SIZE_32 >> 1) - i - 1 \
+    );                                                                  \
+}
 
-#define SCAN(x)                                              \
+#define SCAN_TO_BIG_ENDIAN(x)                                \
 for (int i = 0; i < NUM_SIZE_32 >> 1; ++i)                   \
 {                                                            \
     status = fscanf(in, "%"SCNx64"\n", (uint64_t *)(x) + i); \
@@ -42,26 +43,34 @@ for (int i = 0; i < NUM_SIZE_32 >> 1; ++i)                   \
     INPLACE_REVERSE_ENDIAN((uint64_t *)(x) + i);             \
 }
 
-    SCAN(mes);
-    SCAN(sk);
+    SCAN_TO_LITTLE_ENDIAN(bound);
+    SCAN_TO_BIG_ENDIAN(mes);
+    SCAN_TO_LITTLE_ENDIAN(sk);
 
     status = fscanf(in, "%"SCNx8"\n", (uint8_t *)pk);
-    SCAN((uint8_t *)pk + 1);
+    SCAN_TO_BIG_ENDIAN((uint8_t *)pk + 1);
 
-    SCAN(x);
+    SCAN_TO_LITTLE_ENDIAN(x);
 
     status = fscanf(in, "%"SCNx8"\n", (uint8_t *)w);
-    SCAN((uint8_t *)w + 1);
+    SCAN_TO_BIG_ENDIAN((uint8_t *)w + 1);
 
-    /// printf(
-    ///     "blake2b-256 = 0x%016lX %016lX %016lX %016lX\n",
-    ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1))),
-    ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 1),
-    ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 2),
-    ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 3)
-    /// );
-
-#undef SCAN
+    /// debug /// printf(
+    /// debug ///     "blake2b-256 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1))),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 1),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 2),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 3)
+    /// debug /// );
+    /// debug /// printf(
+    /// debug ///     "blake2b-256 = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     ((uint64_t *)(x))[3],
+    /// debug ///     ((uint64_t *)(x))[2],
+    /// debug ///     ((uint64_t *)(x))[1],
+    /// debug ///     ((uint64_t *)(x))[0]
+    /// debug /// );
+#undef SCAN_TO_BIG_ENDIAN
+#undef SCAN_TO_LITTLE_ENDIAN
 
     fclose(in);
 
@@ -249,12 +258,13 @@ int main(
             bound_d, data_d, nonce_d, hash_d, res_d, indices_d
         );
 
-        //from//
-        break;
-        //to//
+        /// debug /// //from//
+        /// debug /// break;
+        /// debug /// //to//
 
         // try to find solution
-        ind = findNonZero(indices_d, indices_d + H_LEN * L_LEN);
+        ind = findNonZero(indices_d, indices_d + H_LEN * L_LEN, H_LEN * L_LEN);
+        ////ind = findNonZero(indices_d, indices_d + H_LEN * L_LEN, 10000);
     }
 
     cudaDeviceSynchronize();
@@ -308,7 +318,8 @@ int main(
     /// debug /// }
     /// debug /// printf("\n");
 
-    ind = 0x23 + 1;
+    /// ind = 0x17fe + 1;
+    /// ind = 0x3834 + 1;
     if (ind)
     {
         printf("iteration = %d, index = %d\n", i - 1, ind - 1);
@@ -331,7 +342,10 @@ int main(
         ///     ((uint64_t *)w_h)[1], ((uint64_t *)w_h)[0]
         /// );
 
-        printf("nonce = 0x%016lX\n", ((uint64_t *)nonce_h)[ind - 1]);
+        printf(
+            "nonce = 0x%016lX\n",
+            REVERSE_ENDIAN(((uint64_t *)nonce_h) + ind - 1)
+        );
 
         printf(
             "d = 0x%016lX %016lX %016lX %016lX\n",
@@ -340,13 +354,13 @@ int main(
             ((uint64_t *)res_h)[(ind - 1) * 4 + 1],
             ((uint64_t *)res_h)[(ind - 1) * 4]
         );
-        printf(                                       
-            "b = 0x%016lX %016lX %016lX %016lX\n",
-            ((uint64_t *)bound_h)[3],
-            ((uint64_t *)bound_h)[2],
-            ((uint64_t *)bound_h)[1],
-            ((uint64_t *)bound_h)[0]
-        );                                            
+        /// debug /// printf(                                       
+        /// debug ///     "b = 0x%016lX %016lX %016lX %016lX\n",
+        /// debug ///     ((uint64_t *)bound_h)[3],
+        /// debug ///     ((uint64_t *)bound_h)[2],
+        /// debug ///     ((uint64_t *)bound_h)[1],
+        /// debug ///     ((uint64_t *)bound_h)[0]
+        /// debug /// );                                            
 
         fflush(stdout);
     }
@@ -465,15 +479,29 @@ int main(
     /// debug ///}
     /// debug ///printf("\n");
     /// debug ///fflush(stdout);
-    /// debug ///for (int i = 0; i < 8; ++i)
-    /// debug ///{
-    /// debug ///    printf(
-    /// debug ///        ///"Ind%d = 0x%08lX ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 32 + i]
-    /// debug ///        "Ind%d = %u ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 35 + i]
-    /// debug ///    );                                            
-    /// debug ///}
-    /// debug ///printf("\n");
-    /// debug ///fflush(stdout);
+
+    /// debug /// printf(                                       
+    /// debug ///     "mes = 0x%016lX %016lX %016lX %016lX\n",
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)mes_h) + 0),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)mes_h) + 1),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)mes_h) + 2),
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)mes_h) + 3)
+    /// debug /// );
+
+    /// debug /// printf(                                       
+    /// debug ///     "nonce = 0x%016lX\n",
+    /// debug ///     REVERSE_ENDIAN(((uint64_t *)nonce_h) + ind - 1)
+    /// debug /// );
+
+    /// debug /// for (int i = 0; i < 8; ++i)
+    /// debug /// {
+    /// debug ///     printf(
+    /// debug ///         ///"Ind%d = 0x%08lX ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 35 + i]
+    /// debug ///         "Ind%d = %u ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * (ind - 1) + i]
+    /// debug ///     );                                            
+    /// debug /// }
+    /// debug /// printf("\n");
+    /// debug /// fflush(stdout);
 
     /// debug /// free(data_h);
     free(res_h);

@@ -11,13 +11,6 @@ uint32_t ceilToPower(
     uint32_t x
 );
 
-// find non zero item in warp
-template <uint32_t blockSize>
-__device__ void warpNonZero(
-    volatile uint32_t * sdata,
-    uint32_t tid
-);
-
 // find non zero item in block
 template <uint32_t blockSize>
 __global__ void blockNonZero(
@@ -38,7 +31,8 @@ void reduceNonZero(
 // find non zero item in array
 uint32_t findNonZero(
     uint32_t * data,
-    uint32_t * aux
+    uint32_t * aux,
+    uint32_t inlen
 );
 
 #endif // REDUCTION_H
