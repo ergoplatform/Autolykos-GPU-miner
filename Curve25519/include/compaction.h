@@ -1,6 +1,12 @@
 #ifndef COMPACTION_H
 #define COMPACTION_H
 
+/*******************************************************************************
+
+    COMPACTION -- Identification of hashes subject to rehash 
+
+*******************************************************************************/
+
 #include "definitions.h"
 
 // increment a counter in a warp

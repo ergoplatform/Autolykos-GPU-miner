@@ -1,12 +1,18 @@
 #ifndef DEFINITIONS_H
 #define DEFINITIONS_H
 
+/*******************************************************************************
+
+    DEFINITIONS -- Constants and Macros
+
+*******************************************************************************/
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Constants
+//  Autolykos constants
 ////////////////////////////////////////////////////////////////////////////////
 // secret keys and hashes size
 #define NUM_SIZE_8    32
@@ -24,33 +30,20 @@
 #define K_LEN         32
 
 // number of precalculated hashes
-#define N_LEN         0x4000000          // 2^26
+#define N_LEN         0x4000000                    // 2^26
 
 // mod 2^26 mask
 #define N_MASK        (N_LEN - 1)
 
 ////////////////////////////////////////////////////////////////////////////////
-// number of hashes per thread
-#define H_LEN         1                  
-
-// total number of hash loads (threads) per iteration
-#define L_LEN         (0x400000 / H_LEN) // 2^22
-
-// mining kernel block size 
-#define B_DIM         64              
-
-////////////////////////////////////////////////////////////////////////////////
-// 64 bits
-#define Q1            0x14DEF9DEA2F79CD6
-#define Q0            0x5812631A5CF5D3ED
-
+// Q definition for CUDA ptx pseudo-assembler commands
 // 32 bits
 #define q3_s          "0x14DEF9DE"
 #define q2_s          "0xA2F79CD6"
 #define q1_s          "0x5812631A"
 #define q0_s          "0x5CF5D3ED"
 
-////////////////////////////////////////////////////////////////////////////////
+// Autolykos valid range
 // 0xF * Q -- multiplier-of-Q floor of 2^256
 #define FQ3           0xF000000000000000
 #define FQ2           1
@@ -58,7 +51,20 @@
 #define FQ0           0x2913CE8B72676AE3
 
 ////////////////////////////////////////////////////////////////////////////////
-// hash state context
+//  Heuristic prehash CUDA kernel parameters
+////////////////////////////////////////////////////////////////////////////////
+// number of hashes per thread
+#define H_LEN         1                  
+
+// total number of hash loads (threads) per iteration
+#define L_LEN         (0x400000 / H_LEN)           // 2^22
+
+// mining kernel block size 
+#define B_DIM         64              
+
+////////////////////////////////////////////////////////////////////////////////
+//  BLAKE2b-256 hash state context
+////////////////////////////////////////////////////////////////////////////////
 typedef struct {
     // input buffer
     uint8_t b[128];
@@ -71,7 +77,7 @@ typedef struct {
 } blake2b_ctx;
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Macros for blake2b-256 hashing procedures
+//  Macros for BLAKE2b-256 hashing procedures
 ////////////////////////////////////////////////////////////////////////////////
 // initialization vector
 #ifndef B2B_IV
@@ -366,6 +372,8 @@ typedef struct {
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
+//  Little-Endian to Big-Endian convertation
+////////////////////////////////////////////////////////////////////////////////
 #ifndef REVERSE_ENDIAN
 #define REVERSE_ENDIAN(p)                      \
     ((((uint64_t)((uint8_t *)(p))[0]) << 56) ^ \
@@ -378,6 +386,7 @@ typedef struct {
     ((uint64_t)((uint8_t *)(p))[7]))
 #endif
 
+#ifndef INPLACE_REVERSE_ENDIAN
 #define INPLACE_REVERSE_ENDIAN(p)                \
 {                                                \
     *((uint64_t *)(p))                           \
@@ -390,6 +399,7 @@ typedef struct {
     (((uint64_t)((uint8_t *)(p))[6]) << 8) ^     \
     ((uint64_t)((uint8_t *)(p))[7]));            \
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Wrappers for CUDA & CURAND calls

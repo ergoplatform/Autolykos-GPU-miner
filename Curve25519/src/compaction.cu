@@ -1,5 +1,11 @@
 // compaction.cu
 
+/*******************************************************************************
+
+    COMPACTION -- Identification of hashes subject to rehash 
+
+*******************************************************************************/
+
 #include "../include/compaction.h"
 #include <cuda.h>
 #include <cuda_runtime.h>

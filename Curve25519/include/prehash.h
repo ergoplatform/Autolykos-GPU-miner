@@ -1,8 +1,6 @@
 #ifndef PREHASH_H
 #define PREHASH_H
 
-#include "definitions.h"
-
 /*******************************************************************************
 
     PREHASH -- precalculation of hashes
@@ -58,6 +56,9 @@ finalPrehash
 ********************************************************************************
 
 *******************************************************************************/
+
+#include "definitions.h"
+
 // first iteration of hashes precalculation
 __global__ void initPrehash(
     // data: pk || mes || w || padding || x || sk
@@ -82,6 +83,7 @@ __global__ void updatePrehash(
     uint32_t * hash,
     // indices of invalid range hashes
     uint32_t * invalid,
+    // length of invalid
     const uint32_t len
 );
 

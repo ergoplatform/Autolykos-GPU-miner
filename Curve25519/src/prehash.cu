@@ -10,8 +10,6 @@
 #include "../include/compaction.h"
 #include <cuda.h>
 
-#include <inttypes.h>
-
 ////////////////////////////////////////////////////////////////////////////////
 //  First iteration of hashes precalculation
 ////////////////////////////////////////////////////////////////////////////////
@@ -209,18 +207,6 @@ __global__ void initPrehash(
 /// inoperable ///         ctx->b[ctx->c++] = ((const uint8_t *)&tid)[j];
 /// inoperable ///     }
 /// inoperable /// 
-/// inoperable /// /// never reached /// #pragma unroll
-/// inoperable /// /// never reached ///     for ( ; j < 4; )
-/// inoperable /// /// never reached ///     {
-/// inoperable /// /// never reached ///         B2B_H(ctx, aux);
-/// inoperable /// /// never reached ///        
-/// inoperable /// /// never reached /// #pragma unroll
-/// inoperable /// /// never reached ///         for ( ; ctx->c < 128 && j < 4; ++j)
-/// inoperable /// /// never reached ///         {
-/// inoperable /// /// never reached ///             ctx->b[ctx->c++] = ((const uint8_t *)tid)[j];
-/// inoperable /// /// never reached ///         }
-/// inoperable /// /// never reached ///     }
-/// inoperable /// 
 /// inoperable ///     //====================================================================//
 /// inoperable ///     //  Hash constant message
 /// inoperable ///     //====================================================================//
@@ -276,6 +262,7 @@ __global__ void updatePrehash(
     uint32_t * hash,
     // indices of invalid range hashes
     uint32_t * invalid,
+    // length of invalid
     const uint32_t len
 ) {
     uint32_t tid = threadIdx.x + blockDim.x * blockIdx.x;
@@ -862,27 +849,11 @@ int prehash(
     uint32_t * comp = invalid + N_LEN;
     uint32_t * tmp;
 
-    /// debug /// uint32_t * indices_h = (uint32_t *)malloc(len * 4);
-
     // put zero to new length 
     CUDA_CALL(cudaMemset((void *)(invalid + 2 * N_LEN), 0, 4));
 
     // hash index, constant message and public key
     initPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash, ind);
-
-    /// debug /// //from//
-    /// debug /// CUDA_CALL(cudaMemcpy(
-    /// debug ///     (void *)indices_h, (void *)ind, len * 4,
-    /// debug ///     cudaMemcpyDeviceToHost
-    /// debug /// ));
-    /// debug /// for (int i = 0; i < len && i < 750; ++i)
-    /// debug /// {
-    /// debug ///     // if (i == 1 || i == 741)
-    /// debug ///         printf("%"PRIx32" ", indices_h[i]);
-    /// debug /// }
-    /// debug /// printf("\n\n");
-    /// debug /// fflush(stdout);
-    /// debug /// //to//
 
     // determine indices of out of bounds hashes
     compactify<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
@@ -897,20 +868,6 @@ int prehash(
     tmp = ind;
     ind = comp;
     comp = tmp;
-
-    /// debug /// //from//
-    /// debug /// CUDA_CALL(cudaMemcpy(
-    /// debug ///     (void *)indices_h, (void *)ind, len * 4,
-    /// debug ///     cudaMemcpyDeviceToHost
-    /// debug /// ));
-    /// debug /// for (int i = 0; i < len && i < 750; ++i)
-    /// debug /// {
-    /// debug ///     // if (i == 1 || i == 741)
-    /// debug ///         printf("%"PRIx32" ", indices_h[i]);
-    /// debug /// }
-    /// debug /// printf("\n\n");
-    /// debug /// fflush(stdout);
-    /// debug /// //to//
 
     while (len)
     {
@@ -939,7 +896,6 @@ int prehash(
     // multiply by secret key moq Q
     finalPrehashMultSK<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash);
 
-    /// debug /// free(indices_h);
     return 0;
 }
 

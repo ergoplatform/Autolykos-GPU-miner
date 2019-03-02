@@ -1,12 +1,15 @@
 #ifndef REDUCTION_H
 #define REDUCTION_H
 
+/*******************************************************************************
+
+    REDUCTION -- Identification of Autolykos puzzle solution 
+
+*******************************************************************************/
+
 #include "definitions.h"
 
-////////////////////////////////////////////////////////////////////////////////
-//  Reduction
-////////////////////////////////////////////////////////////////////////////////
-// find lowest power of two ceiling of a number
+//  find smallest power of two not lesser then given number
 uint32_t ceilToPower(
     uint32_t x
 );
