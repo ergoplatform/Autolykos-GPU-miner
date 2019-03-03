@@ -31,7 +31,15 @@ __global__ void mul(
     uint32_t * res
 );
 
-__global__ void mod_q(
+__global__ void mod_q_Curve25519(
+    // word count
+    uint32_t xw,
+    // xw * 64 bits
+    uint64_t * x
+    // result 4 * 64 bits -> x[0, 1, 2, 3]
+);
+
+__global__ void mod_q_secp256k1(
     // word count
     uint32_t xw,
     // xw * 64 bits
