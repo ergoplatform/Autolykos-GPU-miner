@@ -364,6 +364,7 @@ __global__ void mod_q_secp256k1(
     uint32_t med[6];
     uint32_t carry;
 
+#pragma unroll
     for (int i = (xw - 1) << 1; i >= 8; i -= 2)
     {
         *((uint64_t *)d) = x[i >> 1];
@@ -430,32 +431,6 @@ __global__ void mod_q_secp256k1(
         );
 
     //====================================================================//
-    //  x[i/2 - 1, i/2 - 2] += 2 * d
-    //====================================================================//
-        carry = d[1] >> 31;
-        *((uint64_t *)d) <<= 1;
-
-        asm volatile (
-            "add.cc.u32 %0, %0, %1;": "+r"(y[i - 4]): "r"(d[0])
-        );
-
-        asm volatile (
-            "addc.cc.u32 %0, %0, %1;": "+r"(y[i - 3]): "r"(d[1])
-        );
-
-        asm volatile (
-            "addc.cc.u32 %0, %0, %1;": "+r"(y[i - 2]): "r"(carry)
-        );
-
-        asm volatile (
-            "addc.cc.u32 %0, %0, 0;": "+r"(y[i - 1])
-        );
-
-        asm volatile (
-            "addc.u32 %0, 0, 0;": "=r"(carry)
-        );
-
-    //====================================================================//
     //  x[i/2 - 2, i/2 - 3, i/2 - 4] mod q
     //====================================================================//
         asm volatile (
@@ -475,49 +450,29 @@ __global__ void mod_q_secp256k1(
         );
 
         asm volatile (
-            "subc.cc.u32 %0, %0, 0;": "+r"(y[i - 1])
+            "subc.u32 %0, %0, 0;": "+r"(y[i - 1])
         );
 
     //====================================================================//
-    //  x[i/2 - 2, i/2 - 3, i/2 - 4] correction
+    //  x[i/2 - 1, i/2 - 2] += 2 * d
     //====================================================================//
-        asm volatile (
-            "subc.u32 %0, %0, 0;": "+r"(carry)
-        );
+        carry = d[1] >> 31;
+        *((uint64_t *)d) <<= 1;
 
-        carry = 0 - carry;
-
-    //====================================================================//
         asm volatile (
-            "mad.lo.cc.u32 %0, %1, "q0_secp256k1_s", %0;": "+r"(y[i - 8]): "r"(carry)
+            "add.cc.u32 %0, %0, %1;": "+r"(y[i - 4]): "r"(d[0])
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q1_secp256k1_s", %0;": "+r"(y[i - 7]): "r"(carry)
+            "addc.cc.u32 %0, %0, %1;": "+r"(y[i - 3]): "r"(d[1])
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q2_secp256k1_s", %0;": "+r"(y[i - 6]): "r"(carry)
+            "addc.cc.u32 %0, %0, %1;": "+r"(y[i - 2]): "r"(carry)
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q3_secp256k1_s", %0;": "+r"(y[i - 5]): "r"(carry)
-        );
-
-        asm volatile (
-            "madc.lo.cc.u32 %0, %1, 0xFFFFFFFE, %0;": "+r"(y[i - 4]): "r"(carry)
-        );
-
-#pragma unroll
-        for (int j = 0; j < 2; ++j)
-        {
-            asm volatile (
-                "madc.lo.cc.u32 %0, %1, 0xFFFFFFFF, %0;": "+r"(y[i + j - 3]): "r"(carry)
-            );
-        }
-
-        asm volatile (
-            "madc.lo.u32 %0, %1, 0xFFFFFFFF, %0;": "+r"(y[i - 1]): "r"(carry)
+            "addc.u32 %0, %0, 0;": "+r"(y[i - 1])
         );
     }
 

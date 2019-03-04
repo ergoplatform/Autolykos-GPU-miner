@@ -78,10 +78,10 @@ int main(int argc, char *argv[])
     /// //====================================================================//
     /// //  Multiplication mod q test
     /// //====================================================================//
-    for (int i = 0; i < 0xFF; ++i)
+    for (int i = 0; i < 0xFFF; ++i)
     {
         x_h[0] = Q0_secp256k1 - i;
-        for (int j = 1; j < 0xFF; ++j)
+        for (int j = 0; j < 0xFFF; ++j)
         {
             y_h[0] = Q0_secp256k1 - j;
             CUDA_CALL(cudaMemcpy(
@@ -106,11 +106,11 @@ int main(int argc, char *argv[])
                 res_h[3] > 0 || res_h[2] > 0
                 || res_h[1] > 0 || res_h[0] != i * j
             ) {
-                printf(
-                    "0x%016lX %016lX %016lX %016lX",
-                    res_h[3], res_h[2], res_h[1], res_h[0]
-                );
-                printf("\ti * j = %#x\n", i * j);
+             printf(
+                 "0x%016lX %016lX %016lX %016lX",
+                 res_h[3], res_h[2], res_h[1], res_h[0]
+             );
+             printf("\ti * j = %#x\n", i * j);
             }
         }
         printf("i = %d\n", i);
