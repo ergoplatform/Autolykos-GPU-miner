@@ -1,5 +1,11 @@
 // reduction.cu
 
+/*******************************************************************************
+
+    REDUCTION -- Identification of Autolykos puzzle solution 
+
+*******************************************************************************/
+
 #include "../include/reduction.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,7 +16,7 @@
 namespace cg = cooperative_groups;
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Find smallest power of 2 greater then x
+//  Find smallest power of two not lesser then given number
 ////////////////////////////////////////////////////////////////////////////////
 uint32_t ceilToPower(uint32_t x)
 {
@@ -111,7 +117,6 @@ __global__ void blockNonZero(
     cg::sync(cta);
 #endif
 
-    // write result for this block to global mem
     if (tid == 0)
     {
         out[blockIdx.x] = ind;

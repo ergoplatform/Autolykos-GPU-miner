@@ -1,5 +1,11 @@
 // autolykos.cu
 
+/*******************************************************************************
+
+    AUTOLYKOS -- Autolukos puzzle cycle
+
+*******************************************************************************/
+
 #include "../include/prehash.h"
 #include "../include/mining.h"
 #include "../include/reduction.h"
@@ -55,20 +61,6 @@ for (int i = 0; i < NUM_SIZE_32 >> 1; ++i)                   \
     status = fscanf(in, "%"SCNx8"\n", (uint8_t *)w);
     SCAN_TO_BIG_ENDIAN((uint8_t *)w + 1);
 
-    /// debug /// printf(
-    /// debug ///     "blake2b-256 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1))),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 1),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 2),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 3)
-    /// debug /// );
-    /// debug /// printf(
-    /// debug ///     "blake2b-256 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     ((uint64_t *)(x))[3],
-    /// debug ///     ((uint64_t *)(x))[2],
-    /// debug ///     ((uint64_t *)(x))[1],
-    /// debug ///     ((uint64_t *)(x))[0]
-    /// debug /// );
 #undef SCAN_TO_BIG_ENDIAN
 #undef SCAN_TO_LITTLE_ENDIAN
 
@@ -265,13 +257,8 @@ int main(
             bound_d, data_d, nonce_d, hash_d, res_d, indices_d
         );
 
-        /// debug /// //from//
-        /// debug /// break;
-        /// debug /// //to//
-
         // try to find solution
         ind = findNonZero(indices_d, indices_d + H_LEN * L_LEN, H_LEN * L_LEN);
-        ////ind = findNonZero(indices_d, indices_d + H_LEN * L_LEN, 10000);
     }
 
     cudaDeviceSynchronize();
@@ -308,50 +295,33 @@ int main(
         cudaMemcpyDeviceToHost
     ));
 
-    uint32_t * hash_h = (uint32_t *)malloc((uint32_t)N_LEN * NUM_SIZE_8);
-
-    CUDA_CALL(cudaMemcpy(
-        (void *)hash_h, (void *)hash_d, (uint32_t)N_LEN * NUM_SIZE_8,
-        cudaMemcpyDeviceToHost
-    ));
-
-    /// debug /// uint8_t * data_h = (uint8_t *)malloc(3 * NUM_SIZE_8 + 2 * PK_SIZE_8 + 2);
-
-    /// debug /// CUDA_CALL(cudaMemcpy(
-    /// debug ///     (void *)data_h, (void *)data_d, 3 * NUM_SIZE_8 + 2 * PK_SIZE_8 + 2,
-    /// debug ///     cudaMemcpyDeviceToHost
-    /// debug /// ));
-
-    /// debug /// printf("DATA = 0x");
-    /// debug /// for (int i = 0; i < NUM_SIZE_8 + 2 * PK_SIZE_8; ++i)
-    /// debug /// {
-    /// debug ///     printf("%"PRIX8, data_h[i]);                                            
-    /// debug /// }
-    /// debug /// printf("\n");
-
-    /// ind = 0x17fe + 1;
-    /// ind = 0x3834 + 1;
     if (ind)
     {
         printf("iteration = %d, index = %d\n", i - 1, ind - 1);
 
-        /// printf(
-        ///     "m = 0x%016lX %016lX %016lX %016lX\n",
-        ///     ((uint64_t *)res_h)[3], ((uint64_t *)res_h)[2],
-        ///     ((uint64_t *)res_h)[1], ((uint64_t *)res_h)[0]
-        /// );
+        printf(
+            "m     = 0x%016lX %016lX %016lX %016lX\n",
+            ((uint64_t *)mes_h)[3], ((uint64_t *)mes_h)[2],
+            ((uint64_t *)mes_h)[1], ((uint64_t *)mes_h)[0]
+        );
 
-        /// printf(
-        ///     "pk = 0x%02lX %016lX %016lX %016lX %016lX\n",
-        ///     ((uint64_t *)pk_h)[4], ((uint64_t *)pk_h)[3], ((uint64_t *)pk_h)[2],
-        ///     ((uint64_t *)pk_h)[1], ((uint64_t *)pk_h)[0]
-        /// );
+        printf(
+            "pk    = 0x%02lX %016lX %016lX %016lX %016lX\n",
+            ((uint8_t *)pk_h)[0],
+            REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk_h + 1)) + 0),
+            REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk_h + 1)) + 1),
+            REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk_h + 1)) + 2),
+            REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk_h + 1)) + 3)
+        );
 
-        /// printf(
-        ///     "w = 0x%02lX %016lX %016lX %016lX %016lX\n",
-        ///     ((uint64_t *)w_h)[4], ((uint64_t *)w_h)[3], ((uint64_t *)w_h)[2],
-        ///     ((uint64_t *)w_h)[1], ((uint64_t *)w_h)[0]
-        /// );
+        printf(
+            "w     = 0x%02lX %016lX %016lX %016lX %016lX\n",
+            ((uint8_t *)w_h)[0],
+            REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w_h + 1)) + 0),
+            REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w_h + 1)) + 1),
+            REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w_h + 1)) + 2),
+            REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w_h + 1)) + 3)
+        );
 
         printf(
             "nonce = 0x%016lX\n",
@@ -359,165 +329,18 @@ int main(
         );
 
         printf(
-            "d = 0x%016lX %016lX %016lX %016lX\n",
+            "d     = 0x%016lX %016lX %016lX %016lX\n",
             ((uint64_t *)res_h)[(ind - 1) * 4 + 3],
             ((uint64_t *)res_h)[(ind - 1) * 4 + 2],
             ((uint64_t *)res_h)[(ind - 1) * 4 + 1],
             ((uint64_t *)res_h)[(ind - 1) * 4]
         );
-        /// debug /// printf(                                       
-        /// debug ///     "b = 0x%016lX %016lX %016lX %016lX\n",
-        /// debug ///     ((uint64_t *)bound_h)[3],
-        /// debug ///     ((uint64_t *)bound_h)[2],
-        /// debug ///     ((uint64_t *)bound_h)[1],
-        /// debug ///     ((uint64_t *)bound_h)[0]
-        /// debug /// );                                            
 
         fflush(stdout);
     }
 
-    /// debug /// printf(
-    /// debug ///     "H0 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 0 * 4 + 0),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 0 * 4 + 1),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 0 * 4 + 2),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 0 * 4 + 3)
-    /// debug /// );                                            
-
-    /// debug /// printf(                                       
-    /// debug ///     "H1 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 1 * 4 + 0),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 1 * 4 + 1),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 1 * 4 + 2),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 1 * 4 + 3)
-    /// debug /// );                                            
-
-    /// debug /// printf(                                       
-    /// debug ///     "H2 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 2 * 4 + 0),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 2 * 4 + 1),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 2 * 4 + 2),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 2 * 4 + 3)
-    /// debug /// );
-
-    /// debug /// printf(                                       
-    /// debug ///     "H3 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 3 * 4 + 0),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 3 * 4 + 1),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 3 * 4 + 2),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 3 * 4 + 3)
-    /// debug /// );
-
-    /// debug /// printf(                                       
-    /// debug ///     "H67 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 67 * 4 + 0),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 67 * 4 + 1),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 67 * 4 + 2),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 67 * 4 + 3)
-    /// debug /// );
-
-    /// debug /// printf(                                       
-    /// debug ///     "H741 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 741 * 4 + 0),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 741 * 4 + 1),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 741 * 4 + 2),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)hash_h) + 741 * 4 + 3)
-    /// debug /// );
-
-    /// debug /// printf(
-    /// debug ///     "H0 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     ((uint64_t *)hash_h)[0 * 4 + 3],
-    /// debug ///     ((uint64_t *)hash_h)[0 * 4 + 2],
-    /// debug ///     ((uint64_t *)hash_h)[0 * 4 + 1],
-    /// debug ///     ((uint64_t *)hash_h)[0 * 4 + 0]
-    /// debug /// );                                            
-
-    /// debug /// printf(                                       
-    /// debug ///     "H1 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     ((uint64_t *)hash_h)[1 * 4 + 3],
-    /// debug ///     ((uint64_t *)hash_h)[1 * 4 + 2],
-    /// debug ///     ((uint64_t *)hash_h)[1 * 4 + 1],
-    /// debug ///     ((uint64_t *)hash_h)[1 * 4 + 0]
-    /// debug /// );                                            
-
-    /// debug /// printf(                                       
-    /// debug ///     "H2 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     ((uint64_t *)hash_h)[2 * 4 + 3],
-    /// debug ///     ((uint64_t *)hash_h)[2 * 4 + 2],
-    /// debug ///     ((uint64_t *)hash_h)[2 * 4 + 1],
-    /// debug ///     ((uint64_t *)hash_h)[2 * 4 + 0]
-    /// debug /// );
-
-    /// debug /// printf(                                       
-    /// debug ///     "H3 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     ((uint64_t *)hash_h)[3 * 4 + 3],
-    /// debug ///     ((uint64_t *)hash_h)[3 * 4 + 2],
-    /// debug ///     ((uint64_t *)hash_h)[3 * 4 + 1],
-    /// debug ///     ((uint64_t *)hash_h)[3 * 4 + 0]
-    /// debug /// );
-
-    /// debug /// printf(                                       
-    /// debug ///     "H67 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     ((uint64_t *)hash_h)[67 * 4 + 3],
-    /// debug ///     ((uint64_t *)hash_h)[67 * 4 + 2],
-    /// debug ///     ((uint64_t *)hash_h)[67 * 4 + 1],
-    /// debug ///     ((uint64_t *)hash_h)[67 * 4 + 0]
-    /// debug /// );
-
-    /// debug /// printf(                                       
-    /// debug ///     "H741 = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     ((uint64_t *)hash_h)[741 * 4 + 3],
-    /// debug ///     ((uint64_t *)hash_h)[741 * 4 + 2],
-    /// debug ///     ((uint64_t *)hash_h)[741 * 4 + 1],
-    /// debug ///     ((uint64_t *)hash_h)[741 * 4 + 0]
-    /// debug /// );
-
-    /// debug ///for (int i = 0; i < 8; ++i)
-    /// debug ///{
-    /// debug ///    printf(
-    /// debug ///        ///"Ind%d = 0x%08lX ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 1 + i]
-    /// debug ///        "Ind%d = %u ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 2 + i]
-    /// debug ///    );                                            
-    /// debug ///}
-    /// debug ///printf("\n");
-    /// debug ///fflush(stdout);
-    /// debug ///for (int i = 0; i < 8; ++i)
-    /// debug ///{
-    /// debug ///    printf(
-    /// debug ///        ///"Ind%d = 0x%08lX ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 1 + i]
-    /// debug ///        "Ind%d = %u ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 3 + i]
-    /// debug ///    );                                            
-    /// debug ///}
-    /// debug ///printf("\n");
-    /// debug ///fflush(stdout);
-
-    /// debug /// printf(                                       
-    /// debug ///     "mes = 0x%016lX %016lX %016lX %016lX\n",
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)mes_h) + 0),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)mes_h) + 1),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)mes_h) + 2),
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)mes_h) + 3)
-    /// debug /// );
-
-    /// debug /// printf(                                       
-    /// debug ///     "nonce = 0x%016lX\n",
-    /// debug ///     REVERSE_ENDIAN(((uint64_t *)nonce_h) + ind - 1)
-    /// debug /// );
-
-    /// debug /// for (int i = 0; i < 8; ++i)
-    /// debug /// {
-    /// debug ///     printf(
-    /// debug ///         ///"Ind%d = 0x%08lX ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * 35 + i]
-    /// debug ///         "Ind%d = %u ", i, ((uint32_t *)res_h)[NUM_SIZE_32 * (ind - 1) + i]
-    /// debug ///     );                                            
-    /// debug /// }
-    /// debug /// printf("\n");
-    /// debug /// fflush(stdout);
-
-    /// debug /// free(data_h);
     free(res_h);
     free(nonce_h);
-    free(hash_h);
 
     //====================================================================//
     //  Free device memory

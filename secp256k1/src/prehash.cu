@@ -10,8 +10,6 @@
 #include "../include/compaction.h"
 #include <cuda.h>
 
-#include <inttypes.h>
-
 ////////////////////////////////////////////////////////////////////////////////
 //  First iteration of hashes precalculation
 ////////////////////////////////////////////////////////////////////////////////
@@ -482,7 +480,7 @@ __global__ void finalPrehashMultSK(
     uint32_t r[NUM_SIZE_32 << 1];
 
     //====================================================================//
-    //  h[0] * y -> r[0, ..., 7, 8]
+    // r[0, ..., 7, 8] = h[0] * x
     //====================================================================//
     // initialize r[0, ..., 7]
 #pragma unroll
@@ -529,7 +527,7 @@ __global__ void finalPrehashMultSK(
     );
 
     //====================================================================//
-    //  r[i, ..., i + 7, i + 8] = h[i] * x
+    //  r[i, ..., i + 7, i + 8] += h[i] * x
     //====================================================================//
 #pragma unroll
     for (int i = 1; i < NUM_SIZE_32; ++i)
@@ -558,9 +556,7 @@ __global__ void finalPrehashMultSK(
         }
 
         // initialize r[i + 8]
-        asm volatile (
-            "addc.u32 %0, 0, 0;": "=r"(r[i + 8])
-        );
+        asm volatile ("addc.u32 %0, 0, 0;": "=r"(r[i + 8]));
 
     //====================================================================//
         asm volatile (
@@ -606,7 +602,7 @@ __global__ void finalPrehashMultSK(
     uint32_t carry;
 
 #pragma unroll
-    for (int i = NUM_SIZE_32 << 1; i >= NUM_SIZE_32; i -= 2)
+    for (int i = (NUM_SIZE_32 - 1) << 1; i >= NUM_SIZE_32; i -= 2)
     {
         *((uint64_t *)d) = ((uint64_t *)r)[i >> 1];
 
@@ -689,7 +685,7 @@ __global__ void finalPrehashMultSK(
     //  x[i/2 - 1, i/2 - 2] += 2 * d
     //====================================================================//
         carry = d[1] >> 31;
-        d[1] = d[0] >> 31;
+        d[1] = (d[1] << 1) | (d[0] >> 31);
         d[0] <<= 1;
 
         asm volatile ("add.cc.u32 %0, %0, %1;": "+r"(r[i - 4]): "r"(d[0]));
@@ -699,7 +695,7 @@ __global__ void finalPrehashMultSK(
     }
 
     //====================================================================//
-    //  last 256bit correction
+    //  last 256 bit correction
     //====================================================================//
     asm volatile ("sub.cc.u32 %0, %0, "q0_s";": "+r"(r[0]));
     asm volatile ("subc.cc.u32 %0, %0, "q1_s";": "+r"(r[1]));
@@ -769,27 +765,11 @@ int prehash(
     uint32_t * comp = invalid + N_LEN;
     uint32_t * tmp;
 
-    /// debug /// uint32_t * indices_h = (uint32_t *)malloc(len * 4);
-
     // put zero to new length 
     CUDA_CALL(cudaMemset((void *)(invalid + 2 * N_LEN), 0, 4));
 
     // hash index, constant message and public key
     initPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash, ind);
-
-    /// debug /// //from//
-    /// debug /// CUDA_CALL(cudaMemcpy(
-    /// debug ///     (void *)indices_h, (void *)ind, len * 4,
-    /// debug ///     cudaMemcpyDeviceToHost
-    /// debug /// ));
-    /// debug /// for (int i = 0; i < len && i < 750; ++i)
-    /// debug /// {
-    /// debug ///     // if (i == 1 || i == 741)
-    /// debug ///         printf("%"PRIx32" ", indices_h[i]);
-    /// debug /// }
-    /// debug /// printf("\n\n");
-    /// debug /// fflush(stdout);
-    /// debug /// //to//
 
     // determine indices of out of bounds hashes
     compactify<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
@@ -804,20 +784,6 @@ int prehash(
     tmp = ind;
     ind = comp;
     comp = tmp;
-
-    /// debug /// //from//
-    /// debug /// CUDA_CALL(cudaMemcpy(
-    /// debug ///     (void *)indices_h, (void *)ind, len * 4,
-    /// debug ///     cudaMemcpyDeviceToHost
-    /// debug /// ));
-    /// debug /// for (int i = 0; i < len && i < 750; ++i)
-    /// debug /// {
-    /// debug ///     // if (i == 1 || i == 741)
-    /// debug ///         printf("%"PRIx32" ", indices_h[i]);
-    /// debug /// }
-    /// debug /// printf("\n\n");
-    /// debug /// fflush(stdout);
-    /// debug /// //to//
 
     while (len)
     {
@@ -846,7 +812,6 @@ int prehash(
     // multiply by secret key moq Q
     finalPrehashMultSK<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash);
 
-    /// debug /// free(indices_h);
     return 0;
 }
 
