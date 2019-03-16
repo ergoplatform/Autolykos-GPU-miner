@@ -11,7 +11,8 @@ $(eval GENCODE_FLAGS += -gencode arch=compute_$(sm),code=sm_$(sm)))
 																				 
 HIGHEST_SM := $(strip $(lastword $(sort $(SMS))))
 ifneq ($(HIGHEST_SM),)                                                           
-GENCODE_FLAGS += -arch=sm_30 -gencode arch=compute_$(HIGHEST_SM),code=compute_$(HIGHEST_SM)
+GENCODE_FLAGS += -arch=sm_30 \
+	-gencode arch=compute_$(HIGHEST_SM),code=compute_$(HIGHEST_SM)
 endif                                                                            
 endif                                                   
 
