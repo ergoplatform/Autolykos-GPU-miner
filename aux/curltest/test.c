@@ -1,18 +1,20 @@
 #include "jsmn/jsmn.h"
+
 #include <stdio.h>
 #include <stdint.h>
-#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 #include <curl/curl.h>
 
+////////////////////////////////////////////////////////////////////////////////
 struct string
 {
     char * ptr;
     size_t len;
 };
 
-void init_string(
+void InitString(
     string * str
 ) {
     str->len = 0;
@@ -27,8 +29,11 @@ void init_string(
     str->ptr[0] = '\0';
 }
 
-size_t writefunc(
-    void * ptr, size_t size, size_t nmemb, struct string * str
+size_t WriteFunc(
+    void * ptr,
+    size_t size,
+    size_t nmemb,
+    string * str
 ) {
     size_t nlen = str->len + size * nmemb;
 
@@ -49,9 +54,9 @@ size_t writefunc(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void convertDecToHex(
-    char * in,
-    uint8_t inlen,
+void DecStrToHexStrOf64(
+    const char * in,
+    const uint32_t inlen,
     char * out
 ) {
     uint32_t fs[inlen];
@@ -119,7 +124,9 @@ void convertDecToHex(
     for (int i = 63; i >= 0; --i)
     {
         out[63 - i]
-            = (accs[i] < 10)? (char)(accs[i] + '0'): (char)(accs[i] + 'A' - 10);
+            = (accs[i] < 10)?
+            (char)(accs[i] + '0'):
+            (char)(accs[i] + 'A' - 0xA);
     }
 
     out[64] = '\0';
@@ -154,12 +161,11 @@ void convertDecToHex(
 }
 #endif
 
-void scanToBigEndian(
+void HexStrToBigEndian(
     const char * in,
-    const int inlen,
+    const uint32_t inlen,
     uint8_t * out,
-    // in bytes
-    const int outlen
+    const uint32_t outlen
 )
 {
     memset(out, 0, outlen);
@@ -177,12 +183,11 @@ void scanToBigEndian(
     return;
 }
 
-void scanToLittleEndian(
+void HexStrToLittleEndian(
     const char * in,
-    const int inlen,
+    const uint32_t inlen,
     uint8_t * out,
-    // in bytes
-    const int outlen
+    const uint32_t outlen
 )
 {
     memset(out, 0, outlen);
@@ -201,112 +206,237 @@ void scanToLittleEndian(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void LittleEndianOf256ToDecStr(
+    const uint8_t * in,
+    char * out,
+    uint32_t * outlen
+) {
+    uint32_t fs[64];
+    uint32_t tmp;
+    uint32_t rem;
+    uint32_t ip;
+
+    for (int i = 0; i < 64; ++i)
+    {
+        fs[i] = (uint32_t)(in[i >> 1] >> (((i & 1)) << 2)) & 0xF;
+    }
+
+    uint32_t ts[90] = {1};
+    uint32_t accs[90] = {0};
+
+    for (int i = 0; i < 64; ++i)
+    {
+        for (int j = 0; j < 78; ++j)
+        {
+            accs[j] += ts[j] * fs[i];
+
+            tmp = accs[j];
+            rem = 0;
+            ip = j;
+
+            do
+            {
+                rem = tmp / 10;
+                accs[ip++] = tmp - rem * 10;
+                accs[ip] += rem;
+                tmp = accs[ip];
+            }
+            while (tmp >= 10);
+        }
+
+        for (int j = 0; j < 78; ++j)
+        {
+            ts[j] <<= 4;
+        }
+
+        for (int j = 0; j < 78; ++j)
+        {
+            tmp = ts[j];
+            rem = 0;
+            ip = j;
+
+            do
+            {
+                rem = tmp / 10;
+                ts[ip++] = tmp - rem * 10;
+                ts[ip] += rem;
+                tmp = ts[ip];
+            }
+            while (tmp >= 10);
+        }
+    }
+
+    int k = 0;
+    int lead = 1;
+
+    for (int i = 77; i >= 0; --i)
+    {
+        if (lead)
+        {
+            if (!(accs[i]))
+            {
+                continue;
+            }
+            else
+            {
+                lead = 0;
+            }
+        }
+
+        out[k++] = (char)(accs[i] + '0');
+    }
+
+    out[k] = '\0';
+    *outlen = k;
+
+    return;
+}
+
+void LittleEndianToHexStr(
+    const uint8_t * in,
+    const uint32_t inlen,
+    char * out
+)
+{
+    uint8_t dig;
+
+    for (int i = (inlen << 1) - 1; i >= 0; --i)
+    {
+        dig = (uint8_t)(in[i >> 1] >> ((i & 1) << 2)) & 0xF;
+
+        out[(inlen << 1) - i - 1]
+            = (dig <= 9)? (char)dig + '0': (char)dig + 'A' - 0xA;
+    }
+
+    out[inlen << 1] = '\0';
+
+    return;
+}
+
+void BigEndianToHexStr(
+    const uint8_t * in,
+    const uint32_t inlen,
+    char * out
+)
+{
+    uint8_t dig;
+
+    for (int i = 0; i < inlen << 1; ++i)
+    {
+        dig = (uint8_t)(in[i >> 1] >> (!(i & 1) << 2)) & 0xF;
+
+        out[i] = (dig <= 9)? (char)dig + '0': (char)dig + 'A' - 0xA;
+    }
+
+    out[inlen << 1] = '\0';
+
+    return;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 int main(
     void
 ) {
     CURL * curl;
     CURLcode res;
 
+    curl_global_init(CURL_GLOBAL_ALL);
+    
     curl = curl_easy_init();
+
+    uint64_t mes[4];
+    uint64_t b[4];
+    uint64_t sk[4];
+    uint8_t pk[33];
+    char hs[65];
 
     if (curl)
     {
         string s;
-        init_string(&s);
+        InitString(&s);
 
         curl_easy_setopt(
             curl, CURLOPT_URL, "http://188.166.89.71:9052/mining/candidate"
         );
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writefunc);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &s);
 
         res = curl_easy_perform(curl);
 
         ///printf("%s\n", s.ptr);
         jsmn_parser parser;
-        jsmntok_t tokens[7];
+        jsmntok_t tokens[9];
 
         jsmn_init(&parser);
-        jsmn_parse(&parser, s.ptr, s.len, tokens, 7);
+        jsmn_parse(&parser, s.ptr, s.len, tokens, 9);
 
-        int i;
-
-        char hs[65];
-        for (i = 0; i < 7; ++i)
+        for (int i = 0; i < 9; ++i)
         {
-            ///printf(
-            ///    "%d, [%d, %d], %d\n",
-            ///    tokens[i].type, tokens[i].start, tokens[i].end, tokens[i].size
-            ///);
-
-            ///sprintf(s.ptr, "%"%d"s", tokens[i].end - tokens[i].start);
             if (i && !(i & 1))
             {
-                if (i != 4)
+                if (i == 4)
                 {
-                    printf(
-                        "%.*s\n",
-                        tokens[i].end - tokens[i].start, s.ptr + tokens[i].start
+                    ///printf(
+                    ///    "%.*s\n",
+                    ///    tokens[i].end - tokens[i].start, s.ptr + tokens[i].start
+                    ///);
+                    DecStrToHexStrOf64(
+                        s.ptr + tokens[i].start,
+                        tokens[i].end - tokens[i].start, hs
                     );
                 }
             }
-
-            if (i == 4)
-            {
-                convertDecToHex(s.ptr + tokens[i].start, tokens[i].end - tokens[i].start, hs);
-
-                printf(
-                    "%64s\n",
-                    hs
-                );
-                ///printf(
-                ///    "0000C3AC56F4E254AB64A87AA76F21D03F01D698ACE1D3B62232A7CCAA369909\n"
-                ///);
-            }
         }
 
-        uint64_t mes[4];
-        uint64_t b[4];
-        uint8_t pk[33];
-
-///    SCAN_TO_BIG_ENDIAN(mes);
-///    SCAN_TO_LITTLE_ENDIAN(bound);
-//
-///    status = fscanf(in, "%"SCNx8"\n", (uint8_t *)pk);
-///    SCAN_TO_BIG_ENDIAN((uint8_t *)pk + 1);
-
-        scanToBigEndian(
-            s.ptr + tokens[2].start, tokens[2].end - tokens[2].start, (uint8_t *)mes, 32
+        HexStrToBigEndian(
+            s.ptr + tokens[2].start, tokens[2].end - tokens[2].start,
+            (uint8_t *)mes, 32
         );
 
-        printf(
-            "m = 0x%016lX %016lX %016lX %016lX\n",
-            REVERSE_ENDIAN(((uint64_t *)((uint8_t *)mes)) + 0),
-            REVERSE_ENDIAN(((uint64_t *)((uint8_t *)mes)) + 1),
-            REVERSE_ENDIAN(((uint64_t *)((uint8_t *)mes)) + 2),
-            REVERSE_ENDIAN(((uint64_t *)((uint8_t *)mes)) + 3)
+        ///printf(
+        ///    "m = 0x%016lX %016lX %016lX %016lX\n",
+        ///    REVERSE_ENDIAN(((uint64_t *)((uint8_t *)mes)) + 0),
+        ///    REVERSE_ENDIAN(((uint64_t *)((uint8_t *)mes)) + 1),
+        ///    REVERSE_ENDIAN(((uint64_t *)((uint8_t *)mes)) + 2),
+        ///    REVERSE_ENDIAN(((uint64_t *)((uint8_t *)mes)) + 3)
+        ///);
+
+        HexStrToLittleEndian(hs, 64, (uint8_t *)b, 32);
+
+        ///char hhs[79];
+        ///uint8_t hhslen;
+        ///HexToDec((uint8_t *)b, 64, hhs, &hhslen);
+        ///printf("\n%s\n", hhs);
+
+        ///printf(
+        ///    "b = 0x%016lX %016lX %016lX %016lX\n",
+        ///    ((uint64_t *)b)[3], ((uint64_t *)b)[2],
+        ///    ((uint64_t *)b)[1], ((uint64_t *)b)[0]
+        ///);
+
+        HexStrToLittleEndian(
+            s.ptr + tokens[6].start, tokens[6].end - tokens[6].start,
+            (uint8_t *)sk, 32
         );
 
-        scanToLittleEndian(hs, 64, (uint8_t *)b, 32);
+        ///printf(
+        ///    "sk = 0x%016lX %016lX %016lX %016lX\n",
+        ///    ((uint64_t *)sk)[3], ((uint64_t *)sk)[2],
+        ///    ((uint64_t *)sk)[1], ((uint64_t *)sk)[0]
+        ///);
 
-        printf(
-            "b = 0x%016lX %016lX %016lX %016lX\n",
-            ((uint64_t *)b)[3], ((uint64_t *)b)[2],
-            ((uint64_t *)b)[1], ((uint64_t *)b)[0]
+        HexStrToBigEndian(
+            s.ptr + tokens[8].start, tokens[8].end - tokens[8].start, pk, 33
         );
 
-        scanToBigEndian(
-            s.ptr + tokens[6].start, tokens[6].end - tokens[6].start, pk, 33
-        );
-
-        printf(
-            "pk = 0x%02lX %016lX %016lX %016lX %016lX\n",
-            pk[0],
-            REVERSE_ENDIAN(((uint64_t *)(pk + 1) + 0)),
-            REVERSE_ENDIAN(((uint64_t *)(pk + 1) + 1)),
-            REVERSE_ENDIAN(((uint64_t *)(pk + 1) + 2)),
-            REVERSE_ENDIAN(((uint64_t *)(pk + 1) + 3))
-        );
+        ///printf(
+        ///    "pk = 0x%02lX %016lX %016lX %016lX %016lX\n",
+        ///    pk[0],
+        ///    REVERSE_ENDIAN(((uint64_t *)(pk + 1) + 0)),
+        ///    REVERSE_ENDIAN(((uint64_t *)(pk + 1) + 1)),
+        ///    REVERSE_ENDIAN(((uint64_t *)(pk + 1) + 2)),
+        ///    REVERSE_ENDIAN(((uint64_t *)(pk + 1) + 3))
+        ///);
 
         ////printf("\n");
         fflush(stdout);
@@ -315,6 +445,68 @@ int main(
 
         curl_easy_cleanup(curl);
     }
+
+    char nonce[] = "0123456789ABCDEF";
+    uint32_t curlen;
+    uint32_t totlen = 6;
+
+    char sol[256];
+
+    strcpy(sol, "{\"w\":\"");
+    BigEndianToHexStr((uint8_t *)pk, 33, sol + totlen);
+    totlen += 33 << 1;
+    strcpy(sol + totlen, "\",\"n\":\"");
+    totlen += 7;
+    strcpy(sol + totlen, nonce);
+    totlen += 16;
+    strcpy(sol + totlen, "\",\"d\":");
+    totlen += 6;
+    LittleEndianOf256ToDecStr((uint8_t *)b, sol + totlen, &curlen);
+    totlen += curlen;
+    strcpy(sol + totlen, "e0}\0");
+
+    printf("%s\n", sol);
+
+    CURL * curl_;
+
+    curl_ = curl_easy_init();
+    if (curl_)
+    {
+        string s_;
+        InitString(&s_);
+
+        curl_slist * headers = NULL;
+        headers = curl_slist_append(headers, "Accept: application/json");
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+        curl_easy_setopt(
+            curl_, CURLOPT_URL, "http://188.166.89.71:9052/mining/solution"
+        );
+
+        curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl_, CURLOPT_POSTFIELDS, sol);
+
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &s_);
+
+        res = curl_easy_perform(curl_);
+
+        if (res != CURLE_OK)
+        {
+            fprintf(
+                stderr,
+                "curl_easy_perform() failed: %s\n", curl_easy_strerror(res)
+            );
+        } 
+        else
+        {
+            printf("%s\n", s_.ptr);
+        }
+
+        curl_easy_cleanup(curl_);
+        curl_slist_free_all(headers);
+    }
+
+    curl_global_cleanup();
 
     return 0;
 }
