@@ -60,7 +60,7 @@ finalPrehash
 #include "definitions.h"
 
 // first iteration of hashes precalculation
-__global__ void initPrehash(
+__global__ void InitPrehash(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // hashes
@@ -70,7 +70,7 @@ __global__ void initPrehash(
 );
 
 // unfinalized first iteration of hashes precalculation
-__global__ void unfinalInitPrehash(
+__global__ void UnfinalInitPrehash(
     // data: pk
     const uint32_t * data,
     // unfinalized hash contexts
@@ -78,7 +78,7 @@ __global__ void unfinalInitPrehash(
 );
 
 // unfinalized hashes update
-__global__ void updatePrehash(
+__global__ void UpdatePrehash(
     // hashes
     uint32_t * hash,
     // indices of invalid range hashes
@@ -88,13 +88,13 @@ __global__ void updatePrehash(
 );
 
 // hashes modulo Q 
-__global__ void finalPrehash(
+__global__ void FinalPrehash(
     // hashes
     uint32_t * hash
 );
 
 // hashes by secret key multiplication modulo Q 
-__global__ void finalPrehashMultSK(
+__global__ void FinalPrehashMultSk(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // hashes
@@ -102,7 +102,7 @@ __global__ void finalPrehashMultSK(
 );
 
 // precalculate hashes
-int prehash(
+int Prehash(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // hashes

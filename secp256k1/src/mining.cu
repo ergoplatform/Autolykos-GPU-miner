@@ -2,7 +2,7 @@
 
 /*******************************************************************************
 
-    MINING -- Autolykos parallel blockMining procedure
+    MINING -- Autolykos parallel BlockMining procedure
 
 *******************************************************************************/
 
@@ -12,14 +12,15 @@
 ////////////////////////////////////////////////////////////////////////////////
 //  Unfinalized hash of message
 ////////////////////////////////////////////////////////////////////////////////
-void initMining(
+void InitMining(
     // context
     blake2b_ctx * ctx,
     // message
     const uint32_t * mes,
     // message length in bytes
     const uint32_t meslen
-) {
+)
+{
     int j;
 
     uint64_t aux[32];
@@ -58,7 +59,7 @@ void initMining(
 ////////////////////////////////////////////////////////////////////////////////
 //  Block mining                                                               
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void blockMining(
+__global__ void BlockMining(
     // boundary for puzzle
     const uint32_t * bound,
     // data: pk || mes || w || padding || x || sk || ctx
@@ -71,7 +72,8 @@ __global__ void blockMining(
     uint32_t * res,
     // indices of valid solutions
     uint32_t * valid
-) {
+)
+{
     uint32_t j;
     uint32_t tid = threadIdx.x;
 

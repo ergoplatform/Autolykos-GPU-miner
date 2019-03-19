@@ -13,14 +13,15 @@
 ////////////////////////////////////////////////////////////////////////////////
 //  First iteration of hashes precalculation
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void initPrehash(
+__global__ void InitPrehash(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // hashes
     uint32_t * hash,
     // indices of invalid range hashes
     uint32_t * invalid
-) {
+)
+{
     uint32_t j;
     uint32_t tid = threadIdx.x;
 
@@ -152,12 +153,13 @@ __global__ void initPrehash(
 ////////////////////////////////////////////////////////////////////////////////
 //  Unfinalized first iteration of hashes precalculation
 ////////////////////////////////////////////////////////////////////////////////
-/// inoperable /// __global__ void unfinalInitPrehash(
+/// inoperable /// __global__ void UnfinalInitPrehash(
 /// inoperable ///     // data: pk
 /// inoperable ///     const uint32_t * data,
 /// inoperable ///     // unfinalized hash contexts
 /// inoperable ///     blake2b_ctx * uctx
-/// inoperable /// ) {
+/// inoperable /// )
+/// inoperable /// {
 /// inoperable ///     uint32_t j;
 /// inoperable ///     uint32_t tid = threadIdx.x;
 /// inoperable /// 
@@ -269,13 +271,14 @@ __global__ void initPrehash(
 ////////////////////////////////////////////////////////////////////////////////
 //  Rehash out of bounds hashes
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void updatePrehash(
+__global__ void UpdatePrehash(
     // hashes
     uint32_t * hash,
     // indices of invalid range hashes
     uint32_t * invalid,
     const uint32_t len
-) {
+)
+{
     uint32_t tid = threadIdx.x + blockDim.x * blockIdx.x;
 
     if (tid < len)
@@ -372,10 +375,11 @@ __global__ void updatePrehash(
 ////////////////////////////////////////////////////////////////////////////////
 //  Hashes modulo Q
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void finalPrehash(
+__global__ void FinalPrehash(
     // hashes
     uint32_t * hash
-) {
+)
+{
     uint32_t tid = threadIdx.x + blockDim.x * blockIdx.x;
 
     // local memory
@@ -447,12 +451,13 @@ __global__ void finalPrehash(
 ////////////////////////////////////////////////////////////////////////////////
 //  Hashes multiplication modulo Q by one time secret key 
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void finalPrehashMultSK(
+__global__ void FinalPrehashMultSk(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // hashes
     uint32_t * hash
-) {
+)
+{
     uint32_t tid = threadIdx.x;
 
     // shared memory
@@ -751,14 +756,15 @@ __global__ void finalPrehashMultSK(
 ////////////////////////////////////////////////////////////////////////////////
 //  Precalculate hashes
 ////////////////////////////////////////////////////////////////////////////////
-int prehash(
+int Prehash(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // hashes
     uint32_t * hash,
     // indices of invalid range hashes
     uint32_t * invalid
-) {
+)
+{
     uint32_t len = N_LEN; // >= H_LEN * N_LEN -- critical assumption
 
     uint32_t * ind = invalid;
@@ -769,10 +775,10 @@ int prehash(
     CUDA_CALL(cudaMemset((void *)(invalid + 2 * N_LEN), 0, 4));
 
     // hash index, constant message and public key
-    initPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash, ind);
+    InitPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash, ind);
 
     // determine indices of out of bounds hashes
-    compactify<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
+    Compactify<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
         ind, len, comp, invalid + 2 * N_LEN
     );
 
@@ -791,10 +797,10 @@ int prehash(
         CUDA_CALL(cudaMemset((void *)(invalid + 2 * N_LEN), 0, 4));
 
         // rehash out of bounds hashes
-        updatePrehash<<<1 + (len - 1) / B_DIM, B_DIM>>>(hash, ind, len);
+        UpdatePrehash<<<1 + (len - 1) / B_DIM, B_DIM>>>(hash, ind, len);
 
         // determine indices of out of bounds hashes
-        compactify<<<1 + (len - 1) / B_DIM, B_DIM>>>(
+        Compactify<<<1 + (len - 1) / B_DIM, B_DIM>>>(
             ind, len, comp, invalid + 2 * N_LEN
         );
 
@@ -810,7 +816,7 @@ int prehash(
     }
 
     // multiply by secret key moq Q
-    finalPrehashMultSK<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash);
+    FinalPrehashMultSk<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash);
 
     return 0;
 }

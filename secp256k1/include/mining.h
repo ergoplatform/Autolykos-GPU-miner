@@ -10,7 +10,7 @@
 #include "definitions.h"
 
 // unfinalized hash of message
-void initMining(
+void InitMining(
     // context
     blake2b_ctx * ctx,
     // message
@@ -20,7 +20,7 @@ void initMining(
 );
 
 // block mining iteration
-__global__ void blockMining(
+__global__ void BlockMining(
     // boundary for puzzle
     const uint32_t * bound,
     // data: pk || mes || w || padding || x || sk || ctx

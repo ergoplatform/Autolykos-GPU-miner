@@ -20,10 +20,12 @@ CFLAGS = -c
 
 SRCDIR = ./src
 LIBPATH = ./lib/$(LIBNAME)
-SOURCES = $(SRCDIR)/reduction.cu $(SRCDIR)/compaction.cu \
+CUSOURCES = $(SRCDIR)/reduction.cu $(SRCDIR)/compaction.cu \
 		  $(SRCDIR)/prehash.cu $(SRCDIR)/mining.cu \
 		  $(SRCDIR)/autolykos.cu
-OBJECTS = $(SOURCES:.cu=.o)
+CSOURCES = $(SRCDIR)/jsmn.c
+OBJECTS = $(CUSOURCES:.cu=.o)
+OBJECTS += $(CSOURCES:.c=.o)
 
 TESTEXEC = test.out
 AUTOEXEC = auto.out
@@ -46,3 +48,20 @@ auto:
 
 clean:
 	rm -f $(OBJECTS) $(LIBPATH) $(TESTEXEC) $(AUTOEXEC)
+
+all: libjsmn.a 
+
+libjsmn.a: jsmn.o
+	$(AR) rc $@ $^
+
+%.o: %.c jsmn.h
+	$(CC) -c $(CFLAGS) $< -o $@
+
+clean:
+	rm -f *.o example/*.o
+	rm -f *.a *.so
+	rm -f simple_example
+	rm -f jsondump
+
+.PHONY: all clean test
+

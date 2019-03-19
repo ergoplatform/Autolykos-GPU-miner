@@ -18,7 +18,9 @@ namespace cg = cooperative_groups;
 ////////////////////////////////////////////////////////////////////////////////
 //  Find smallest power of two not lesser then given number
 ////////////////////////////////////////////////////////////////////////////////
-uint32_t ceilToPower(uint32_t x)
+uint32_t CeilToPower(
+    uint32_t x
+)
 {
     --x;
 
@@ -35,11 +37,12 @@ uint32_t ceilToPower(uint32_t x)
 //  Find non zero item in block
 ////////////////////////////////////////////////////////////////////////////////
 template <uint32_t blockSize>
-__global__ void blockNonZero(
+__global__ void BlockNonZero(
     uint32_t * in,
     uint32_t inlen,
     uint32_t * out
-) {
+)
+{
     uint32_t ind = 0;
     uint32_t tid = threadIdx.x;
     __shared__ uint32_t sdata[B_DIM];
@@ -50,7 +53,8 @@ __global__ void blockNonZero(
         uint32_t i = 2 * blockIdx.x * blockSize + tid;
         i < inlen;
         i += 2 * blockSize * gridDim.x
-    ) {
+    )
+    {
         ind += !ind * in[i];
         ind += !ind * !(i + blockSize >= inlen) * in[i + blockSize];
     }
@@ -128,41 +132,42 @@ __global__ void blockNonZero(
 ////////////////////////////////////////////////////////////////////////////////
 //  Find non zero item in each block of array
 ////////////////////////////////////////////////////////////////////////////////
-void reduceNonZero(
+void ReduceNonZero(
     uint32_t * in,
     uint32_t inlen,
     uint32_t * out,
     uint32_t gridSize,
     uint32_t blockSize
-) {
+)
+{
     switch (blockSize)
     {
         case 64:
-            blockNonZero<64><<<gridSize, blockSize>>>(in, inlen, out);
+            BlockNonZero<64><<<gridSize, blockSize>>>(in, inlen, out);
             break;
 
         case 32:
-            blockNonZero<32><<<gridSize, blockSize>>>(in, inlen, out);
+            BlockNonZero<32><<<gridSize, blockSize>>>(in, inlen, out);
             break;
 
         case 16:
-            blockNonZero<16><<<gridSize, blockSize>>>(in, inlen, out);
+            BlockNonZero<16><<<gridSize, blockSize>>>(in, inlen, out);
             break;
 
         case 8:
-            blockNonZero< 8><<<gridSize, blockSize>>>(in, inlen, out);
+            BlockNonZero< 8><<<gridSize, blockSize>>>(in, inlen, out);
             break;
 
         case 4:
-            blockNonZero< 4><<<gridSize, blockSize>>>(in, inlen, out);
+            BlockNonZero< 4><<<gridSize, blockSize>>>(in, inlen, out);
             break;
 
         case 2:
-            blockNonZero< 2><<<gridSize, blockSize>>>(in, inlen, out);
+            BlockNonZero< 2><<<gridSize, blockSize>>>(in, inlen, out);
             break;
 
         case 1:
-            blockNonZero< 1><<<gridSize, blockSize>>>(in, inlen, out);
+            BlockNonZero< 1><<<gridSize, blockSize>>>(in, inlen, out);
             break;
     }
 
@@ -172,11 +177,12 @@ void reduceNonZero(
 ////////////////////////////////////////////////////////////////////////////////
 //  Find non zero item in array
 ////////////////////////////////////////////////////////////////////////////////
-uint32_t findNonZero(
+uint32_t FindNonZero(
     uint32_t * data,
     uint32_t * aux,
     uint32_t inlen
-) {
+)
+{
     uint32_t res;
     uint32_t gridSize = 1 + (inlen - 1) / (2 * B_DIM);
     uint32_t blockSize = B_DIM;
@@ -184,13 +190,13 @@ uint32_t findNonZero(
 
     while (inlen > 1)
     {
-        reduceNonZero(data, inlen, aux, gridSize, blockSize);
+        ReduceNonZero(data, inlen, aux, gridSize, blockSize);
 
         inlen = gridSize;
 
         if (inlen < 64)
         {
-            blockSize = ceilToPower((inlen + 1) >> 1);
+            blockSize = CeilToPower((inlen + 1) >> 1);
         }
 
         gridSize = 1 + (inlen - 1) / (2 * blockSize);

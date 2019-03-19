@@ -9,21 +9,21 @@
 
 #include "definitions.h"
 
-//  find smallest power of two not lesser then given number
-uint32_t ceilToPower(
+// find smallest power of two not lesser then given number
+uint32_t CeilToPower(
     uint32_t x
 );
 
 // find non zero item in block
 template <uint32_t blockSize>
-__global__ void blockNonZero(
+__global__ void BlockNonZero(
     uint32_t * in,
     uint32_t inlen,
     uint32_t * out
 );
 
 // find non zero item in each block of array
-void reduceNonZero(
+void ReduceNonZero(
     uint32_t * in,
     uint32_t inlen,
     uint32_t * out,
@@ -32,7 +32,7 @@ void reduceNonZero(
 );
 
 // find non zero item in array
-uint32_t findNonZero(
+uint32_t FindNonZero(
     uint32_t * data,
     uint32_t * aux,
     uint32_t inlen

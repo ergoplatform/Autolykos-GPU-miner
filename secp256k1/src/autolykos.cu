@@ -2,7 +2,7 @@
 
 /*******************************************************************************
 
-    AUTOLYKOS -- Autolukos puzzle cycle
+    AUTOLYKOS -- Autolykos puzzle cycle
 
 *******************************************************************************/
 
@@ -20,7 +20,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //  Read program input
 ////////////////////////////////////////////////////////////////////////////////
-int readInput(
+int ReadInput(
     char * filename,
     void * bound,
     void * mes,
@@ -28,25 +28,26 @@ int readInput(
     void * pk,
     void * x,
     void * w
-) {
+)
+{
     FILE * in = fopen(filename, "r");
 
     int status;
 
-#define SCAN_TO_LITTLE_ENDIAN(x)                                        \
-for (int i = 0; i < NUM_SIZE_32 >> 1; ++i)                              \
-{                                                                       \
-    status = fscanf(                                                    \
-        in, "%"SCNx64"\n", (uint64_t *)(x) + (NUM_SIZE_32 >> 1) - i - 1 \
-    );                                                                  \
+#define SCAN_TO_LITTLE_ENDIAN(x)                                               \
+for (int i = 0; i < NUM_SIZE_32 >> 1; ++i)                                     \
+{                                                                              \
+    status = fscanf(                                                           \
+        in, "%"SCNx64"\n", (uint64_t *)(x) + (NUM_SIZE_32 >> 1) - i - 1        \
+    );                                                                         \
 }
 
-#define SCAN_TO_BIG_ENDIAN(x)                                \
-for (int i = 0; i < NUM_SIZE_32 >> 1; ++i)                   \
-{                                                            \
-    status = fscanf(in, "%"SCNx64"\n", (uint64_t *)(x) + i); \
-                                                             \
-    INPLACE_REVERSE_ENDIAN((uint64_t *)(x) + i);             \
+#define SCAN_TO_BIG_ENDIAN(x)                                                  \
+for (int i = 0; i < NUM_SIZE_32 >> 1; ++i)                                     \
+{                                                                              \
+    status = fscanf(in, "%"SCNx64"\n", (uint64_t *)(x) + i);                   \
+                                                                               \
+    INPLACE_REVERSE_ENDIAN((uint64_t *)(x) + i);                               \
 }
 
     SCAN_TO_LITTLE_ENDIAN(bound);
@@ -72,11 +73,12 @@ for (int i = 0; i < NUM_SIZE_32 >> 1; ++i)                   \
 ////////////////////////////////////////////////////////////////////////////////
 //  Generate consequtive nonces
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void generate(
+__global__ void Generate(
     uint64_t * arr,
     uint32_t len,
     uint64_t base
-) {
+)
+{
     uint32_t tid = threadIdx.x + blockDim.x * blockIdx.x;
 
     uint64_t nonce = base + tid;
@@ -93,7 +95,8 @@ __global__ void generate(
 ////////////////////////////////////////////////////////////////////////////////
 int main(
     int argc, char ** argv
-) {
+)
+{
     int deviceCount;
     cudaGetDeviceCount(&deviceCount);
 
@@ -126,7 +129,7 @@ int main(
         return -1;
     }
 
-    readInput(argv[1], bound_h, mes_h, sk_h, pk_h, x_h, w_h);
+    ReadInput(argv[1], bound_h, mes_h, sk_h, pk_h, x_h, w_h);
 
     //====================================================================//
     //  Device memory
@@ -227,7 +230,7 @@ int main(
             ));
 
             // precalculate hashes
-            prehash(data_d, hash_d, indices_d);
+            Prehash(data_d, hash_d, indices_d);
 
             is_first = 0;
         }
@@ -238,13 +241,13 @@ int main(
 
         // generate nonces
         /// original /// CURAND_CALL(curandGenerate(gen, nonce_d, H_LEN * L_LEN * NONCE_SIZE_8));
-        generate<<<1 + (H_LEN * L_LEN - 1) / B_DIM, B_DIM>>>(
+        Generate<<<1 + (H_LEN * L_LEN - 1) / B_DIM, B_DIM>>>(
             (uint64_t *)nonce_d, N_LEN, base
         );
         base += H_LEN * L_LEN;
 
         // calculate unfinalized hash of message
-        initMining(&ctx_h, mes_h, NUM_SIZE_8);
+        InitMining(&ctx_h, mes_h, NUM_SIZE_8);
 
         // context: host -> device
         CUDA_CALL(cudaMemcpy(
@@ -253,12 +256,12 @@ int main(
         ));
 
         // calculate solution candidates
-        blockMining<<<1 + (L_LEN - 1) / B_DIM, B_DIM>>>(
+        BlockMining<<<1 + (L_LEN - 1) / B_DIM, B_DIM>>>(
             bound_d, data_d, nonce_d, hash_d, res_d, indices_d
         );
 
         // try to find solution
-        ind = findNonZero(indices_d, indices_d + H_LEN * L_LEN, H_LEN * L_LEN);
+        ind = FindNonZero(indices_d, indices_d + H_LEN * L_LEN, H_LEN * L_LEN);
     }
 
     cudaDeviceSynchronize();
