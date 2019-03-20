@@ -94,7 +94,7 @@ __global__ void FinalPrehash(
 );
 
 // hashes by secret key multiplication modulo Q 
-__global__ void FinalPrehashMultSk(
+__global__ void FinalPrehashMultSecKey(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // hashes

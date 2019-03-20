@@ -5,7 +5,7 @@ ifeq ($(CPU),linux-nv)
     AR = ar
     COPT = -O3
     LIBNAME = lib.a
-    LIBS = -lcurand
+    LIBS = -lcurand -lssl -lcrypto
 endif
 
 ifeq ($(CPU),linux-nv-plain)
@@ -13,5 +13,5 @@ ifeq ($(CPU),linux-nv-plain)
     AR = ar
     COPT = -O3
     LIBNAME = lib.a
-    LIBS =
+    LIBS = -lssl -lcrypto
 endif

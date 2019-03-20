@@ -1,5 +1,5 @@
 .SUFFIXES:
-.SUFFIXES: .cu .o
+#.SUFFIXES: .c .cu .o
 
 include Makefile.in
 
@@ -20,18 +20,20 @@ CFLAGS = -c
 
 SRCDIR = ./src
 LIBPATH = ./lib/$(LIBNAME)
-CUSOURCES = $(SRCDIR)/reduction.cu $(SRCDIR)/compaction.cu \
-		  $(SRCDIR)/prehash.cu $(SRCDIR)/mining.cu \
-		  $(SRCDIR)/autolykos.cu
+CUSOURCES = $(filter-out $(SRCDIR)/test.cu $(SRCDIR)/autolykos.cu, \
+			$(wildcard $(SRCDIR)/*.cu))
 CSOURCES = $(SRCDIR)/jsmn.c
-OBJECTS = $(CUSOURCES:.cu=.o)
-OBJECTS += $(CSOURCES:.c=.o)
+OBJECTS = $(CUSOURCES:.cu=.o) $(CSOURCES:.c=.o)
 
 TESTEXEC = test.out
 AUTOEXEC = auto.out
 
-.cu.o:
+%.o: %.cu
 	$(CXX) $(COPT) $(CFLAGS) $(GENCODE_FLAGS) $< -o $@
+%.o: %.c
+	$(CXX) $(COPT) $(CFLAGS) $< -o $@
+%jsmn.o: %jsmn.c
+	$(CXX) $(COPT) $(CFLAGS) $< -o $@
 
 all: clean lib test
 
@@ -41,27 +43,15 @@ lib: $(OBJECTS)
 	ranlib $(LIBPATH)
 
 test:
-	$(CXX) $(LIBPATH) $(LIBS) $(COPT) -o $(TESTEXEC)
+	$(CXX) $(SRCDIR)/test.cu $(LIBPATH) $(LIBS) $(COPT) $(GENCODE_FLAGS) \
+	-o $(TESTEXEC)
 
 auto:
-	$(CXX) $(LIBPATH) $(LIBS) $(COPT) -o $(AUTOEXEC)
+	$(CXX) $(SRCDIR)/autolykos.cu $(LIBPATH) $(LIBS) $(COPT) $(GENCODE_FLAGS) \
+	-o $(AUTOEXEC)
 
 clean:
-	rm -f $(OBJECTS) $(LIBPATH) $(TESTEXEC) $(AUTOEXEC)
+	rm -f $(OBJECTS) $(SRCDIR)/test.o $(SRCDIR)/autolykos.o $(LIBPATH) \
+	$(TESTEXEC) $(AUTOEXEC)
 
-all: libjsmn.a 
-
-libjsmn.a: jsmn.o
-	$(AR) rc $@ $^
-
-%.o: %.c jsmn.h
-	$(CC) -c $(CFLAGS) $< -o $@
-
-clean:
-	rm -f *.o example/*.o
-	rm -f *.a *.so
-	rm -f simple_example
-	rm -f jsondump
-
-.PHONY: all clean test
-
+.PHONY: all clean test auto lib

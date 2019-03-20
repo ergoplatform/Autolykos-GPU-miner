@@ -401,12 +401,12 @@ __global__ void FinalPrehash(
     asm volatile ("subc.cc.u32 %0, %0, "q1_s";": "+r"(h[1]));
     asm volatile ("subc.cc.u32 %0, %0, "q2_s";": "+r"(h[2]));
     asm volatile ("subc.cc.u32 %0, %0, "q3_s";": "+r"(h[3]));
-    asm volatile ("subc.cc.u32 %0, %0, 0xFFFFFFFE;": "+r"(h[4]));
+    asm volatile ("subc.cc.u32 %0, %0, "q4_s";": "+r"(h[4]));
 
 #pragma unroll
     for (int j = 5; j < 8; ++j)
     {
-        asm volatile ("subc.cc.u32 %0, %0, 0xFFFFFFFF;": "+r"(h[j]));
+        asm volatile ("subc.cc.u32 %0, %0, "qhi_s";": "+r"(h[j]));
     }
 
     asm volatile ("subc.u32 %0, 0, 0;": "=r"(carry));
@@ -418,22 +418,17 @@ __global__ void FinalPrehash(
     asm volatile ("madc.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(h[1]): "r"(carry));
     asm volatile ("madc.lo.cc.u32 %0, %1, "q2_s", %0;": "+r"(h[2]): "r"(carry));
     asm volatile ("madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(h[3]): "r"(carry));
-
-    asm volatile (
-        "madc.lo.cc.u32 %0, %1, 0xFFFFFFFE, %0;": "+r"(h[4]): "r"(carry)
-    );
+    asm volatile ("madc.lo.cc.u32 %0, %1, "q4_s", %0;": "+r"(h[4]): "r"(carry));
 
 #pragma unroll
     for (int j = 5; j < 7; ++j)
     {
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, 0xFFFFFFFF, %0;": "+r"(h[j]): "r"(carry)
+            "madc.lo.cc.u32 %0, %1, "qhi_s", %0;": "+r"(h[j]): "r"(carry)
         );
     }
 
-    asm volatile (
-        "madc.lo.u32 %0, %1, 0xFFFFFFFF, %0;": "+r"(h[7]): "r"(carry)
-    );
+    asm volatile ("madc.lo.u32 %0, %1, "qhi_s", %0;": "+r"(h[7]): "r"(carry));
 
     //===================================================================//
     //  Dump result to global memory -- BIG ENDIAN
@@ -451,7 +446,7 @@ __global__ void FinalPrehash(
 ////////////////////////////////////////////////////////////////////////////////
 //  Hashes multiplication modulo Q by one time secret key 
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void FinalPrehashMultSk(
+__global__ void FinalPrehashMultSecKey(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // hashes
@@ -706,12 +701,12 @@ __global__ void FinalPrehashMultSk(
     asm volatile ("subc.cc.u32 %0, %0, "q1_s";": "+r"(r[1]));
     asm volatile ("subc.cc.u32 %0, %0, "q2_s";": "+r"(r[2]));
     asm volatile ("subc.cc.u32 %0, %0, "q3_s";": "+r"(r[3]));
-    asm volatile ("subc.cc.u32 %0, %0, 0xFFFFFFFE;": "+r"(r[4]));
+    asm volatile ("subc.cc.u32 %0, %0, "q4_s";": "+r"(r[4]));
 
 #pragma unroll
     for (int j = 5; j < 8; ++j)
     {
-        asm volatile ("subc.cc.u32 %0, %0, 0xFFFFFFFF;": "+r"(r[j]));
+        asm volatile ("subc.cc.u32 %0, %0, "qhi_s";": "+r"(r[j]));
     }
 
     //====================================================================//
@@ -724,22 +719,17 @@ __global__ void FinalPrehashMultSk(
     asm volatile ("madc.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(r[1]): "r"(carry));
     asm volatile ("madc.lo.cc.u32 %0, %1, "q2_s", %0;": "+r"(r[2]): "r"(carry));
     asm volatile ("madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(r[3]): "r"(carry));
-
-    asm volatile (
-        "madc.lo.cc.u32 %0, %1, 0xFFFFFFFE, %0;": "+r"(r[4]): "r"(carry)
-    );
+    asm volatile ("madc.lo.cc.u32 %0, %1, "q4_s", %0;": "+r"(r[4]): "r"(carry));
 
 #pragma unroll
     for (int j = 5; j < 7; ++j)
     {
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, 0xFFFFFFFF, %0;": "+r"(r[j]): "r"(carry)
+            "madc.lo.cc.u32 %0, %1, "qhi_s", %0;": "+r"(r[j]): "r"(carry)
         );
     }
 
-    asm volatile (
-        "madc.lo.u32 %0, %1, 0xFFFFFFFF, %0;": "+r"(r[7]): "r"(carry)
-    );
+    asm volatile ("madc.lo.u32 %0, %1, "qhi_s", %0;": "+r"(r[7]): "r"(carry));
 
     //===================================================================//
     //  Dump result to global memory -- LITTLE ENDIAN
@@ -765,7 +755,7 @@ int Prehash(
     uint32_t * invalid
 )
 {
-    uint32_t len = N_LEN; // >= H_LEN * N_LEN -- critical assumption
+    uint32_t len = N_LEN; // N_LEN >= H_LEN * L_LEN -- critical assumption
 
     uint32_t * ind = invalid;
     uint32_t * comp = invalid + N_LEN;
@@ -816,7 +806,7 @@ int Prehash(
     }
 
     // multiply by secret key moq Q
-    FinalPrehashMultSk<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash);
+    FinalPrehashMultSecKey<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash);
 
     return 0;
 }
