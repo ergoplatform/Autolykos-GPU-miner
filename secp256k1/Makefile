@@ -37,7 +37,7 @@ AUTOEXEC = auto.out
 ###%jsmn.o: %jsmn.c
 ###	$(CXX) $(COPT) $(CFLAGS) $< -o $@
 
-all: clean lib test
+all: clean lib auto
 
 lib: $(OBJECTS)
 	mkdir -p ./lib;

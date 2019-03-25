@@ -6,12 +6,12 @@
 
 *******************************************************************************/
 
-#include "../include/jsmn.h"
-#include "../include/conversion.h"
-#include "../include/prehash.h"
-#include "../include/mining.h"
-#include "../include/reduction.h"
 #include "../include/compaction.h"
+#include "../include/conversion.h"
+#include "../include/mining.h"
+#include "../include/prehash.h"
+#include "../include/request.h"
+#include "../include/reduction.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -20,14 +20,38 @@
 #include <sys/types.h>
 #include <inttypes.h>
 #include <unistd.h>
+#include <curl/curl.h>
 #include <cuda.h>
 #include <curand.h>
-#include <curl/curl.h>
 #include <openssl/bn.h>
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/ec.h>
 #include <openssl/pem.h>
+
+////////////////////////////////////////////////////////////////////////////////
+//  Read secret key
+////////////////////////////////////////////////////////////////////////////////
+int ReadSecKey(
+    char * filename,
+    void * sk
+)
+{
+    FILE * in = fopen(filename, "r");
+
+    int status;
+
+    for (int i = 0; i < NUM_SIZE_64; ++i)
+    {
+        status = fscanf(
+            in, "%"SCNx64"\n", (uint64_t *)sk + NUM_SIZE_64 - i - 1
+        );
+    }
+
+    fclose(in);
+
+    return status;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Generate key pair
@@ -136,79 +160,6 @@ int GenerateKeyPair(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Read secret key
-////////////////////////////////////////////////////////////////////////////////
-int ReadSecKey(
-    char * filename,
-    void * sk
-)
-{
-    FILE * in = fopen(filename, "r");
-
-    int status;
-
-    for (int i = 0; i < NUM_SIZE_64; ++i)
-    {
-        status = fscanf(
-            in, "%"SCNx64"\n", (uint64_t *)sk + NUM_SIZE_64 - i - 1
-        );
-    }
-
-    fclose(in);
-
-    return status;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//  Initialize string for curl http GET
-////////////////////////////////////////////////////////////////////////////////
-void InitString(
-    string * str
-)
-{
-    str->len = 0;
-    str->ptr = (char *)malloc(1);
-
-    if (str->ptr == NULL)
-    {
-        fprintf(stderr, "malloc() failed\n");
-        exit(EXIT_FAILURE);
-    }
-
-    str->ptr[0] = '\0';
-
-    return;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//  Write function for curl http GET
-////////////////////////////////////////////////////////////////////////////////
-size_t WriteFunc(
-    void * ptr,
-    size_t size,
-    size_t nmemb,
-    string * str
-)
-{
-    size_t nlen = str->len + size * nmemb;
-
-    str->ptr = (char *)realloc(str->ptr, nlen + 1);
-
-    if (str->ptr == NULL)
-    {
-        fprintf(stderr, "realloc() failed\n");
-        exit(EXIT_FAILURE);
-    }
-
-    memcpy(str->ptr + str->len, ptr, size * nmemb);
-
-    str->ptr[nlen] = '\0';
-    str->len = nlen;
-
-    return size * nmemb;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 //  Generate consequtive nonces
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void GenerateConseqNonces(
@@ -226,188 +177,6 @@ __global__ void GenerateConseqNonces(
     if (tid < len) arr[tid] = nonce;
 
     return;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//  Curl http GET request
-////////////////////////////////////////////////////////////////////////////////
-int GetLatestBlock(
-    string * block,
-    uint8_t * bound,
-    uint8_t * mes,
-    uint8_t * pk,
-    uint8_t * state
-)
-{
-    CURL * curl;
-    CURLcode res;
-
-    curl = curl_easy_init();
-
-    if (!curl)
-    {
-        return -1;
-    }
-
-    string str;
-    InitString(&str);
-
-    curl_easy_setopt(
-        curl, CURLOPT_URL, "http://188.166.89.71:9052/mining/candidate"
-    );
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &str);
-
-    res = curl_easy_perform(curl);
-
-    if (res != CURLE_OK)
-    {
-        fprintf(
-            stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res)
-        );
-
-        fflush(stdout);
-
-        return 1;
-    }
-    else
-    {
-        ///printf("%s\n", str.ptr);
-
-        fflush(stdout);
-    }
-
-    // change state
-    *state = 1;
-
-    if (!(block->ptr))
-    {
-        block->ptr = str.ptr;
-        block->len = str.len;
-    }
-    else if (strcmp(block->ptr, str.ptr))
-    {
-        jsmn_parser parser;
-        jsmntok_t tokens[7];
-
-        jsmn_init(&parser);
-        jsmn_parse(&parser, str.ptr, str.len, tokens, 7);
-
-        HexStrToBigEndian(
-            str.ptr + tokens[2].start, tokens[2].end - tokens[2].start,
-            (uint8_t *)mes, NUM_SIZE_8
-        );
-
-        char tmp[65];
-
-        DecStrToHexStrOf64(
-            str.ptr + tokens[4].start, tokens[4].end - tokens[4].start, tmp
-        );
-        HexStrToLittleEndian(tmp, 64, bound, NUM_SIZE_8);
-
-        HexStrToBigEndian(
-            str.ptr + tokens[6].start, tokens[6].end - tokens[6].start,
-            pk, PK_SIZE_8
-        );
-    }
-    else
-    {
-        // nothing changed
-        *state = 0;
-    }
-
-    curl_easy_cleanup(curl);
-
-    return 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//  Curl http POST request
-////////////////////////////////////////////////////////////////////////////////
-int PostPuzzleSolution(
-    uint8_t * w,
-    uint8_t * nonce,
-    uint8_t * d
-)
-{
-    uint32_t len;
-    uint32_t pos = 6;
-
-    char sol[256];
-
-    //====================================================================//
-    //  Form message to post
-    //====================================================================//
-    strcpy(sol, "{\"w\":\"");
-
-    BigEndianToHexStr(w, PK_SIZE_8, sol + pos);
-    pos += PK_SIZE_8 << 1;
-
-    strcpy(sol + pos, "\",\"n\":\"");
-    pos += 7;
-
-    BigEndianToHexStr(nonce, NONCE_SIZE_8, sol + pos);
-    pos += NONCE_SIZE_8 << 1;
-
-    strcpy(sol + pos, "\",\"d\":");
-    pos += 6;
-
-    LittleEndianOf256ToDecStr(d, sol + pos, &len);
-    pos += len;
-
-    strcpy(sol + pos, "e0}\0");
-
-    //====================================================================//
-    //  POST request
-    //====================================================================//
-    CURL * curl;
-    CURLcode res;
-
-    curl = curl_easy_init();
-
-    if (!curl)
-    {
-        return -1;
-    }
-
-    string str;
-    InitString(&str);
-
-    curl_slist * headers = NULL;
-    headers = curl_slist_append(headers, "Accept: application/json");
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-
-    curl_easy_setopt(
-        curl, CURLOPT_URL, "http://188.166.89.71:9052/mining/solution"
-    );
-
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, sol);
-
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &str);
-
-    res = curl_easy_perform(curl);
-
-    if (res != CURLE_OK)
-    {
-        fprintf(
-            stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res)
-        );
-
-        fflush(stdout);
-    }
-    else
-    {
-        printf("%s\n", str.ptr);
-
-        fflush(stdout);
-    }
-
-    curl_easy_cleanup(curl);
-    curl_slist_free_all(headers);
-
-    return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -437,6 +206,7 @@ int main(
     uint64_t base = 0;
 
     string block;
+    InitString(&block);
 
     // hash context
     // (212 + 4) bytes
@@ -451,13 +221,31 @@ int main(
     uint8_t res_h[NUM_SIZE_8];
     uint8_t nonce_h[NONCE_SIZE_8];
 
+    char filename[10] = "./seckey";
+
     if (argc == 1)
     {
         printf("Use secret key from './seckey'\n");
         fflush(stdout);
+
+        if (access(filename, F_OK) == -1)
+        {
+            printf("ABORT: File \"./seckey\" not found\n");
+
+            return 1;
+        }
+    }
+    else
+    {
+        if (access(argv[1], F_OK) == -1)
+        {
+            printf("ABORT: File not found\n");
+
+            return 1;
+        }
     }
 
-    ReadSecKey(argv[1], sk_h);
+    ReadSecKey((argc == 1)? filename: argv[1], sk_h);
 
     //====================================================================//
     //  Device memory allocation
@@ -559,6 +347,50 @@ int main(
 
             printf("Prehash finished\n");
             fflush(stdout);
+
+            printf(
+                "m     = 0x%016lX %016lX %016lX %016lX\n",
+                ((uint64_t *)mes_h)[3], ((uint64_t *)mes_h)[2],
+                ((uint64_t *)mes_h)[1], ((uint64_t *)mes_h)[0]
+            );
+
+            printf(
+                "pk    = 0x%02lX %016lX %016lX %016lX %016lX\n",
+                ((uint8_t *)pk_h)[0],
+                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk_h + 1)) + 0),
+                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk_h + 1)) + 1),
+                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk_h + 1)) + 2),
+                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk_h + 1)) + 3)
+            );
+
+            printf(
+                "sk     = 0x%016lX %016lX %016lX %016lX\n",
+                ((uint64_t *)sk_h)[3], ((uint64_t *)sk_h)[2],
+                ((uint64_t *)sk_h)[1], ((uint64_t *)sk_h)[0]
+            );
+
+            printf(
+                "w     = 0x%02lX %016lX %016lX %016lX %016lX\n",
+                ((uint8_t *)w_h)[0],
+                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w_h + 1)) + 0),
+                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w_h + 1)) + 1),
+                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w_h + 1)) + 2),
+                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w_h + 1)) + 3)
+            );
+
+            printf(
+                "x     = 0x%016lX %016lX %016lX %016lX\n",
+                ((uint64_t *)x_h)[3], ((uint64_t *)x_h)[2],
+                ((uint64_t *)x_h)[1], ((uint64_t *)x_h)[0]
+            );
+
+            printf(
+                "b     = 0x%016lX %016lX %016lX %016lX\n",
+                ((uint64_t *)bound_h)[3],
+                ((uint64_t *)bound_h)[2],
+                ((uint64_t *)bound_h)[1],
+                ((uint64_t *)bound_h)[0]
+            );
         }
 
         CUDA_CALL(cudaDeviceSynchronize());
@@ -573,7 +405,7 @@ int main(
         // calculate unfinalized hash of message
         InitMining(&ctx_h, (uint32_t *)mes_h, NUM_SIZE_8);
 
-        // context: host -> device
+        // copy context
         CUDA_CALL(cudaMemcpy(
             (void *)(data_d + PK2_SIZE_32 + 3 * NUM_SIZE_32), (void *)&ctx_h,
             sizeof(blake2b_ctx), cudaMemcpyHostToDevice
@@ -599,8 +431,21 @@ int main(
                 NONCE_SIZE_8, cudaMemcpyDeviceToHost
             ));
 
-            printf("TRY");
-            fflush(stdout);
+            // printf("TRY");
+            // fflush(stdout);
+
+            printf(
+                "nonce = 0x%016lX\n",
+                ((uint64_t *)nonce_h)[0]
+            );
+
+            printf(
+                "d     = 0x%016lX %016lX %016lX %016lX\n",
+                ((uint64_t *)res_h)[3],
+                ((uint64_t *)res_h)[2],
+                ((uint64_t *)res_h)[1],
+                ((uint64_t *)res_h)[0]
+            );
 
             PostPuzzleSolution(w_h, nonce_h, res_h);
 
@@ -615,7 +460,7 @@ int main(
 
         FD_ZERO(&readfds);
         FD_SET(0, &readfds);
-        tmo.tv_sec = 3;
+        tmo.tv_sec = 0.0001;
         tmo.tv_usec = 0;
 
         switch (select(1, &readfds, NULL, NULL, &tmo))
@@ -625,8 +470,6 @@ int main(
                 fflush(stdout);
                 break;
             case 0:
-                printf(".");
-                fflush(stdout);
                 continue;
         }
 
@@ -649,6 +492,15 @@ int main(
     CUDA_CALL(cudaFree(data_d));
     CUDA_CALL(cudaFree(indices_d));
     CUDA_CALL(cudaFree(res_d));
+
+    //====================================================================//
+    //  Free host memory
+    //====================================================================//
+
+    if (block.ptr)
+    {
+        free(block.ptr);
+    }
 
     curl_global_cleanup();
 
