@@ -1,28 +1,36 @@
+## Prerequisites
+
+To compile you need the following
+
+1. CUDA toolkit
+2. libcurl library
+3. openssl library
+
 ## Compile
 
-To compile you need a preinstalled CUDA toolkit of latest version.
-
-1. Clone repository to '*<YOUR_PATH>/autolykos/*'
-2. Change directory to '*<YOUR_PATH>/autolykos/*'
+1. Clone repository to *'<YOUR_PATH>'*
+2. Change directory to *'<YOUR_PATH>/autolykos/secp256k1'*
 3. run 'make'
+
+If the process above completed successfully,
+there will appear an executable
+
+*'<YOUR_PATH>/autolykos/secp256k1/auto.out'*
 
 ---
 
 ## Run
 
-To run a miner you should specify an input file.
+To run a miner you should specify an name *'<YOUR_KEY_FILE>'* of txt file with secret key.
+Input file must contain four 64-bit words of secret key in **hexadecimal Big-Endian** representation.
+You can find a stub input file *'stub.inp'* in *'<YOUR_PATH>/autolykos/secp256k1'* directory.
 
-You can find a stub input '*stub.inp*' in your '*<YOUR_PATH>/autolykos/*' directory.
+To start miner:
 
-1. Change directory to '*<YOUR_PATH>/autolykos/*'
-2. run '*./test.out <YOUR_FILE>*'
+1. Change directory to *'<YOUR_PATH>/autolykos/secp256k1/'*
+2. run *'./auto.out <YOUR_KEY_FILE>'*
 
-Input file must contain numbers specified below in **hexadecimal Big-Endian** representation:
+To exit miner:
 
-1. Four 64bit words of **b** -- puzzle boundary.
-2. Four 64bit words of **m** -- message.
-3. Four 64bit words of **sk** -- user secret key.
-4. One 8bit word and four 64bit words of **pk** -- user public key.
-5. Four 64bit words of **x** -- one time secret key.
-6. One 8bit word and four 64bit words of **w** -- one time public key.
-
+1. Press 'e'
+2. Press 'Enter'
