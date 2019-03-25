@@ -7,6 +7,8 @@
 
 *******************************************************************************/
 
+#include <stdint.h>
+
 // convert string of decimal digits to string of 64 hexadecimal digits
 void DecStrToHexStrOf64(
     const char * in,

@@ -57,18 +57,18 @@
 //  Heuristic prehash CUDA kernel parameters
 ////////////////////////////////////////////////////////////////////////////////
 // number of hashes per thread
-#define H_LEN         1                  
+#define H_LEN         1
 
 // total number of hash loads (threads) per iteration
 #define L_LEN         (0x400000 / H_LEN)           // 2^22
 
-// mining kernel block size 
-#define B_DIM         64              
+// mining kernel block size
+#define B_DIM         64
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Structs
 ////////////////////////////////////////////////////////////////////////////////
-// string for curl http get
+// string for curl http get request
 struct string
 {
     char * ptr;
@@ -93,7 +93,8 @@ struct blake2b_ctx
 ////////////////////////////////////////////////////////////////////////////////
 // initialization vector
 #define B2B_IV(v)                                                              \
-do {                                                                           \
+do                                                                             \
+{                                                                              \
     ((uint64_t *)(v))[0] = 0x6A09E667F3BCC908;                                 \
     ((uint64_t *)(v))[1] = 0xBB67AE8584CAA73B;                                 \
     ((uint64_t *)(v))[2] = 0x3C6EF372FE94F82B;                                 \
@@ -104,15 +105,14 @@ do {                                                                           \
     ((uint64_t *)(v))[7] = 0x5BE0CD19137E2179;                                 \
 }                                                                              \
 while (0)
-#endif // B2B_IV
 
 // cyclic right rotation
 #define ROTR64(x, y) (((x) >> (y)) ^ ((x) << (64 - (y))))
-#endif // ROTR64
 
 // G mixing function
 #define B2B_G(v, a, b, c, d, x, y)                                             \
-do {                                                                           \
+do                                                                             \
+{                                                                              \
     ((uint64_t *)(v))[a] += ((uint64_t *)(v))[b] + x;                          \
     ((uint64_t *)(v))[d]                                                       \
         = ROTR64(((uint64_t *)(v))[d] ^ ((uint64_t *)(v))[a], 32);             \
@@ -127,11 +127,11 @@ do {                                                                           \
         = ROTR64(((uint64_t *)(v))[b] ^ ((uint64_t *)(v))[c], 63);             \
 }                                                                              \
 while (0)
-#endif // B2B_G
 
 // mixing rounds
 #define B2B_MIX(v, m)                                                          \
-do {                                                                           \
+do                                                                             \
+{                                                                              \
     B2B_G(v, 0, 4,  8, 12, ((uint64_t *)(m))[ 0], ((uint64_t *)(m))[ 1]);      \
     B2B_G(v, 1, 5,  9, 13, ((uint64_t *)(m))[ 2], ((uint64_t *)(m))[ 3]);      \
     B2B_G(v, 2, 6, 10, 14, ((uint64_t *)(m))[ 4], ((uint64_t *)(m))[ 5]);      \
@@ -241,11 +241,11 @@ do {                                                                           \
     B2B_G(v, 3, 4,  9, 14, ((uint64_t *)(m))[ 5], ((uint64_t *)(m))[ 3]);      \
 }                                                                              \
 while (0)
-#endif // B2B_MIX
 
 // blake2b initialization
 #define B2B_INIT(ctx, aux)                                                     \
-do {                                                                           \
+do                                                                             \
+{                                                                              \
     ((uint64_t *)(aux))[0] = ((blake2b_ctx *)(ctx))->h[0];                     \
     ((uint64_t *)(aux))[1] = ((blake2b_ctx *)(ctx))->h[1];                     \
     ((uint64_t *)(aux))[2] = ((blake2b_ctx *)(ctx))->h[2];                     \
@@ -261,11 +261,11 @@ do {                                                                           \
     ((uint64_t *)(aux))[13] ^= ((blake2b_ctx *)(ctx))->t[1];                   \
 }                                                                              \
 while (0)
-#endif // B2B_INIT
 
-// blake2b mixing 
+// blake2b mixing
 #define B2B_FINAL(ctx, aux)                                                    \
-do {                                                                           \
+do                                                                             \
+{                                                                              \
     ((uint64_t *)(aux))[16] = ((uint64_t *)(((blake2b_ctx *)(ctx))->b))[ 0];   \
     ((uint64_t *)(aux))[17] = ((uint64_t *)(((blake2b_ctx *)(ctx))->b))[ 1];   \
     ((uint64_t *)(aux))[18] = ((uint64_t *)(((blake2b_ctx *)(ctx))->b))[ 2];   \
@@ -301,13 +301,13 @@ do {                                                                           \
         ^= ((uint64_t *)(aux))[6] ^ ((uint64_t *)(aux))[14];                   \
     ((blake2b_ctx *)(ctx))->h[7]                                               \
         ^= ((uint64_t *)(aux))[7] ^ ((uint64_t *)(aux))[15];                   \
-}                                                                              \ 
+}                                                                              \
 while (0)
-#endif // B2B_FINAL
 
 // blake2b intermediate mixing procedure on host
 #define B2B_H_HOST(ctx, aux)                                                   \
-do {                                                                           \
+do                                                                             \
+{                                                                              \
     ((blake2b_ctx *)(ctx))->t[0] += 128;                                       \
     ((blake2b_ctx *)(ctx))->t[1] += 1 - !(((blake2b_ctx *)(ctx))->t[0] < 128); \
                                                                                \
@@ -317,11 +317,11 @@ do {                                                                           \
     ((blake2b_ctx *)(ctx))->c = 0;                                             \
 }                                                                              \
 while (0)
-#endif // B2B_H_HOST
 
 // blake2b intermediate mixing procedure
 #define B2B_H(ctx, aux)                                                        \
-do {                                                                           \
+do                                                                             \
+{                                                                              \
     asm volatile (                                                             \
         "add.cc.u32 %0, %0, 128;":                                             \
         "+r"(((uint32_t *)((blake2b_ctx *)(ctx))->t)[0])                       \
@@ -345,11 +345,11 @@ do {                                                                           \
     ((blake2b_ctx *)(ctx))->c = 0;                                             \
 }                                                                              \
 while (0)
-#endif // B2B_H
 
 // blake2b last mixing procedure
 #define B2B_H_LAST(ctx, aux)                                                   \
-do {                                                                           \
+do                                                                             \
+{                                                                              \
     asm volatile (                                                             \
         "add.cc.u32 %0, %0, %1;":                                              \
         "+r"(((uint32_t *)((blake2b_ctx *)(ctx))->t)[0]):                      \
@@ -380,7 +380,6 @@ do {                                                                           \
     B2B_FINAL(ctx, aux);                                                       \
 }                                                                              \
 while (0)
-#endif // B2B_H_LAST
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Little-Endian to Big-Endian convertation
@@ -394,10 +393,10 @@ while (0)
     (((uint64_t)((uint8_t *)(p))[5]) << 16) ^                                  \
     (((uint64_t)((uint8_t *)(p))[6]) << 8) ^                                   \
     ((uint64_t)((uint8_t *)(p))[7]))
-#endif // REVERSE_ENDIAN
 
 #define INPLACE_REVERSE_ENDIAN(p)                                              \
-do {                                                                           \
+do                                                                             \
+{                                                                              \
     *((uint64_t *)(p))                                                         \
     = ((((uint64_t)((uint8_t *)(p))[0]) << 56) ^                               \
     (((uint64_t)((uint8_t *)(p))[1]) << 48) ^                                  \
@@ -409,13 +408,13 @@ do {                                                                           \
     ((uint64_t)((uint8_t *)(p))[7]));                                          \
 }                                                                              \
 while (0)
-#endif // INPLACE_REVERSE_ENDIAN
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Wrappers for CUDA & CURAND calls
 ////////////////////////////////////////////////////////////////////////////////
 #define CUDA_CALL(x)                                                           \
-do {                                                                           \
+do                                                                             \
+{                                                                              \
     if ((x) != cudaSuccess)                                                    \
     {                                                                          \
         printf("ERROR at %s: %d\n",__FILE__,__LINE__);                         \
@@ -423,10 +422,10 @@ do {                                                                           \
     }                                                                          \
 }                                                                              \
 while (0)
-#endif // CUDA_CALL
 
 #define CURAND_CALL(x)                                                         \
-do {                                                                           \
+do                                                                             \
+{                                                                              \
     if ((x) != CURAND_STATUS_SUCCESS)                                          \
     {                                                                          \
         printf("ERROR at %s: %d\n",__FILE__,__LINE__);                         \
@@ -434,6 +433,5 @@ do {                                                                           \
     }                                                                          \
 }                                                                              \
 while (0)
-#endif // CURAND_CALL
 
 #endif // DEFINITIONS_H
