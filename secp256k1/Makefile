@@ -25,8 +25,6 @@ CUSOURCES = $(filter-out $(SRCDIR)/test.cu $(SRCDIR)/autolykos.cu, \
 CSOURCES = $(wildcard $(SRCDIR)/*.c)
 OBJECTS = $(CUSOURCES:.cu=.o) $(CSOURCES:.c=.o)
 
-$(info $(OBJECTS))
-
 TESTEXEC = test.out
 AUTOEXEC = auto.out
 

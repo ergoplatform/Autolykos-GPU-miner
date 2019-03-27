@@ -8,10 +8,11 @@
 *******************************************************************************/
 
 #include "definitions.h"
+#include "jsmn.h"
 
-// initialize string for curl http GET
+// initialize string_t for curl http GET
 void InitString(
-    string * str
+    string_t * str
 );
 
 // write function for curl http GET
@@ -19,16 +20,16 @@ size_t WriteFunc(
     void * ptr,
     size_t size,
     size_t nmemb,
-    string * str
+    string_t * str
 );
 
 // curl http GET request
 int GetLatestBlock(
-    string * block,
+    const uint8_t * pk,
+    string_t * oldreq,
+    jsmntok_t * oldtoks,
     uint8_t * bound,
-    uint8_t * mes,
-    uint8_t * pk,
-    uint8_t * state
+    uint8_t * mes
 );
 
 // curl http POST request

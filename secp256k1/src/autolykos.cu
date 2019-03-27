@@ -8,10 +8,13 @@
 
 #include "../include/compaction.h"
 #include "../include/conversion.h"
+#include "../include/cryptography.h"
+#include "../include/definitions.h"
+#include "../include/jsmn.h"
 #include "../include/mining.h"
 #include "../include/prehash.h"
-#include "../include/request.h"
 #include "../include/reduction.h"
+#include "../include/request.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -19,142 +22,34 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <inttypes.h>
+#include <termios.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <curl/curl.h>
 #include <cuda.h>
 #include <curand.h>
-#include <openssl/bn.h>
-#include <openssl/bio.h>
-#include <openssl/err.h>
-#include <openssl/ec.h>
-#include <openssl/pem.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Read secret key
 ////////////////////////////////////////////////////////////////////////////////
 int ReadSecKey(
     char * filename,
-    void * sk
+    char * out
 )
 {
     FILE * in = fopen(filename, "r");
 
-    int status;
-
-    for (int i = 0; i < NUM_SIZE_64; ++i)
+    for (int i = 0; i < NUM_SIZE_4; ++i)
     {
-        status = fscanf(
-            in, "%"SCNx64"\n", (uint64_t *)sk + NUM_SIZE_64 - i - 1
-        );
+        if ((out[i] = fgetc(in)) == EOF)
+        {
+            return 1;
+        }
     }
+
+    out[NUM_SIZE_4] = '\0';
 
     fclose(in);
-
-    return status;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//  Generate key pair
-////////////////////////////////////////////////////////////////////////////////
-int GenerateKeyPair(
-    uint8_t * sk,
-    uint8_t * pk
-)
-{
-    BIO * outbio = NULL;
-    EC_KEY * eck = NULL;
-    EVP_PKEY * evpk = NULL;
-    int eccgrp;
-
-    // initialize openssl
-    OpenSSL_add_all_algorithms();
-    ERR_load_BIO_strings();
-    ERR_load_crypto_strings();
-
-    // create Input/Output BIO's
-    outbio = BIO_new(BIO_s_file());
-    outbio = BIO_new_fp(stdout, BIO_NOCLOSE);
-
-    // create EC key sructure
-    // set group type from NID
-    eccgrp = OBJ_txt2nid("secp256k1");
-    eck = EC_KEY_new_by_curve_name(eccgrp);
-
-    // OPENSSL_EC_NAMED_CURVE flag for cert signing
-    EC_KEY_set_asn1_flag(eck, OPENSSL_EC_NAMED_CURVE);
-
-    // create public/private EC key pair
-    if (!(EC_KEY_generate_key(eck)))
-    {
-        BIO_printf(outbio, "Error generating the ECC key.");
-    }
-
-    // convert EC key into PKEY structure
-    evpk = EVP_PKEY_new();
-    if (!EVP_PKEY_assign_EC_KEY(evpk, eck))
-    {
-        BIO_printf(outbio, "Error assigning ECC key to EVP_PKEY structure.");
-    }
-
-    // Now we show how to extract EC-specifics from the key
-    eck = EVP_PKEY_get1_EC_KEY(evpk);
-
-    const EC_GROUP * ecgrp = EC_KEY_get0_group(eck);
-
-    //====================================================================//
-    //  Public key extraction
-    //====================================================================//
-    const EC_POINT * ecp = EC_KEY_get0_public_key(eck);
-
-    char * str = EC_POINT_point2hex(
-        ecgrp, ecp, POINT_CONVERSION_COMPRESSED, NULL
-    );
-
-    int len = 0;
-
-    if (str)
-    {
-        for ( ; str[len] != '\0'; ++len) {}
-    }
-    else
-    {
-        printf("ERROR\n");
-        fflush(stdout);
-    }
-
-    HexStrToBigEndian(str, len, pk, PK_SIZE_8);
-
-    OPENSSL_free(str);
-    str = NULL;
-
-    //====================================================================//
-    //  Secret key extraction
-    //====================================================================//
-    const BIGNUM * bn = EC_KEY_get0_private_key(eck);
-
-    str = BN_bn2hex(bn);
-    len = 0;
-
-    if (str)
-    {
-        for ( ; str[len] != '\0'; ++len) {}
-    }
-    else
-    {
-        printf("ERROR\n");
-        fflush(stdout);
-    }
-
-    HexStrToLittleEndian(str, len, sk, NUM_SIZE_8);
-
-    OPENSSL_free(str);
-
-    //====================================================================//
-    //  Deallocation
-    //====================================================================//
-    EVP_PKEY_free(evpk);
-    EC_KEY_free(eck);
-    BIO_free_all(outbio);
 
     return 0;
 }
@@ -180,6 +75,121 @@ __global__ void GenerateConseqNonces(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+//  Termination handler
+////////////////////////////////////////////////////////////////////////////////
+int KeyboardHitHandler(
+    void
+)
+{
+    termios oldt;
+    termios newt;
+    int ch;
+    int oldf;
+
+    tcgetattr(STDIN_FILENO, &oldt);
+
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+
+    ch = getchar();
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    fcntl(STDIN_FILENO, F_SETFL, oldf);
+
+    if (ch != EOF)
+    {
+        ungetc(ch, stdin);
+
+        printf("Commencing termination\n");
+        fflush(stdout);
+
+        return 1;
+    }
+
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//  Print Autolukos puzzle state variables
+////////////////////////////////////////////////////////////////////////////////
+int PrintPuzzleState(
+    const uint8_t * mes,
+    const uint8_t * pk,
+    const uint8_t * sk,
+    const uint8_t * w,
+    const uint8_t * x,
+    const uint8_t * bound
+)
+{
+    printf(
+        "m     =    0x%016lX %016lX %016lX %016lX\n",
+        ((uint64_t *)mes)[3], ((uint64_t *)mes)[2],
+        ((uint64_t *)mes)[1], ((uint64_t *)mes)[0]
+    );
+
+    printf(
+        "pk    = 0x%02lX %016lX %016lX %016lX %016lX\n",
+        ((uint8_t *)pk)[0],
+        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk + 1)) + 0),
+        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk + 1)) + 1),
+        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk + 1)) + 2),
+        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk + 1)) + 3)
+    );
+
+    ///printf(
+    ///    "sk    =    0x%016lX %016lX %016lX %016lX\n",
+    ///    ((uint64_t *)sk)[3], ((uint64_t *)sk)[2],
+    ///    ((uint64_t *)sk)[1], ((uint64_t *)sk)[0]
+    ///);
+
+    printf(
+        "w     = 0x%02lX %016lX %016lX %016lX %016lX\n",
+        ((uint8_t *)w)[0],
+        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 0),
+        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 1),
+        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 2),
+        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 3)
+    );
+
+    ///printf(
+    ///    "x     =    0x%016lX %016lX %016lX %016lX\n",
+    ///    ((uint64_t *)x)[3], ((uint64_t *)x)[2],
+    ///    ((uint64_t *)x)[1], ((uint64_t *)x)[0]
+    ///);
+
+    printf(
+        "b     =    0x%016lX %016lX %016lX %016lX\n",
+        ((uint64_t *)bound)[3], ((uint64_t *)bound)[2],
+        ((uint64_t *)bound)[1], ((uint64_t *)bound)[0]
+    );
+
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//  Print Autolukos puzzle solution
+////////////////////////////////////////////////////////////////////////////////
+int PrintPuzzleSolution(
+    const uint8_t * nonce,
+    const uint8_t * sol
+)
+{
+    printf("nonce =    0x%016lX\n", REVERSE_ENDIAN((uint64_t *)nonce));
+
+    printf(
+        "d     =    0x%016lX %016lX %016lX %016lX\n",
+        ((uint64_t *)sol)[3], ((uint64_t *)sol)[2],
+        ((uint64_t *)sol)[1], ((uint64_t *)sol)[0]
+    );
+
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 //  Main cycle
 ////////////////////////////////////////////////////////////////////////////////
 int main(
@@ -199,19 +209,35 @@ int main(
     curl_global_init(CURL_GLOBAL_ALL);
 
     //====================================================================//
+    //  Random generator initialization
+    //====================================================================//
+    /// original /// curandGenerator_t gen;
+    /// original /// CURAND_CALL(curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_MTGP32));
+    /// original ///
+    /// original /// time_t rawtime;
+    /// original /// // get current time (ms)
+    /// original /// time(&rawtime);
+
+    /// original /// // set seed
+    /// original /// CURAND_CALL(curandSetPseudoRandomGeneratorSeed(gen, (uint64_t)rawtime));
+
+    //====================================================================//
     //  Host memory allocation
     //====================================================================//
-    uint8_t state = 1;
+    state_t state = STATE_KEYGEN;
     uint32_t ind = 0;
     uint64_t base = 0;
 
-    string block;
-    InitString(&block);
+    // curl http request variables
+    string_t request;
+    jsmntok_t tokens[7];
+    InitString(&request);
 
     // hash context
     // (212 + 4) bytes
     blake2b_ctx ctx_h;
 
+    // autolykos variables
     uint8_t bound_h[NUM_SIZE_8];
     uint8_t mes_h[NUM_SIZE_8];
     uint8_t sk_h[NUM_SIZE_8];
@@ -221,11 +247,16 @@ int main(
     uint8_t res_h[NUM_SIZE_8];
     uint8_t nonce_h[NONCE_SIZE_8];
 
+    // cryptography variables
     char filename[10] = "./seckey";
+    char keystr[65];
 
+    //====================================================================//
+    //  Secret key reading and checking
+    //====================================================================//
     if (argc == 1)
     {
-        printf("Use secret key from './seckey'\n");
+        printf("Using secret key from './seckey'\n");
         fflush(stdout);
 
         if (access(filename, F_OK) == -1)
@@ -245,7 +276,17 @@ int main(
         }
     }
 
-    ReadSecKey((argc == 1)? filename: argv[1], sk_h);
+    // read secret key hex string from file
+    if (ReadSecKey((argc == 1)? filename: argv[1], keystr) == 1)
+    {
+        printf("ABORT: Incompatible secret key format\n");
+    }
+
+    // convert secret key to little endian
+    HexStrToLittleEndian(keystr, NUM_SIZE_4, sk_h, NUM_SIZE_8);
+
+    // generate public key from secret key
+    GeneratePublicKey(keystr, pk_h);
 
     //====================================================================//
     //  Device memory allocation
@@ -279,38 +320,41 @@ int main(
     uint32_t * res_d;
     CUDA_CALL(cudaMalloc((void **)&res_d, H_LEN * L_LEN * NUM_SIZE_8));
 
-    //====================================================================//
-    //  Random generator initialization
-    //====================================================================//
-    /// original /// curandGenerator_t gen;
-    /// original /// CURAND_CALL(curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_MTGP32));
-    /// original ///
-    /// original /// time_t rawtime;
-    /// original /// // get current time (ms)
-    /// original /// time(&rawtime);
+    // copy public key
+    CUDA_CALL(cudaMemcpy(
+        (void *)data_d, (void *)pk_h, PK_SIZE_8, cudaMemcpyHostToDevice
+    ));
 
-    /// original /// // set seed
-    /// original /// CURAND_CALL(curandSetPseudoRandomGeneratorSeed(gen, (uint64_t)rawtime));
+    // copy secret key
+    CUDA_CALL(cudaMemcpy(
+        (void *)(data_d + PK2_SIZE_32 + 2 * NUM_SIZE_32), (void *)sk_h,
+        NUM_SIZE_8, cudaMemcpyHostToDevice
+    ));
 
     //====================================================================//
     //  Autolykos puzzle cycle
     //====================================================================//
-    while (1)
+    do
     {
-        GetLatestBlock(&block, bound_h, mes_h, pk_h, &state);
+        if (GetLatestBlock(pk_h, &request, tokens, bound_h, mes_h))
+        {
+            printf("ABORT: Your secret key is not valid\n");
+
+            return 1;
+        }
 
         // state is changed
-        if (state)
+        if (state != STATE_CONTINUE)
         {
+            // generate one-time key pair
+            GenerateKeyPair(x_h, w_h);
+
+            state = STATE_REHASH;
+
             // copy boundary
             CUDA_CALL(cudaMemcpy(
                 (void *)bound_d, (void *)bound_h, NUM_SIZE_8,
                 cudaMemcpyHostToDevice
-            ));
-
-            // copy public key
-            CUDA_CALL(cudaMemcpy(
-                (void *)data_d, (void *)pk_h, PK_SIZE_8, cudaMemcpyHostToDevice
             ));
 
             // copy message
@@ -318,15 +362,6 @@ int main(
                 (void *)((uint8_t *)data_d + PK_SIZE_8), (void *)mes_h,
                 NUM_SIZE_8, cudaMemcpyHostToDevice
             ));
-
-            // copy secret key
-            CUDA_CALL(cudaMemcpy(
-                (void *)(data_d + PK2_SIZE_32 + 2 * NUM_SIZE_32), (void *)sk_h,
-                NUM_SIZE_8, cudaMemcpyHostToDevice
-            ));
-
-            // generate one-time key pair
-            GenerateKeyPair(x_h, w_h);
 
             // copy one time secret key
             CUDA_CALL(cudaMemcpy(
@@ -341,56 +376,17 @@ int main(
             ));
 
             // precalculate hashes
-            Prehash(data_d, hash_d, indices_d);
+            if (state == STATE_REHASH)
+            {
+                Prehash(data_d, hash_d, indices_d);
+            }
 
-            state = 0;
+            state = STATE_CONTINUE;
 
-            printf("Prehash finished\n");
-            fflush(stdout);
+            ///printf("Prehash finished\n");
+            ///fflush(stdout);
 
-            printf(
-                "m     = 0x%016lX %016lX %016lX %016lX\n",
-                ((uint64_t *)mes_h)[3], ((uint64_t *)mes_h)[2],
-                ((uint64_t *)mes_h)[1], ((uint64_t *)mes_h)[0]
-            );
-
-            printf(
-                "pk    = 0x%02lX %016lX %016lX %016lX %016lX\n",
-                ((uint8_t *)pk_h)[0],
-                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk_h + 1)) + 0),
-                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk_h + 1)) + 1),
-                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk_h + 1)) + 2),
-                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk_h + 1)) + 3)
-            );
-
-            printf(
-                "sk     = 0x%016lX %016lX %016lX %016lX\n",
-                ((uint64_t *)sk_h)[3], ((uint64_t *)sk_h)[2],
-                ((uint64_t *)sk_h)[1], ((uint64_t *)sk_h)[0]
-            );
-
-            printf(
-                "w     = 0x%02lX %016lX %016lX %016lX %016lX\n",
-                ((uint8_t *)w_h)[0],
-                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w_h + 1)) + 0),
-                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w_h + 1)) + 1),
-                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w_h + 1)) + 2),
-                REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w_h + 1)) + 3)
-            );
-
-            printf(
-                "x     = 0x%016lX %016lX %016lX %016lX\n",
-                ((uint64_t *)x_h)[3], ((uint64_t *)x_h)[2],
-                ((uint64_t *)x_h)[1], ((uint64_t *)x_h)[0]
-            );
-
-            printf(
-                "b     = 0x%016lX %016lX %016lX %016lX\n",
-                ((uint64_t *)bound_h)[3],
-                ((uint64_t *)bound_h)[2],
-                ((uint64_t *)bound_h)[1],
-                ((uint64_t *)bound_h)[0]
-            );
+            PrintPuzzleState(mes_h, pk_h, sk_h, w_h, x_h, bound_h);
         }
 
         CUDA_CALL(cudaDeviceSynchronize());
@@ -431,56 +427,15 @@ int main(
                 NONCE_SIZE_8, cudaMemcpyDeviceToHost
             ));
 
-            // printf("TRY");
-            // fflush(stdout);
-
-            printf(
-                "nonce = 0x%016lX\n",
-                ((uint64_t *)nonce_h)[0]
-            );
-
-            printf(
-                "d     = 0x%016lX %016lX %016lX %016lX\n",
-                ((uint64_t *)res_h)[3],
-                ((uint64_t *)res_h)[2],
-                ((uint64_t *)res_h)[1],
-                ((uint64_t *)res_h)[0]
-            );
-
+            PrintPuzzleSolution(nonce_h, res_h);
             PostPuzzleSolution(w_h, nonce_h, res_h);
 
-            state = 1;
-        }
-
-        struct timeval tmo;
-        fd_set readfds;
-
-        //printf(".");
-        //fflush(stdout);
-
-        FD_ZERO(&readfds);
-        FD_SET(0, &readfds);
-        tmo.tv_sec = 0.0001;
-        tmo.tv_usec = 0;
-
-        switch (select(1, &readfds, NULL, NULL, &tmo))
-        {
-            case -1:
-                printf("Commencing termination\n");
-                fflush(stdout);
-                break;
-            case 0:
-                continue;
-        }
-
-        if (getchar() == 'e') {
-            printf("Commencing termination\n");
-            fflush(stdout);
-            break;
+            state = STATE_KEYGEN;
         }
     }
+    while(!KeyboardHitHandler());
 
-    cudaDeviceSynchronize();
+    CUDA_CALL(cudaDeviceSynchronize());
 
     //====================================================================//
     //  Free device memory
@@ -496,10 +451,9 @@ int main(
     //====================================================================//
     //  Free host memory
     //====================================================================//
-
-    if (block.ptr)
+    if (request.ptr)
     {
-        free(block.ptr);
+        free(request.ptr);
     }
 
     curl_global_cleanup();

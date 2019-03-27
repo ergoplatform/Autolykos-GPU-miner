@@ -16,15 +16,18 @@
 ////////////////////////////////////////////////////////////////////////////////
 // secret keys and hashes size
 #define NUM_SIZE_8    32
-#define NUM_SIZE_32   (NUM_SIZE_8 >> 2)
-#define NUM_SIZE_64   (NUM_SIZE_8 >> 3)
+#define NUM_SIZE_4    ((NUM_SIZE_8) << 1)
+#define NUM_SIZE_32   ((NUM_SIZE_8) >> 2)
+#define NUM_SIZE_64   ((NUM_SIZE_8) >> 3)
 
 // public keys size
 #define PK_SIZE_8     33
+#define PK_SIZE_4     ((PK_SIZE_8) << 1)
 #define PK2_SIZE_32   ((2 * (PK_SIZE_8) + 3) >> 2)
 
 // nonce size
 #define NONCE_SIZE_8  8
+#define NONCE_SIZE_4  ((NONCE_SIZE_8) << 1)
 #define NONCE_SIZE_32 (NONCE_SIZE_8 >> 2)
 
 // number of indices
@@ -68,8 +71,16 @@
 ////////////////////////////////////////////////////////////////////////////////
 //  Structs
 ////////////////////////////////////////////////////////////////////////////////
-// string for curl http get request
-struct string
+// autolukos puzzle state
+typedef enum
+{
+    STATE_CONTINUE = 0,
+    STATE_REHASH = 1,
+    STATE_KEYGEN = 2
+} state_t;
+
+// string_t for curl http get request
+struct string_t
 {
     char * ptr;
     size_t len;

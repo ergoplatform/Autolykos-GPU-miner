@@ -19,15 +19,15 @@
 //  Initialize string for curl http GET
 ////////////////////////////////////////////////////////////////////////////////
 void InitString(
-    string * str
+    string_t * str
 )
 {
     str->len = 0;
     str->ptr = (char *)malloc(1);
 
-    if (str->ptr == NULL)
+    if (!(str->ptr))
     {
-        fprintf(stderr, "malloc() failed\n");
+        fprintf(stderr, "ERROR: malloc() failed\n");
         exit(EXIT_FAILURE);
     }
 
@@ -43,16 +43,16 @@ size_t WriteFunc(
     void * ptr,
     size_t size,
     size_t nmemb,
-    string * str
+    string_t * str
 )
 {
     size_t nlen = str->len + size * nmemb;
 
     str->ptr = (char *)realloc(str->ptr, nlen + 1);
 
-    if (str->ptr == NULL)
+    if (!(str->ptr))
     {
-        fprintf(stderr, "realloc() failed\n");
+        fprintf(stderr, "ERROR: realloc() failed\n");
         exit(EXIT_FAILURE);
     }
 
@@ -68,86 +68,114 @@ size_t WriteFunc(
 //  Curl http GET request
 ////////////////////////////////////////////////////////////////////////////////
 int GetLatestBlock(
-    string * block,
+    const uint8_t * pk,
+    string_t * oldreq,
+    jsmntok_t * oldtoks,
     uint8_t * bound,
-    uint8_t * mes,
-    uint8_t * pk,
-    uint8_t * state
+    uint8_t * mes
 )
 {
     CURL * curl;
     CURLcode res;
 
-    curl = curl_easy_init();
+    string_t newreq;
+    jsmntok_t newtoks[7];
+    jsmn_parser parser;
 
-    if (!curl)
+    uint8_t key[PK_SIZE_8];
+
+    do 
     {
-        return -1;
-    }
+        curl = curl_easy_init();
 
-    string str;
-    InitString(&str);
+        if (!curl)
+        {
+            return -1;
+        }
 
-    curl_easy_setopt(
-        curl, CURLOPT_URL, "http://188.166.89.71:9052/mining/candidate"
-    );
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &str);
+        InitString(&newreq);
 
-    res = curl_easy_perform(curl);
-
-    if (res != CURLE_OK)
-    {
-        fprintf(
-            stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res)
+        curl_easy_setopt(
+            curl, CURLOPT_URL, "http://188.166.89.71:9052/mining/candidate"
         );
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq);
 
-        fflush(stdout);
+        res = curl_easy_perform(curl);
 
-        return 1;
-    }
-    else
-    {
-        ///printf("%s\n", str.ptr);
+        if (res != CURLE_OK)
+        {
+            fprintf(
+                stderr, "ERROR: curl_easy_perform() failed: %s\n",
+                curl_easy_strerror(res)
+            );
 
-        fflush(stdout);
-    }
+            fflush(stdout);
 
-    if (strcmp(block->ptr, str.ptr))
-    {
-        jsmn_parser parser;
-        jsmntok_t tokens[7];
+            return 1;
+        }
+        else
+        {
+            ///printf("%s\n", newreq.ptr);
+
+            fflush(stdout);
+        }
+
+        curl_easy_cleanup(curl);
 
         jsmn_init(&parser);
-        jsmn_parse(&parser, str.ptr, str.len, tokens, 7);
+        jsmn_parse(&parser, newreq.ptr, newreq.len, newtoks, 7);
 
         HexStrToBigEndian(
-            str.ptr + tokens[2].start, tokens[2].end - tokens[2].start,
-            (uint8_t *)mes, NUM_SIZE_8
+            newreq.ptr + newtoks[6].start, newtoks[6].end - newtoks[6].start,
+            key, PK_SIZE_8
         );
 
-        char tmp[65];
+        for (int i = 0; i < PK_SIZE_8; ++i)
+        {
+            if (key[i] != pk[i])
+            {
+                free(newreq.ptr);
+
+                return 1;
+            }
+        }
+    }
+    while(oldreq->len && !strncmp(
+        oldreq->ptr + oldtoks[2].start, newreq.ptr + newtoks[2].start,
+        newtoks[2].end - newtoks[2].start
+    ));
+
+    free(oldreq->ptr);
+    oldreq->ptr = newreq.ptr;
+    oldreq->len = newreq.len;
+
+    HexStrToBigEndian(
+        newreq.ptr + newtoks[2].start, newtoks[2].end - newtoks[2].start,
+        (uint8_t *)mes, NUM_SIZE_8
+    );
+
+    int len = newtoks[4].end - newtoks[4].start;
+
+    if (
+        !(oldreq->len)
+        || len != oldtoks[4].end - oldtoks[4].start
+        || strncmp(
+            oldreq->ptr + oldtoks[4].start, newreq.ptr + newtoks[4].start, len
+        )
+    )
+    {
+        char tmp[NUM_SIZE_4 + 1];
 
         DecStrToHexStrOf64(
-            str.ptr + tokens[4].start, tokens[4].end - tokens[4].start, tmp
-        );
-        HexStrToLittleEndian(tmp, 64, bound, NUM_SIZE_8);
-
-        HexStrToBigEndian(
-            str.ptr + tokens[6].start, tokens[6].end - tokens[6].start,
-            pk, PK_SIZE_8
+            newreq.ptr + newtoks[4].start, newtoks[4].end - newtoks[4].start,
+            tmp
         );
 
-        // change state
-        *state = 1;
-    }
-    else
-    {
-        // nothing changed
-        *state = 0;
+        HexStrToLittleEndian(tmp, NUM_SIZE_4, bound, NUM_SIZE_8);
     }
 
-    curl_easy_cleanup(curl);
+    memcpy(oldtoks, newtoks, 7 * sizeof(jsmntok_t));
 
     return 0;
 }
@@ -172,13 +200,13 @@ int PostPuzzleSolution(
     strcpy(sol, "{\"w\":\"");
 
     BigEndianToHexStr(w, PK_SIZE_8, sol + pos);
-    pos += PK_SIZE_8 << 1;
+    pos += PK_SIZE_4;
 
     strcpy(sol + pos, "\",\"n\":\"");
     pos += 7;
 
     BigEndianToHexStr(nonce, NONCE_SIZE_8, sol + pos);
-    pos += NONCE_SIZE_8 << 1;
+    pos += NONCE_SIZE_4;
 
     strcpy(sol + pos, "\",\"d\":");
     pos += 6;
@@ -201,7 +229,7 @@ int PostPuzzleSolution(
         return -1;
     }
 
-    string str;
+    string_t str;
     InitString(&str);
 
     curl_slist * headers = NULL;
@@ -223,14 +251,15 @@ int PostPuzzleSolution(
     if (res != CURLE_OK)
     {
         fprintf(
-            stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res)
+            stderr, "ERROR: curl_easy_perform() failed: %s\n",
+            curl_easy_strerror(res)
         );
 
         fflush(stdout);
     }
     else
     {
-        printf("%s\n", str.ptr);
+        printf("Solution posted successfully\n");
 
         fflush(stdout);
     }
