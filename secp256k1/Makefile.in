@@ -5,13 +5,5 @@ ifeq ($(CPU),linux-nv)
     AR = ar
     COPT = -O3
     LIBNAME = lib.a
-    LIBS = -L/usr/local/lib -lcurl -I/usr/local/include -lcurand -lssl -lcrypto
-endif
-
-ifeq ($(CPU),linux-nv-plain)
-    CXX = nvcc
-    AR = ar
-    COPT = -O3
-    LIBNAME = lib.a
     LIBS = -L/usr/local/lib -lcurl -I/usr/local/include -lssl -lcrypto
 endif

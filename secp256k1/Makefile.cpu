@@ -1,2 +1,1 @@
-CPU=linux-nv-plain
-#CPU=linux-nv
+CPU=linux-nv

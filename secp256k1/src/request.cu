@@ -8,7 +8,9 @@
 
 #include "../include/request.h"
 #include "../include/conversion.h"
+#include "../include/definitions.h"
 #include "../include/jsmn.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -65,117 +67,123 @@ size_t WriteFunc(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+//  Lowercase letters convert to uppercase
+////////////////////////////////////////////////////////////////////////////////
+int ToUppercase(
+    char * str
+)
+{
+    for (int i = 0; str[i] != '\0'; ++i)
+    {
+        str[i] = toupper(str[i]);
+    }
+
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 //  Curl http GET request
 ////////////////////////////////////////////////////////////////////////////////
 int GetLatestBlock(
-    const uint8_t * pk,
+    const char * pkstr,
     string_t * oldreq,
     jsmntok_t * oldtoks,
     uint8_t * bound,
-    uint8_t * mes
+    uint8_t * mes,
+    state_t * state
 )
 {
     CURL * curl;
-    CURLcode res;
 
     string_t newreq;
-    jsmntok_t newtoks[7];
+    jsmntok_t newtoks[T_LEN];
     jsmn_parser parser;
 
-    uint8_t key[PK_SIZE_8];
+    int changed = 0;
 
     do 
     {
-        curl = curl_easy_init();
-
-        if (!curl)
-        {
-            return -1;
-        }
+        FUNCTION_CALL(curl, curl_easy_init(), ERROR_CURL);
 
         InitString(&newreq);
 
         curl_easy_setopt(
             curl, CURLOPT_URL, "http://188.166.89.71:9052/mining/candidate"
         );
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq);
 
-        res = curl_easy_perform(curl);
+        CALL_STATUS(
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc),
+            ERROR_CURL, CURLE_OK
+        );
 
-        if (res != CURLE_OK)
-        {
-            fprintf(
-                stderr, "ERROR: curl_easy_perform() failed: %s\n",
-                curl_easy_strerror(res)
-            );
+        CALL_STATUS(
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq),
+            ERROR_CURL, CURLE_OK
+        );
 
-            fflush(stdout);
+        CALL_STATUS(curl_easy_perform(curl), ERROR_CURL, CURLE_OK);
 
-            return 1;
-        }
-        else
-        {
-            ///printf("%s\n", newreq.ptr);
-
-            fflush(stdout);
-        }
+        ToUppercase(newreq.ptr);
 
         curl_easy_cleanup(curl);
 
         jsmn_init(&parser);
-        jsmn_parse(&parser, newreq.ptr, newreq.len, newtoks, 7);
+        jsmn_parse(&parser, newreq.ptr, newreq.len, newtoks, T_LEN);
 
-        HexStrToBigEndian(
-            newreq.ptr + newtoks[6].start, newtoks[6].end - newtoks[6].start,
-            key, PK_SIZE_8
-        );
-
-        for (int i = 0; i < PK_SIZE_8; ++i)
+        if (strncmp(pkstr, newreq.ptr + newtoks[PK_POS].start, PK_SIZE_4))
         {
-            if (key[i] != pk[i])
-            {
-                free(newreq.ptr);
+            free(newreq.ptr);
 
-                return 1;
-            }
+            return 1;
         }
     }
-    while(oldreq->len && !strncmp(
-        oldreq->ptr + oldtoks[2].start, newreq.ptr + newtoks[2].start,
-        newtoks[2].end - newtoks[2].start
-    ));
+    while(
+        oldreq->len
+        && !(changed = strncmp(
+            oldreq->ptr + oldtoks[MES_POS].start,
+            newreq.ptr + newtoks[MES_POS].start,
+            newtoks[MES_POS].end - newtoks[MES_POS].start
+        ))
+        && *state != STATE_CONTINUE
+    );
+
+    if (!(oldreq->len) || changed)
+    {
+        HexStrToBigEndian(
+            newreq.ptr + newtoks[MES_POS].start,
+            newtoks[MES_POS].end - newtoks[MES_POS].start,
+            (uint8_t *)mes, NUM_SIZE_8
+        );
+
+        *state = STATE_REHASH;
+    }
+
+    int len = newtoks[BOUND_POS].end - newtoks[BOUND_POS].start;
+
+    if (
+        !(oldreq->len)
+        || len != oldtoks[BOUND_POS].end - oldtoks[BOUND_POS].start
+        || strncmp(
+            oldreq->ptr + oldtoks[BOUND_POS].start,
+            newreq.ptr + newtoks[BOUND_POS].start, len
+        )
+    )
+    {
+        char buf[NUM_SIZE_4 + 1];
+
+        DecStrToHexStrOf64(
+            newreq.ptr + newtoks[BOUND_POS].start,
+            newtoks[BOUND_POS].end - newtoks[BOUND_POS].start,
+            buf
+        );
+
+        HexStrToLittleEndian(buf, NUM_SIZE_4, bound, NUM_SIZE_8);
+    }
 
     free(oldreq->ptr);
     oldreq->ptr = newreq.ptr;
     oldreq->len = newreq.len;
-
-    HexStrToBigEndian(
-        newreq.ptr + newtoks[2].start, newtoks[2].end - newtoks[2].start,
-        (uint8_t *)mes, NUM_SIZE_8
-    );
-
-    int len = newtoks[4].end - newtoks[4].start;
-
-    if (
-        !(oldreq->len)
-        || len != oldtoks[4].end - oldtoks[4].start
-        || strncmp(
-            oldreq->ptr + oldtoks[4].start, newreq.ptr + newtoks[4].start, len
-        )
-    )
-    {
-        char tmp[NUM_SIZE_4 + 1];
-
-        DecStrToHexStrOf64(
-            newreq.ptr + newtoks[4].start, newtoks[4].end - newtoks[4].start,
-            tmp
-        );
-
-        HexStrToLittleEndian(tmp, NUM_SIZE_4, bound, NUM_SIZE_8);
-    }
-
-    memcpy(oldtoks, newtoks, 7 * sizeof(jsmntok_t));
+    memcpy(oldtoks, newtoks, T_LEN * sizeof(jsmntok_t));
 
     return 0;
 }
@@ -184,85 +192,91 @@ int GetLatestBlock(
 //  Curl http POST request
 ////////////////////////////////////////////////////////////////////////////////
 int PostPuzzleSolution(
-    uint8_t * w,
-    uint8_t * nonce,
-    uint8_t * d
+    const uint8_t * w,
+    const uint8_t * nonce,
+    const uint8_t * d
 )
 {
     uint32_t len;
     uint32_t pos = 6;
 
-    char sol[256];
+    char request[256];
 
     //====================================================================//
     //  Form message to post
     //====================================================================//
-    strcpy(sol, "{\"w\":\"");
+    strcpy(request, "{\"w\":\"");
 
-    BigEndianToHexStr(w, PK_SIZE_8, sol + pos);
+    BigEndianToHexStr(w, PK_SIZE_8, request + pos);
     pos += PK_SIZE_4;
 
-    strcpy(sol + pos, "\",\"n\":\"");
+    strcpy(request + pos, "\",\"n\":\"");
     pos += 7;
 
-    BigEndianToHexStr(nonce, NONCE_SIZE_8, sol + pos);
+    BigEndianToHexStr(nonce, NONCE_SIZE_8, request + pos);
     pos += NONCE_SIZE_4;
 
-    strcpy(sol + pos, "\",\"d\":");
+    strcpy(request + pos, "\",\"d\":");
     pos += 6;
 
-    LittleEndianOf256ToDecStr(d, sol + pos, &len);
+    LittleEndianOf256ToDecStr(d, request + pos, &len);
     pos += len;
 
-    strcpy(sol + pos, "e0}\0");
+    strcpy(request + pos, "e0}\0");
 
     //====================================================================//
     //  POST request
     //====================================================================//
     CURL * curl;
-    CURLcode res;
 
-    curl = curl_easy_init();
+    FUNCTION_CALL(curl, curl_easy_init(), ERROR_CURL);
 
-    if (!curl)
-    {
-        return -1;
-    }
-
-    string_t str;
-    InitString(&str);
+    string_t respond;
+    InitString(&respond);
 
     curl_slist * headers = NULL;
-    headers = curl_slist_append(headers, "Accept: application/json");
-    headers = curl_slist_append(headers, "Content-Type: application/json");
+    curl_slist * tmp;
 
-    curl_easy_setopt(
-        curl, CURLOPT_URL, "http://188.166.89.71:9052/mining/solution"
+    FUNCTION_CALL(
+        tmp, curl_slist_append(headers, "Accept: application/json"), ERROR_CURL
     );
 
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, sol);
+    FUNCTION_CALL(
+        headers, curl_slist_append(tmp, "Content-Type: application/json"),
+        ERROR_CURL
+    );
 
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &str);
+    CALL_STATUS(
+        curl_easy_setopt(
+            curl, CURLOPT_URL, "http://188.166.89.71:9052/mining/solution"
+        ),
+        ERROR_CURL, CURLE_OK
+    );
 
-    res = curl_easy_perform(curl);
+    CALL_STATUS(
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers), ERROR_CURL,
+        CURLE_OK
+    );
 
-    if (res != CURLE_OK)
-    {
-        fprintf(
-            stderr, "ERROR: curl_easy_perform() failed: %s\n",
-            curl_easy_strerror(res)
-        );
+    CALL_STATUS(
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request), ERROR_CURL,
+        CURLE_OK
+    );
 
-        fflush(stdout);
-    }
-    else
-    {
-        printf("Solution posted successfully\n");
+    CALL_STATUS(
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc), ERROR_CURL,
+        CURLE_OK
+    );
 
-        fflush(stdout);
-    }
+    CALL_STATUS(
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &respond), ERROR_CURL,
+        CURLE_OK
+    );
+
+    CALL_STATUS(curl_easy_perform(curl), ERROR_CURL, CURLE_OK);
+
+    printf("Solution posted successfully\n");
+    fflush(stdout);
 
     curl_easy_cleanup(curl);
     curl_slist_free_all(headers);

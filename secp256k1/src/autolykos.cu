@@ -27,7 +27,6 @@
 #include <fcntl.h>
 #include <curl/curl.h>
 #include <cuda.h>
-#include <curand.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Read secret key
@@ -127,8 +126,10 @@ int PrintPuzzleState(
 {
     printf(
         "m     =    0x%016lX %016lX %016lX %016lX\n",
-        ((uint64_t *)mes)[3], ((uint64_t *)mes)[2],
-        ((uint64_t *)mes)[1], ((uint64_t *)mes)[0]
+        REVERSE_ENDIAN((uint64_t *)mes + 0),
+        REVERSE_ENDIAN((uint64_t *)mes + 1),
+        REVERSE_ENDIAN((uint64_t *)mes + 2),
+        REVERSE_ENDIAN((uint64_t *)mes + 3)
     );
 
     printf(
@@ -197,7 +198,7 @@ int main(
 )
 {
     int deviceCount;
-    cudaGetDeviceCount(&deviceCount);
+    CUDA_CALL(cudaGetDeviceCount(&deviceCount));
 
     if (!deviceCount)
     {
@@ -206,31 +207,14 @@ int main(
         return 1;
     }
 
-    curl_global_init(CURL_GLOBAL_ALL);
-
-    //====================================================================//
-    //  Random generator initialization
-    //====================================================================//
-    /// original /// curandGenerator_t gen;
-    /// original /// CURAND_CALL(curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_MTGP32));
-    /// original ///
-    /// original /// time_t rawtime;
-    /// original /// // get current time (ms)
-    /// original /// time(&rawtime);
-
-    /// original /// // set seed
-    /// original /// CURAND_CALL(curandSetPseudoRandomGeneratorSeed(gen, (uint64_t)rawtime));
+    CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), ERROR_CURL, CURLE_OK);
 
     //====================================================================//
     //  Host memory allocation
     //====================================================================//
-    state_t state = STATE_KEYGEN;
-    uint32_t ind = 0;
-    uint64_t base = 0;
-
     // curl http request variables
     string_t request;
-    jsmntok_t tokens[7];
+    jsmntok_t tokens[T_LEN];
     InitString(&request);
 
     // hash context
@@ -249,7 +233,8 @@ int main(
 
     // cryptography variables
     char filename[10] = "./seckey";
-    char keystr[65];
+    char skstr[NUM_SIZE_4 + 1];
+    char pkstr[PK_SIZE_4 + 1];
 
     //====================================================================//
     //  Secret key reading and checking
@@ -277,21 +262,22 @@ int main(
     }
 
     // read secret key hex string from file
-    if (ReadSecKey((argc == 1)? filename: argv[1], keystr) == 1)
+    if (ReadSecKey((argc == 1)? filename: argv[1], skstr) == 1)
     {
         printf("ABORT: Incompatible secret key format\n");
     }
 
     // convert secret key to little endian
-    HexStrToLittleEndian(keystr, NUM_SIZE_4, sk_h, NUM_SIZE_8);
+    HexStrToLittleEndian(skstr, NUM_SIZE_4, sk_h, NUM_SIZE_8);
 
     // generate public key from secret key
-    GeneratePublicKey(keystr, pk_h);
+    GeneratePublicKey(skstr, pkstr, pk_h);
 
     //====================================================================//
     //  Device memory allocation
     //====================================================================//
     // boundary for puzzle
+    // ~0 MB
     uint32_t * bound_d;
     CUDA_CALL(cudaMalloc((void **)&bound_d, NUM_SIZE_8));
 
@@ -311,15 +297,18 @@ int main(
     CUDA_CALL(cudaMalloc((void **)&hash_d, (uint32_t)N_LEN * NUM_SIZE_8));
 
     // indices of unfinalized hashes
-    // (H_LEN * N_LEN * 8 + 4) bytes // ~512 MB
+    // (H_LEN * N_LEN * INDEX_SIZE_8 * 2 + 4) bytes // ~512 MB
     uint32_t * indices_d;
-    CUDA_CALL(cudaMalloc((void **)&indices_d, H_LEN * N_LEN * 8 + 4));
+    CUDA_CALL(cudaMalloc(
+        (void **)&indices_d, H_LEN * N_LEN * INDEX_SIZE_8 * 2 + 4
+    ));
 
     // potential solutions of puzzle
-    // H_LEN * L_LEN * 4 * 8 bytes // 16 * 8 MB
+    // H_LEN * L_LEN * NUM_SIZE_8 bytes // 128 MB
     uint32_t * res_d;
     CUDA_CALL(cudaMalloc((void **)&res_d, H_LEN * L_LEN * NUM_SIZE_8));
 
+    //====================================================================//
     // copy public key
     CUDA_CALL(cudaMemcpy(
         (void *)data_d, (void *)pk_h, PK_SIZE_8, cudaMemcpyHostToDevice
@@ -334,9 +323,14 @@ int main(
     //====================================================================//
     //  Autolykos puzzle cycle
     //====================================================================//
+    state_t state = STATE_KEYGEN;
+    uint32_t ind = 0;
+    uint64_t base = 0;
+
     do
     {
-        if (GetLatestBlock(pk_h, &request, tokens, bound_h, mes_h))
+        // curl http GET request
+        if (GetLatestBlock(pkstr, &request, tokens, bound_h, mes_h, &state))
         {
             printf("ABORT: Your secret key is not valid\n");
 
@@ -348,8 +342,6 @@ int main(
         {
             // generate one-time key pair
             GenerateKeyPair(x_h, w_h);
-
-            state = STATE_REHASH;
 
             // copy boundary
             CUDA_CALL(cudaMemcpy(
@@ -392,10 +384,10 @@ int main(
         CUDA_CALL(cudaDeviceSynchronize());
 
         // generate nonces
-        /// original /// CURAND_CALL(curandGenerate(gen, nonce_d, H_LEN * L_LEN * NONCE_SIZE_8));
         GenerateConseqNonces<<<1 + (H_LEN * L_LEN - 1) / B_DIM, B_DIM>>>(
             (uint64_t *)nonce_d, N_LEN, base
         );
+
         base += H_LEN * L_LEN;
 
         // calculate unfinalized hash of message
@@ -428,6 +420,8 @@ int main(
             ));
 
             PrintPuzzleSolution(nonce_h, res_h);
+
+            // curl http POST request
             PostPuzzleSolution(w_h, nonce_h, res_h);
 
             state = STATE_KEYGEN;
@@ -440,7 +434,6 @@ int main(
     //====================================================================//
     //  Free device memory
     //====================================================================//
-    /// original /// CURAND_CALL(curandDestroyGenerator(gen));
     CUDA_CALL(cudaFree(bound_d));
     CUDA_CALL(cudaFree(nonce_d));
     CUDA_CALL(cudaFree(hash_d));

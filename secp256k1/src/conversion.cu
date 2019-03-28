@@ -7,6 +7,7 @@
 *******************************************************************************/
 
 #include "../include/conversion.h"
+#include "../include/definitions.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -34,7 +35,7 @@ void DecStrToHexStrOf64(
         }
         else
         {
-            printf("ERROR\n");
+            CALL(0, ERROR_IO);
         }
     }
 

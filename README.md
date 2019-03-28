@@ -3,8 +3,10 @@
 To compile you need the following:
 
 1. CUDA toolkit
-2. libcurl library
-3. openssl library
+2. libcurl library:
+*'$ sudo apt install libcurl-devel'*
+3. openssl library:
+*'$ sudo apt install openssl-devel'*
 
 ---
 

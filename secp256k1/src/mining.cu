@@ -337,7 +337,7 @@ __global__ void BlockMining(
                 || ((uint64_t *)r)[2] == ((uint64_t *)bound)[2] && (
                     ((uint64_t *)r)[1] < ((uint64_t *)bound)[1]
                     || ((uint64_t *)r)[1] == ((uint64_t *)bound)[1]
-                    && ((uint64_t *)r)[0] <= ((uint64_t *)bound)[0]
+                    && ((uint64_t *)r)[0] < ((uint64_t *)bound)[0]
                 )
             );
 

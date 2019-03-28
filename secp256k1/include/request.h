@@ -23,20 +23,26 @@ size_t WriteFunc(
     string_t * str
 );
 
+// lowercase letters convert to uppercase
+int ToUppercase(
+    char * str
+);
+
 // curl http GET request
 int GetLatestBlock(
-    const uint8_t * pk,
+    const char * pkstr,
     string_t * oldreq,
     jsmntok_t * oldtoks,
     uint8_t * bound,
-    uint8_t * mes
+    uint8_t * mes,
+    state_t * state
 );
 
 // curl http POST request
 int PostPuzzleSolution(
-    uint8_t * w,
-    uint8_t * nonce,
-    uint8_t * d
+    const uint8_t * w,
+    const uint8_t * nonce,
+    const uint8_t * d
 );
 
 #endif // REQUEST_H

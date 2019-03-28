@@ -30,6 +30,9 @@
 #define NONCE_SIZE_4  ((NONCE_SIZE_8) << 1)
 #define NONCE_SIZE_32 (NONCE_SIZE_8 >> 2)
 
+// index size
+#define INDEX_SIZE_8  4
+
 // number of indices
 #define K_LEN         32
 
@@ -69,6 +72,21 @@
 #define B_DIM         64
 
 ////////////////////////////////////////////////////////////////////////////////
+//  Curl http GET request JSON specifiers
+////////////////////////////////////////////////////////////////////////////////
+// total JSON objects count
+#define T_LEN         7
+
+// curl JSON position of message
+#define MES_POS       2
+
+// curl JSON position of bound
+#define BOUND_POS     4
+
+// curl JSON position of public key
+#define PK_POS        6
+
+////////////////////////////////////////////////////////////////////////////////
 //  Structs
 ////////////////////////////////////////////////////////////////////////////////
 // autolukos puzzle state
@@ -77,7 +95,8 @@ typedef enum
     STATE_CONTINUE = 0,
     STATE_REHASH = 1,
     STATE_KEYGEN = 2
-} state_t;
+}
+state_t;
 
 // string_t for curl http get request
 struct string_t
@@ -421,25 +440,65 @@ do                                                                             \
 while (0)
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Wrappers for CUDA & CURAND calls
+//  Curl http GET request JSON specifiers
+////////////////////////////////////////////////////////////////////////////////
+#define ERROR_IO      "I/O"
+#define ERROR_CURL    "curl"
+#define ERROR_OPENSSL "openssl"
+
+////////////////////////////////////////////////////////////////////////////////
+//  Wrappers for function calls
 ////////////////////////////////////////////////////////////////////////////////
 #define CUDA_CALL(x)                                                           \
 do                                                                             \
 {                                                                              \
     if ((x) != cudaSuccess)                                                    \
     {                                                                          \
-        printf("ERROR at %s: %d\n",__FILE__,__LINE__);                         \
+        printf("ERROR: CUDA function failed at %s: %d\n",__FILE__,__LINE__);   \
         return EXIT_FAILURE;                                                   \
     }                                                                          \
 }                                                                              \
 while (0)
 
-#define CURAND_CALL(x)                                                         \
+#define CALL(func, name)                                                       \
 do                                                                             \
 {                                                                              \
-    if ((x) != CURAND_STATUS_SUCCESS)                                          \
+    if (!(func))                                                               \
     {                                                                          \
-        printf("ERROR at %s: %d\n",__FILE__,__LINE__);                         \
+        printf("ERROR: "name" failed at %s: %d\n",__FILE__,__LINE__);          \
+        return EXIT_FAILURE;                                                   \
+    }                                                                          \
+}                                                                              \
+while (0)
+
+#define FUNCTION_CALL(res, func, name)                                         \
+do                                                                             \
+{                                                                              \
+    if (!((res) = (func)))                                                     \
+    {                                                                          \
+        printf("ERROR: "name" failed at %s: %d\n",__FILE__,__LINE__);          \
+        return EXIT_FAILURE;                                                   \
+    }                                                                          \
+}                                                                              \
+while (0)
+
+#define CALL_STATUS(func, name, status)                                        \
+do                                                                             \
+{                                                                              \
+    if ((func) != (status))                                                    \
+    {                                                                          \
+        printf("ERROR: "name" failed at %s: %d\n",__FILE__,__LINE__);          \
+        return EXIT_FAILURE;                                                   \
+    }                                                                          \
+}                                                                              \
+while (0)
+
+#define FUNCTION_CALL_STATUS(res, func, name, status)                          \
+do                                                                             \
+{                                                                              \
+    if ((func) != (status))                                                    \
+    {                                                                          \
+        printf("ERROR: "name" failed at %s: %d\n",__FILE__,__LINE__);          \
         return EXIT_FAILURE;                                                   \
     }                                                                          \
 }                                                                              \

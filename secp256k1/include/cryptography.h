@@ -17,7 +17,8 @@ int GenerateKeyPair(
 
 // generate public key from private
 int GeneratePublicKey(
-    const char * sk,
+    const char * skstr,
+    char * pkstr,
     uint8_t * pk
 );
 
