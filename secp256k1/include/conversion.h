@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 // convert string of decimal digits to string of 64 hexadecimal digits
-void DecStrToHexStrOf64(
+int DecStrToHexStrOf64(
     const char * in,
     const uint32_t inlen,
     char * out

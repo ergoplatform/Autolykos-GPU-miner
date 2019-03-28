@@ -25,14 +25,15 @@ there will appear an executable
 
 ## Run
 
-To run a miner you should specify a name *'<YOUR_KEY_FILE>'* of a txt file containing secret key.
+To run the miner you should specify an optional argument -- name *'<YOUR_KEY_FILE>'* of a txt file containing secret key.
+If a filename was not specified, the miner will try to open *'<YOUR_PATH>/autolykos/secp256k1/seckey'* file.
 Input file must contain a string of 64 character with secret key in hexadecimal Big-Endian representation.
-You can find a stub input file *'stub.inp'* in *'<YOUR_PATH>/autolykos/secp256k1'* directory.
+You can see a format of a key in a stub input file *'<YOUR_PATH>/autolykos/secp256k1/stub.inp'*.
 
 To start miner:
 
 1. Change directory to *'<YOUR_PATH>/autolykos/secp256k1/'*
-2. run *'./auto.out <YOUR_KEY_FILE>'*
+2. run *'./auto.out [YOUR_KEY_FILE]'*
 
 To exit miner:
 
