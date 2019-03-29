@@ -192,20 +192,28 @@ int GetLatestBlock(
 //  Curl http POST request
 ////////////////////////////////////////////////////////////////////////////////
 int PostPuzzleSolution(
+    const char * pkstr,
     const uint8_t * w,
     const uint8_t * nonce,
     const uint8_t * d
 )
 {
     uint32_t len;
-    uint32_t pos = 6;
+    uint32_t pos = 0;
 
     char request[256];
 
     //====================================================================//
     //  Form message to post
     //====================================================================//
-    strcpy(request, "{\"w\":\"");
+    strcpy(request + pos, "{\"pk\":\"");
+    pos += 7;
+
+    strcpy(request + pos, pkstr);
+    pos += PK_SIZE_4;
+
+    strcpy(request + pos, "\",\"w\":\"");
+    pos += 7;
 
     BigEndianToHexStr(w, PK_SIZE_8, request + pos);
     pos += PK_SIZE_4;
@@ -275,7 +283,7 @@ int PostPuzzleSolution(
 
     CALL_STATUS(curl_easy_perform(curl), ERROR_CURL, CURLE_OK);
 
-    printf("Solution posted successfully\n");
+    printf("Solution posted successfully\n\n");
     fflush(stdout);
 
     curl_easy_cleanup(curl);

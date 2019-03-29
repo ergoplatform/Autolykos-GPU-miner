@@ -40,6 +40,7 @@ int GetLatestBlock(
 
 // curl http POST request
 int PostPuzzleSolution(
+    const char * pkstr,
     const uint8_t * w,
     const uint8_t * nonce,
     const uint8_t * d

@@ -124,6 +124,7 @@ int PrintPuzzleState(
     const uint8_t * bound
 )
 {
+    printf("Processing:\n"); 
     printf(
         "m     =    0x%016lX %016lX %016lX %016lX\n",
         REVERSE_ENDIAN((uint64_t *)mes + 0),
@@ -179,6 +180,7 @@ int PrintPuzzleSolution(
     const uint8_t * sol
 )
 {
+    printf("Solution found:\n"); 
     printf("nonce =    0x%016lX\n", REVERSE_ENDIAN((uint64_t *)nonce));
 
     printf(
@@ -235,6 +237,13 @@ int main(
     char filename[10] = "./seckey";
     char skstr[NUM_SIZE_4 + 1];
     char pkstr[PK_SIZE_4 + 1];
+
+    /// //====================================================================//
+    /// //  Arguments parsing
+    /// //====================================================================//
+    /// if (argc > 1)
+    /// {
+    /// }
 
     //====================================================================//
     //  Secret key reading and checking
@@ -367,6 +376,8 @@ int main(
                 (void *)w_h, PK_SIZE_8, cudaMemcpyHostToDevice
             ));
 
+            PrintPuzzleState(mes_h, pk_h, sk_h, w_h, x_h, bound_h);
+
             // precalculate hashes
             if (state == STATE_REHASH)
             {
@@ -377,8 +388,6 @@ int main(
 
             ///printf("Prehash finished\n");
             ///fflush(stdout);
-
-            PrintPuzzleState(mes_h, pk_h, sk_h, w_h, x_h, bound_h);
         }
 
         CUDA_CALL(cudaDeviceSynchronize());
@@ -422,7 +431,7 @@ int main(
             PrintPuzzleSolution(nonce_h, res_h);
 
             // curl http POST request
-            PostPuzzleSolution(w_h, nonce_h, res_h);
+            PostPuzzleSolution(pkstr, w_h, nonce_h, res_h);
 
             state = STATE_KEYGEN;
         }
