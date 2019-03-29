@@ -1,12 +1,13 @@
 ## Prerequisites
+(Ubuntu 16.04 or 18.04)
 
 To compile you need the following:
 
 1. CUDA toolkit
 2. libcurl library:
-*'$ sudo apt install libcurl-devel'*
+*'$ apt install libcurl4-openssl-dev'*
 3. openssl library:
-*'$ sudo apt install openssl-devel'*
+*'$ apt install libssl-dev'*
 
 ---
 
