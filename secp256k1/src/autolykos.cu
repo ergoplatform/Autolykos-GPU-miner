@@ -76,10 +76,15 @@ __global__ void GenerateConseqNonces(
 ////////////////////////////////////////////////////////////////////////////////
 //  Termination handler
 ////////////////////////////////////////////////////////////////////////////////
-int KeyboardHitHandler(
+int TerminationRequestHandler(
     void
 )
 {
+    if (getpgrp() != tcgetpgrp(STDOUT_FILENO))
+    {
+        return 0;
+    }
+
     termios oldt;
     termios newt;
     int ch;
@@ -124,7 +129,8 @@ int PrintPuzzleState(
     const uint8_t * bound
 )
 {
-    printf("Processing:\n"); 
+    printf("Processing candidate:\n"); 
+
     printf(
         "m     =    0x%016lX %016lX %016lX %016lX\n",
         REVERSE_ENDIAN((uint64_t *)mes + 0),
@@ -142,12 +148,6 @@ int PrintPuzzleState(
         REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk + 1)) + 3)
     );
 
-    ///printf(
-    ///    "sk    =    0x%016lX %016lX %016lX %016lX\n",
-    ///    ((uint64_t *)sk)[3], ((uint64_t *)sk)[2],
-    ///    ((uint64_t *)sk)[1], ((uint64_t *)sk)[0]
-    ///);
-
     printf(
         "w     = 0x%02lX %016lX %016lX %016lX %016lX\n",
         ((uint8_t *)w)[0],
@@ -156,12 +156,6 @@ int PrintPuzzleState(
         REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 2),
         REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 3)
     );
-
-    ///printf(
-    ///    "x     =    0x%016lX %016lX %016lX %016lX\n",
-    ///    ((uint64_t *)x)[3], ((uint64_t *)x)[2],
-    ///    ((uint64_t *)x)[1], ((uint64_t *)x)[0]
-    ///);
 
     printf(
         "b     =    0x%016lX %016lX %016lX %016lX\n",
@@ -181,6 +175,7 @@ int PrintPuzzleSolution(
 )
 {
     printf("Solution found:\n"); 
+
     printf("nonce =    0x%016lX\n", REVERSE_ENDIAN((uint64_t *)nonce));
 
     printf(
@@ -196,17 +191,23 @@ int PrintPuzzleSolution(
 //  Main cycle
 ////////////////////////////////////////////////////////////////////////////////
 int main(
-    int argc, char ** argv
+    int argc,
+    char ** argv
 )
 {
+    int status = EXIT_SUCCESS;
+
+    //====================================================================//
+    //  GPU availability checking
+    //====================================================================//
     int deviceCount;
     CUDA_CALL(cudaGetDeviceCount(&deviceCount));
 
     if (!deviceCount)
     {
-        printf("ABORT: GPU devices did not recognised.");
+        fprintf(stderr, "ABORT: GPU devices are not recognised.");
 
-        return 1;
+        return EXIT_FAILURE;
     }
 
     CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), ERROR_CURL, CURLE_OK);
@@ -216,8 +217,9 @@ int main(
     //====================================================================//
     // curl http request variables
     string_t request;
-    jsmntok_t tokens[T_LEN];
     InitString(&request);
+
+    jsmntok_t tokens[T_LEN];
 
     // hash context
     // (212 + 4) bytes
@@ -234,9 +236,12 @@ int main(
     uint8_t nonce_h[NONCE_SIZE_8];
 
     // cryptography variables
-    char filename[10] = "./seckey";
     char skstr[NUM_SIZE_4 + 1];
     char pkstr[PK_SIZE_4 + 1];
+
+    // config filename
+    char config[10] = "./config";
+    char * filename = (argc == 1)? config: argv[1];
 
     /// //====================================================================//
     /// //  Arguments parsing
@@ -248,43 +253,40 @@ int main(
     //====================================================================//
     //  Secret key reading and checking
     //====================================================================//
-    if (argc == 1)
+    printf("Using configuration from \'%s\'\n", filename);
+    fflush(stdout);
+
+    if (access(filename, F_OK) == -1)
     {
-        printf("Using secret key from './seckey'\n");
-        fflush(stdout);
+        fprintf(stderr, "ABORT: File \'%s\' not found\n", filename);
 
-        if (access(filename, F_OK) == -1)
-        {
-            printf("ABORT: File \"./seckey\" not found\n");
-
-            return 1;
-        }
-    }
-    else
-    {
-        if (access(argv[1], F_OK) == -1)
-        {
-            printf("ABORT: File not found\n");
-
-            return 1;
-        }
+        return EXIT_FAILURE;
     }
 
     // read secret key hex string from file
-    if (ReadSecKey((argc == 1)? filename: argv[1], skstr) == 1)
+    if (ReadSecKey(filename, skstr) == 1)
     {
-        printf("ABORT: Incompatible secret key format\n");
+        fprintf(stderr, "ABORT: Incompatible secret key format\n");
+
+        return EXIT_FAILURE;
     }
 
     // convert secret key to little endian
     HexStrToLittleEndian(skstr, NUM_SIZE_4, sk_h, NUM_SIZE_8);
 
+    printf("Public key genertion started\n");
+    fflush(stdout);
     // generate public key from secret key
     GeneratePublicKey(skstr, pkstr, pk_h);
+    printf("Public key genertion finished\n");
+    fflush(stdout);
 
     //====================================================================//
     //  Device memory allocation
     //====================================================================//
+    printf("GPU memory allocation started\n");
+    fflush(stdout);
+
     // boundary for puzzle
     // ~0 MB
     uint32_t * bound_d;
@@ -317,7 +319,13 @@ int main(
     uint32_t * res_d;
     CUDA_CALL(cudaMalloc((void **)&res_d, H_LEN * L_LEN * NUM_SIZE_8));
 
+    printf("GPU memory allocation finished\n");
+    fflush(stdout);
+
     //====================================================================//
+    printf("Key-pair transfer from host to GPU started\n");
+    fflush(stdout);
+
     // copy public key
     CUDA_CALL(cudaMemcpy(
         (void *)data_d, (void *)pk_h, PK_SIZE_8, cudaMemcpyHostToDevice
@@ -329,6 +337,9 @@ int main(
         NUM_SIZE_8, cudaMemcpyHostToDevice
     ));
 
+    printf("Key-pair transfer from host to GPU finished\n");
+    fflush(stdout);
+
     //====================================================================//
     //  Autolykos puzzle cycle
     //====================================================================//
@@ -338,19 +349,34 @@ int main(
 
     do
     {
+        printf("Getting latest candidate block\n");
+        fflush(stdout);
         // curl http GET request
         if (GetLatestBlock(pkstr, &request, tokens, bound_h, mes_h, &state))
         {
-            printf("ABORT: Your secret key is not valid\n");
+            fprintf(stderr, "ABORT: Your secret key is not valid\n");
+            status = EXIT_FAILURE;
 
-            return 1;
+            break;
         }
+
+        printf("Latest candidate block obtained\n");
 
         // state is changed
         if (state != STATE_CONTINUE)
         {
+            printf("One-time public key genertion started\n");
+            fflush(stdout);
+
             // generate one-time key pair
             GenerateKeyPair(x_h, w_h);
+            printf("One-time public key genertion finished\n");
+            fflush(stdout);
+
+            PrintPuzzleState(mes_h, pk_h, sk_h, w_h, x_h, bound_h);
+
+            printf("Data transfer from host to GPU started\n");
+            fflush(stdout);
 
             // copy boundary
             CUDA_CALL(cudaMemcpy(
@@ -376,29 +402,44 @@ int main(
                 (void *)w_h, PK_SIZE_8, cudaMemcpyHostToDevice
             ));
 
-            PrintPuzzleState(mes_h, pk_h, sk_h, w_h, x_h, bound_h);
+            printf("Data transfer from host to GPU finished\n");
+            fflush(stdout);
+
+            if (TerminationRequestHandler())
+            {
+                break;
+            }
 
             // precalculate hashes
             if (state == STATE_REHASH)
             {
+                printf("Prehash started\n");
+                fflush(stdout);
+
                 Prehash(data_d, hash_d, indices_d);
+
+                printf("Prehash finished\n");
+                fflush(stdout);
             }
 
             state = STATE_CONTINUE;
-
-            ///printf("Prehash finished\n");
-            ///fflush(stdout);
         }
 
         CUDA_CALL(cudaDeviceSynchronize());
 
+        printf("Next batch of nonces generation started\n");
+        fflush(stdout);
         // generate nonces
         GenerateConseqNonces<<<1 + (H_LEN * L_LEN - 1) / B_DIM, B_DIM>>>(
             (uint64_t *)nonce_d, N_LEN, base
         );
 
         base += H_LEN * L_LEN;
+        printf("Next batch of nonces generation finished\n");
+        fflush(stdout);
 
+        printf("Mining context preparation on CPU started\n");
+        fflush(stdout);
         // calculate unfinalized hash of message
         InitMining(&ctx_h, (uint32_t *)mes_h, NUM_SIZE_8);
 
@@ -407,14 +448,31 @@ int main(
             (void *)(data_d + PK2_SIZE_32 + 3 * NUM_SIZE_32), (void *)&ctx_h,
             sizeof(blake2b_ctx), cudaMemcpyHostToDevice
         ));
+        printf("Mining context preparation on CPU finished\n");
+        fflush(stdout);
+
+        if (TerminationRequestHandler())
+        {
+            break;
+        }
+
+        printf("Mining iteration on GPU started\n");
+        fflush(stdout);
 
         // calculate solution candidates
         BlockMining<<<1 + (L_LEN - 1) / B_DIM, B_DIM>>>(
             bound_d, data_d, nonce_d, hash_d, res_d, indices_d
         );
 
+        printf("Mining iteration on GPU finished\n");
+        fflush(stdout);
+
+        printf("Batch checking for solutions started\n");
+        fflush(stdout);
         // try to find solution
         ind = FindNonZero(indices_d, indices_d + H_LEN * L_LEN, H_LEN * L_LEN);
+        printf("Batch checking for solutions finished\n");
+        fflush(stdout);
 
         if (ind)
         {
@@ -433,16 +491,26 @@ int main(
             // curl http POST request
             PostPuzzleSolution(pkstr, w_h, nonce_h, res_h);
 
+            printf(
+                "Solution posted\n"
+                "========================================"
+                "========================================"
+                "\n"
+            );
+            fflush(stdout);
+
             state = STATE_KEYGEN;
         }
     }
-    while(!KeyboardHitHandler());
+    while(!TerminationRequestHandler());
 
     CUDA_CALL(cudaDeviceSynchronize());
 
     //====================================================================//
     //  Free device memory
     //====================================================================//
+    printf("Deallocation resources started\n");
+    fflush(stdout);
     CUDA_CALL(cudaFree(bound_d));
     CUDA_CALL(cudaFree(nonce_d));
     CUDA_CALL(cudaFree(hash_d));
@@ -460,7 +528,12 @@ int main(
 
     curl_global_cleanup();
 
-    return 0;
+    printf("Deallocation resources finished\n");
+    fflush(stdout);
+    printf("Miner is now terminated\n");
+    fflush(stdout);
+
+    return status;
 }
 
 // autolykos.cu

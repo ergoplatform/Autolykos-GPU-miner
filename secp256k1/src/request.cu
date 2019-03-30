@@ -283,9 +283,6 @@ int PostPuzzleSolution(
 
     CALL_STATUS(curl_easy_perform(curl), ERROR_CURL, CURLE_OK);
 
-    printf("Solution posted successfully\n\n");
-    fflush(stdout);
-
     curl_easy_cleanup(curl);
     curl_slist_free_all(headers);
 

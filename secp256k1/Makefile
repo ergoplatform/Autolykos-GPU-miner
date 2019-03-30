@@ -20,8 +20,7 @@ CFLAGS = -c
 
 SRCDIR = ./src
 LIBPATH = ./lib/$(LIBNAME)
-CUSOURCES = $(filter-out $(SRCDIR)/test.cu $(SRCDIR)/autolykos.cu, \
-			$(wildcard $(SRCDIR)/*.cu))
+CUSOURCES = $(filter-out $(SRCDIR)/autolykos.cu, $(wildcard $(SRCDIR)/*.cu))
 CSOURCES = $(wildcard $(SRCDIR)/*.c)
 OBJECTS = $(CUSOURCES:.cu=.o) $(CSOURCES:.c=.o)
 
@@ -42,16 +41,11 @@ lib: $(OBJECTS)
 	$(AR) rc $(LIBPATH) $(OBJECTS)
 	ranlib $(LIBPATH)
 
-test:
-	$(CXX) $(SRCDIR)/test.cu $(LIBPATH) $(LIBS) $(COPT) $(GENCODE_FLAGS) \
-	-o $(TESTEXEC)
-
 auto:
 	$(CXX) $(SRCDIR)/autolykos.cu $(LIBPATH) $(LIBS) $(COPT) $(GENCODE_FLAGS) \
 	-o $(AUTOEXEC)
 
 clean:
-	rm -f $(OBJECTS) $(SRCDIR)/test.o $(SRCDIR)/autolykos.o $(LIBPATH) \
-	$(TESTEXEC) $(AUTOEXEC)
+	rm -f $(OBJECTS) $(SRCDIR)/autolykos.o $(LIBPATH) $(TESTEXEC) $(AUTOEXEC)
 
-.PHONY: all clean test auto lib
+.PHONY: all clean auto lib
