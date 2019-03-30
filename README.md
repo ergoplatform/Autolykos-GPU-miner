@@ -26,15 +26,20 @@ there will appear an executable
 
 ## Run
 
-To run the miner you should specify an optional argument -- name *'<YOUR_CONFIG_FILE>'* of a txt file containing secret key.
-If a filename was not specified, the miner will try to open *'<YOUR_PATH>/autolykos/secp256k1/config'* file.
-Input file must contain a string of 64 character with secret key in hexadecimal Big-Endian representation.
-You can see a format of a key in a stub input file *'<YOUR_PATH>/autolykos/secp256k1/stub.config'*.
+To run the miner you should pass a name of a configuration
+file *'<YOUR_CONFIG_FILE>'* as an argument.
+The configuration file must contain json string of the following structure:
 
-To start miner:
+*{ "sk":"<secret_key>", "from" : "https://...", "to" : "https://...", "keepPrehash" : ... }*
 
-1. Change directory to *'<YOUR_PATH>/autolykos/secp256k1/'*
-2. run *'./auto.out [YOUR_CONFIG_FILE]'*
+If the filename is not specified, the miner will
+try to open *'<YOUR_PATH>/autolykos/secp256k1/config'* file.
+Secret key must be a hex string of 64 digits in hexadecimal Big-Endian representation.
+You can examine a stub config file *'<YOUR_PATH>/autolykos/secp256k1/stub.config'*.
+
+To run the miner type:
+
+*'$ <YOUR_PATH>/autolykos/secp256k1/auto.out [YOUR_CONFIG_FILE]'*
 
 To exit miner in foreground mode:
 

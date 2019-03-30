@@ -87,6 +87,22 @@
 #define PK_POS        6
 
 ////////////////////////////////////////////////////////////////////////////////
+// total JSON objects count for config file
+#define C_LEN         9
+
+// config JSON position of secret key
+#define SK_POS        2
+
+// config JSON position of latest block adress
+#define FROM_POS      4
+
+// config JSON position of address for solution to post
+#define TO_POS        6
+
+// config JSON position of keep prehash option
+#define KEEP_POS      8
+
+////////////////////////////////////////////////////////////////////////////////
 //  Structs
 ////////////////////////////////////////////////////////////////////////////////
 // autolukos puzzle state
@@ -442,9 +458,11 @@ while (0)
 ////////////////////////////////////////////////////////////////////////////////
 //  Curl http GET request JSON specifiers
 ////////////////////////////////////////////////////////////////////////////////
+#define ERROR_STAT    "stat"
+#define ERROR_ALLOC   "Host memory allocation"
 #define ERROR_IO      "I/O"
-#define ERROR_CURL    "curl"
-#define ERROR_OPENSSL "openssl"
+#define ERROR_CURL    "Curl"
+#define ERROR_OPENSSL "OpenSSL"
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Wrappers for function calls
@@ -454,8 +472,8 @@ do                                                                             \
 {                                                                              \
     if ((x) != cudaSuccess)                                                    \
     {                                                                          \
-        printf("ERROR: CUDA function failed at %s: %d\n",__FILE__,__LINE__);   \
-        return EXIT_FAILURE;                                                   \
+        fprintf(stderr, "ERROR: CUDA failed at %s: %d\n",__FILE__,__LINE__);   \
+        exit(EXIT_FAILURE);                                                    \
     }                                                                          \
 }                                                                              \
 while (0)
@@ -465,8 +483,8 @@ do                                                                             \
 {                                                                              \
     if (!(func))                                                               \
     {                                                                          \
-        printf("ERROR: "name" failed at %s: %d\n",__FILE__,__LINE__);          \
-        return EXIT_FAILURE;                                                   \
+        fprintf(stderr, "ERROR: "name" failed at %s: %d\n",__FILE__,__LINE__); \
+        exit(EXIT_FAILURE);                                                    \
     }                                                                          \
 }                                                                              \
 while (0)
@@ -476,8 +494,8 @@ do                                                                             \
 {                                                                              \
     if (!((res) = (func)))                                                     \
     {                                                                          \
-        printf("ERROR: "name" failed at %s: %d\n",__FILE__,__LINE__);          \
-        return EXIT_FAILURE;                                                   \
+        fprintf(stderr, "ERROR: "name" failed at %s: %d\n",__FILE__,__LINE__); \
+        exit(EXIT_FAILURE);                                                    \
     }                                                                          \
 }                                                                              \
 while (0)
@@ -487,8 +505,8 @@ do                                                                             \
 {                                                                              \
     if ((func) != (status))                                                    \
     {                                                                          \
-        printf("ERROR: "name" failed at %s: %d\n",__FILE__,__LINE__);          \
-        return EXIT_FAILURE;                                                   \
+        fprintf(stderr, "ERROR: "name" failed at %s: %d\n",__FILE__,__LINE__); \
+        exit(EXIT_FAILURE);                                                    \
     }                                                                          \
 }                                                                              \
 while (0)
@@ -496,10 +514,10 @@ while (0)
 #define FUNCTION_CALL_STATUS(res, func, name, status)                          \
 do                                                                             \
 {                                                                              \
-    if ((func) != (status))                                                    \
+    if ((res = func) != (status))                                              \
     {                                                                          \
-        printf("ERROR: "name" failed at %s: %d\n",__FILE__,__LINE__);          \
-        return EXIT_FAILURE;                                                   \
+        fprintf(stderr, "ERROR: "name" failed at %s: %d\n",__FILE__,__LINE__); \
+        exit(EXIT_FAILURE);                                                    \
     }                                                                          \
 }                                                                              \
 while (0)

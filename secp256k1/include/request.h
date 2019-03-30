@@ -11,7 +11,7 @@
 #include "jsmn.h"
 
 // initialize string_t for curl http GET
-void InitString(
+int InitString(
     string_t * str
 );
 
@@ -28,8 +28,15 @@ int ToUppercase(
     char * str
 );
 
+// process termination handler
+int TerminationRequestHandler(
+    void
+);
+
 // curl http GET request
 int GetLatestBlock(
+    const string_t * config,
+    const jsmntok_t * conftoks,
     const char * pkstr,
     string_t * oldreq,
     jsmntok_t * oldtoks,
@@ -40,6 +47,8 @@ int GetLatestBlock(
 
 // curl http POST request
 int PostPuzzleSolution(
+    const string_t * config,
+    const jsmntok_t * conftoks,
     const char * pkstr,
     const uint8_t * w,
     const uint8_t * nonce,

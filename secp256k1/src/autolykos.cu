@@ -15,42 +15,88 @@
 #include "../include/prehash.h"
 #include "../include/reduction.h"
 #include "../include/request.h"
-#include <stdio.h>
+#include <ctype.h>
+#include <cuda.h>
+#include <curl/curl.h>
+#include <inttypes.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <inttypes.h>
-#include <termios.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <curl/curl.h>
-#include <cuda.h>
+ 
+////////////////////////////////////////////////////////////////////////////////
+//  Find file size
+////////////////////////////////////////////////////////////////////////////////
+long int FindFileSize(
+    const char * filename
+)
+{
+    struct stat st;
+
+    CALL_STATUS(stat(filename, &st), ERROR_STAT, 0);
+
+    return st.st_size;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Read secret key
+//  Read config file
 ////////////////////////////////////////////////////////////////////////////////
-int ReadSecKey(
+int ReadConfig(
     char * filename,
-    char * out
+    string_t * out,
+    jsmntok_t * tokens
 )
 {
     FILE * in = fopen(filename, "r");
 
-    for (int i = 0; i < NUM_SIZE_4; ++i)
-    {
-        if ((out[i] = fgetc(in)) == EOF)
-        {
-            return 1;
-        }
-    }
+    long int size = FindFileSize(filename); 
 
-    out[NUM_SIZE_4] = '\0';
+    FUNCTION_CALL(out->ptr, (char *)realloc(out->ptr, size + 1), ERROR_ALLOC);
+
+    for (int i = 0; (out->ptr[i] = fgetc(in)) != EOF; ++i) {}
 
     fclose(in);
 
-    return 0;
+    out->ptr[size] = '\0'; 
+    out->len = size;
+
+    jsmn_parser parser;
+
+    jsmn_init(&parser);
+    jsmn_parse(&parser, out->ptr, out->len, tokens, C_LEN);
+
+    if (tokens[SK_POS].end - tokens[SK_POS].start != NUM_SIZE_4)
+    {
+        free(out->ptr);
+
+        return EXIT_FAILURE;
+    }
+
+    char ch;
+
+    for (int i = 0; i < NUM_SIZE_4; ++i)
+    {
+        ch = out->ptr[i + tokens[SK_POS].start]
+            = toupper(out->ptr[i + tokens[SK_POS].start]);
+
+        if (!(ch >= '0' && ch <= '9') && !(ch >= 'A' && ch <= 'F'))
+        {
+            free(out->ptr);
+
+            return EXIT_FAILURE;
+        }
+    }
+
+    out->ptr[tokens[SK_POS].end] = '\0';
+    out->ptr[tokens[FROM_POS].end] = '\0';
+    out->ptr[tokens[TO_POS].end] = '\0';
+    out->ptr[tokens[KEEP_POS].end] = '\0';
+
+    return EXIT_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,50 +117,6 @@ __global__ void GenerateConseqNonces(
     if (tid < len) arr[tid] = nonce;
 
     return;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//  Termination handler
-////////////////////////////////////////////////////////////////////////////////
-int TerminationRequestHandler(
-    void
-)
-{
-    if (getpgrp() != tcgetpgrp(STDOUT_FILENO))
-    {
-        return 0;
-    }
-
-    termios oldt;
-    termios newt;
-    int ch;
-    int oldf;
-
-    tcgetattr(STDIN_FILENO, &oldt);
-
-    newt = oldt;
-    newt.c_lflag &= ~(ICANON | ECHO);
-
-    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-
-    ch = getchar();
-
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    fcntl(STDIN_FILENO, F_SETFL, oldf);
-
-    if (ch != EOF)
-    {
-        ungetc(ch, stdin);
-
-        printf("Commencing termination\n");
-        fflush(stdout);
-
-        return 1;
-    }
-
-    return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,19 +144,19 @@ int PrintPuzzleState(
     printf(
         "pk    = 0x%02lX %016lX %016lX %016lX %016lX\n",
         ((uint8_t *)pk)[0],
-        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk + 1)) + 0),
-        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk + 1)) + 1),
-        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk + 1)) + 2),
-        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)pk + 1)) + 3)
+        REVERSE_ENDIAN((uint64_t *)(pk + 1) + 0),
+        REVERSE_ENDIAN((uint64_t *)(pk + 1) + 1),
+        REVERSE_ENDIAN((uint64_t *)(pk + 1) + 2),
+        REVERSE_ENDIAN((uint64_t *)(pk + 1) + 3)
     );
 
     printf(
         "w     = 0x%02lX %016lX %016lX %016lX %016lX\n",
         ((uint8_t *)w)[0],
-        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 0),
-        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 1),
-        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 2),
-        REVERSE_ENDIAN(((uint64_t *)((uint8_t *)w + 1)) + 3)
+        REVERSE_ENDIAN((uint64_t *)(w + 1) + 0),
+        REVERSE_ENDIAN((uint64_t *)(w + 1) + 1),
+        REVERSE_ENDIAN((uint64_t *)(w + 1) + 2),
+        REVERSE_ENDIAN((uint64_t *)(w + 1) + 3)
     );
 
     printf(
@@ -163,7 +165,7 @@ int PrintPuzzleState(
         ((uint64_t *)bound)[1], ((uint64_t *)bound)[0]
     );
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,7 +186,7 @@ int PrintPuzzleSolution(
         ((uint64_t *)sol)[1], ((uint64_t *)sol)[0]
     );
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,7 +221,7 @@ int main(
     string_t request;
     InitString(&request);
 
-    jsmntok_t tokens[T_LEN];
+    jsmntok_t reqtoks[T_LEN];
 
     // hash context
     // (212 + 4) bytes
@@ -236,49 +238,72 @@ int main(
     uint8_t nonce_h[NONCE_SIZE_8];
 
     // cryptography variables
-    char skstr[NUM_SIZE_4 + 1];
+    char * skstr;
     char pkstr[PK_SIZE_4 + 1];
 
-    // config filename
-    char config[10] = "./config";
-    char * filename = (argc == 1)? config: argv[1];
+    // config variables
+    string_t config;
+    InitString(&config);
 
-    /// //====================================================================//
-    /// //  Arguments parsing
-    /// //====================================================================//
-    /// if (argc > 1)
-    /// {
-    /// }
+    jsmntok_t conftoks[C_LEN];
+
+    char confname[9] = "./config";
+    char * filename = (argc == 1)? confname: argv[1];
 
     //====================================================================//
-    //  Secret key reading and checking
+    //  Config reading and checking
     //====================================================================//
-    printf("Using configuration from \'%s\'\n", filename);
+    printf(
+        "========================================"
+        "========================================"
+        "\nUsing configuration from \'%s\'\n", filename
+    );
     fflush(stdout);
 
+    // check access to config file
     if (access(filename, F_OK) == -1)
     {
         fprintf(stderr, "ABORT: File \'%s\' not found\n", filename);
 
+        if (request.ptr)
+        {
+            free(request.ptr);
+        }
+
         return EXIT_FAILURE;
     }
 
-    // read secret key hex string from file
-    if (ReadSecKey(filename, skstr) == 1)
+    // read config from file
+    if (ReadConfig(filename, &config, conftoks) == EXIT_FAILURE)
     {
         fprintf(stderr, "ABORT: Incompatible secret key format\n");
 
+        if (request.ptr)
+        {
+            free(request.ptr);
+        }
+
+        if (config.ptr)
+        {
+            free(config.ptr);
+        }
+
         return EXIT_FAILURE;
     }
+
+    skstr = config.ptr + conftoks[SK_POS].start;
+    printf("skstr = %s\n", skstr);
 
     // convert secret key to little endian
     HexStrToLittleEndian(skstr, NUM_SIZE_4, sk_h, NUM_SIZE_8);
 
-    printf("Public key genertion started\n");
+    printf("Public key generation started\n");
     fflush(stdout);
+
     // generate public key from secret key
     GeneratePublicKey(skstr, pkstr, pk_h);
-    printf("Public key genertion finished\n");
+
+    printf("Public key generation finished\n");
     fflush(stdout);
 
     //====================================================================//
@@ -351,27 +376,42 @@ int main(
     {
         printf("Getting latest candidate block\n");
         fflush(stdout);
-        // curl http GET request
-        if (GetLatestBlock(pkstr, &request, tokens, bound_h, mes_h, &state))
-        {
-            fprintf(stderr, "ABORT: Your secret key is not valid\n");
-            status = EXIT_FAILURE;
 
+        // curl http GET request
+        if (
+            (status = GetLatestBlock(
+                &config, conftoks, pkstr, &request, reqtoks, bound_h, mes_h,
+                &state
+            )) == EXIT_FAILURE
+        )
+        {
             break;
         }
 
-        printf("Latest candidate block obtained\n");
+        printf("Latest candidate block is obtained\n");
+        fflush(stdout);
+
+        if (TerminationRequestHandler())
+        {
+            break;
+        }
 
         // state is changed
         if (state != STATE_CONTINUE)
         {
-            printf("One-time public key genertion started\n");
+            printf("One-time public key generation started\n");
             fflush(stdout);
 
             // generate one-time key pair
             GenerateKeyPair(x_h, w_h);
-            printf("One-time public key genertion finished\n");
+
+            printf("One-time public key generation finished\n");
             fflush(stdout);
+
+            if (TerminationRequestHandler())
+            {
+                break;
+            }
 
             PrintPuzzleState(mes_h, pk_h, sk_h, w_h, x_h, bound_h);
 
@@ -427,19 +467,32 @@ int main(
 
         CUDA_CALL(cudaDeviceSynchronize());
 
+        if (TerminationRequestHandler())
+        {
+            break;
+        }
+
         printf("Next batch of nonces generation started\n");
         fflush(stdout);
+
         // generate nonces
         GenerateConseqNonces<<<1 + (H_LEN * L_LEN - 1) / B_DIM, B_DIM>>>(
             (uint64_t *)nonce_d, N_LEN, base
         );
 
         base += H_LEN * L_LEN;
+
         printf("Next batch of nonces generation finished\n");
         fflush(stdout);
 
+        if (TerminationRequestHandler())
+        {
+            break;
+        }
+
         printf("Mining context preparation on CPU started\n");
         fflush(stdout);
+
         // calculate unfinalized hash of message
         InitMining(&ctx_h, (uint32_t *)mes_h, NUM_SIZE_8);
 
@@ -448,6 +501,7 @@ int main(
             (void *)(data_d + PK2_SIZE_32 + 3 * NUM_SIZE_32), (void *)&ctx_h,
             sizeof(blake2b_ctx), cudaMemcpyHostToDevice
         ));
+
         printf("Mining context preparation on CPU finished\n");
         fflush(stdout);
 
@@ -467,10 +521,17 @@ int main(
         printf("Mining iteration on GPU finished\n");
         fflush(stdout);
 
+        if (TerminationRequestHandler())
+        {
+            break;
+        }
+
         printf("Batch checking for solutions started\n");
         fflush(stdout);
+
         // try to find solution
         ind = FindNonZero(indices_d, indices_d + H_LEN * L_LEN, H_LEN * L_LEN);
+
         printf("Batch checking for solutions finished\n");
         fflush(stdout);
 
@@ -489,7 +550,7 @@ int main(
             PrintPuzzleSolution(nonce_h, res_h);
 
             // curl http POST request
-            PostPuzzleSolution(pkstr, w_h, nonce_h, res_h);
+            PostPuzzleSolution(&config, conftoks, pkstr, w_h, nonce_h, res_h);
 
             printf(
                 "Solution posted\n"
@@ -511,6 +572,7 @@ int main(
     //====================================================================//
     printf("Deallocation resources started\n");
     fflush(stdout);
+
     CUDA_CALL(cudaFree(bound_d));
     CUDA_CALL(cudaFree(nonce_d));
     CUDA_CALL(cudaFree(hash_d));
@@ -526,10 +588,17 @@ int main(
         free(request.ptr);
     }
 
+    if (config.ptr)
+    {
+        free(config.ptr);
+    }
+
     curl_global_cleanup();
 
     printf("Deallocation resources finished\n");
     fflush(stdout);
+
+    //====================================================================//
     printf("Miner is now terminated\n");
     fflush(stdout);
 

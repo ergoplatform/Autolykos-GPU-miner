@@ -11,31 +11,29 @@
 #include "../include/definitions.h"
 #include "../include/jsmn.h"
 #include <ctype.h>
-#include <stdio.h>
+#include <curl/curl.h>
+#include <fcntl.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <curl/curl.h>
+#include <termios.h>
+#include <unistd.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Initialize string for curl http GET
 ////////////////////////////////////////////////////////////////////////////////
-void InitString(
+int InitString(
     string_t * str
 )
 {
     str->len = 0;
-    str->ptr = (char *)malloc(1);
 
-    if (!(str->ptr))
-    {
-        fprintf(stderr, "ERROR: malloc() failed\n");
-        exit(EXIT_FAILURE);
-    }
+    FUNCTION_CALL(str->ptr, (char *)malloc(1), ERROR_ALLOC);
 
     str->ptr[0] = '\0';
 
-    return;
+    return EXIT_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,13 +48,7 @@ size_t WriteFunc(
 {
     size_t nlen = str->len + size * nmemb;
 
-    str->ptr = (char *)realloc(str->ptr, nlen + 1);
-
-    if (!(str->ptr))
-    {
-        fprintf(stderr, "ERROR: realloc() failed\n");
-        exit(EXIT_FAILURE);
-    }
+    FUNCTION_CALL(str->ptr, (char *)realloc(str->ptr, nlen + 1), ERROR_ALLOC);
 
     memcpy(str->ptr + str->len, ptr, size * nmemb);
 
@@ -78,6 +70,53 @@ int ToUppercase(
         str[i] = toupper(str[i]);
     }
 
+    return EXIT_SUCCESS;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//  Process termination handler
+////////////////////////////////////////////////////////////////////////////////
+int TerminationRequestHandler(
+    void
+)
+{
+    // do nothing when in background
+    if (getpgrp() != tcgetpgrp(STDOUT_FILENO))
+    {
+        return 0;
+    }
+
+    termios oldt;
+    termios newt;
+    int ch;
+    int oldf;
+
+    tcgetattr(STDIN_FILENO, &oldt);
+
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+
+    ch = getchar();
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    fcntl(STDIN_FILENO, F_SETFL, oldf);
+
+    // terminating when any character is stroken
+    if (ch != EOF)
+    {
+        ungetc(ch, stdin);
+
+        printf("Commencing termination\n");
+        fflush(stdout);
+
+        return 1;
+    }
+
+    // continue otherwise
     return 0;
 }
 
@@ -85,6 +124,8 @@ int ToUppercase(
 //  Curl http GET request
 ////////////////////////////////////////////////////////////////////////////////
 int GetLatestBlock(
+    const string_t * config,
+    const jsmntok_t * conftoks,
     const char * pkstr,
     string_t * oldreq,
     jsmntok_t * oldtoks,
@@ -101,14 +142,22 @@ int GetLatestBlock(
 
     int changed = 0;
 
+    //====================================================================//
+    //  Get latest block
+    //====================================================================//
     do 
     {
+        if (TerminationRequestHandler())
+        {
+            return 1;
+        }
+
         FUNCTION_CALL(curl, curl_easy_init(), ERROR_CURL);
 
         InitString(&newreq);
 
         curl_easy_setopt(
-            curl, CURLOPT_URL, "http://188.166.89.71:9052/mining/candidate"
+            curl, CURLOPT_URL, config->ptr + conftoks[FROM_POS].start
         );
 
         CALL_STATUS(
@@ -130,13 +179,18 @@ int GetLatestBlock(
         jsmn_init(&parser);
         jsmn_parse(&parser, newreq.ptr, newreq.len, newtoks, T_LEN);
 
+        // key-pair is not valid
         if (strncmp(pkstr, newreq.ptr + newtoks[PK_POS].start, PK_SIZE_4))
         {
             free(newreq.ptr);
+            newreq.ptr = NULL;
 
-            return 1;
+            fprintf(stderr, "ABORT: Your secret key is not valid\n");
+
+            return EXIT_FAILURE;
         }
     }
+    // repeat if solution is already posted and block is still not changed  
     while(
         oldreq->len
         && !(changed = strncmp(
@@ -147,12 +201,15 @@ int GetLatestBlock(
         && *state != STATE_CONTINUE
     );
 
+    //====================================================================//
+    //  Substitute message and change state in case message changed
+    //====================================================================//
     if (!(oldreq->len) || changed)
     {
         HexStrToBigEndian(
             newreq.ptr + newtoks[MES_POS].start,
             newtoks[MES_POS].end - newtoks[MES_POS].start,
-            (uint8_t *)mes, NUM_SIZE_8
+            mes, NUM_SIZE_8
         );
 
         *state = STATE_REHASH;
@@ -160,6 +217,9 @@ int GetLatestBlock(
 
     int len = newtoks[BOUND_POS].end - newtoks[BOUND_POS].start;
 
+    //====================================================================//
+    //  Substitute bound in case it changed
+    //====================================================================//
     if (
         !(oldreq->len)
         || len != oldtoks[BOUND_POS].end - oldtoks[BOUND_POS].start
@@ -180,18 +240,23 @@ int GetLatestBlock(
         HexStrToLittleEndian(buf, NUM_SIZE_4, bound, NUM_SIZE_8);
     }
 
+    //====================================================================//
+    //  Substitute old block with newly read
+    //====================================================================//
     free(oldreq->ptr);
     oldreq->ptr = newreq.ptr;
     oldreq->len = newreq.len;
     memcpy(oldtoks, newtoks, T_LEN * sizeof(jsmntok_t));
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Curl http POST request
 ////////////////////////////////////////////////////////////////////////////////
 int PostPuzzleSolution(
+    const string_t * config,
+    const jsmntok_t * conftoks,
     const char * pkstr,
     const uint8_t * w,
     const uint8_t * nonce,
@@ -256,7 +321,7 @@ int PostPuzzleSolution(
 
     CALL_STATUS(
         curl_easy_setopt(
-            curl, CURLOPT_URL, "http://188.166.89.71:9052/mining/solution"
+            curl, CURLOPT_URL, config->ptr + conftoks[TO_POS].start
         ),
         ERROR_CURL, CURLE_OK
     );
@@ -286,7 +351,7 @@ int PostPuzzleSolution(
     curl_easy_cleanup(curl);
     curl_slist_free_all(headers);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 // request.cu

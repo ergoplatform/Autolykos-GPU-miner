@@ -89,7 +89,7 @@ int GenerateKeyPair(
     EVP_PKEY_free(evpk);
     EC_KEY_free(eck);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,7 +155,7 @@ int GeneratePublicKey(
     BN_CTX_free(ctx);
     EC_KEY_free(eck);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 // cryptography.cu
