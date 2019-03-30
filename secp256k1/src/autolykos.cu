@@ -71,8 +71,6 @@ int ReadConfig(
 
     if (tokens[SK_POS].end - tokens[SK_POS].start != NUM_SIZE_4)
     {
-        free(out->ptr);
-
         return EXIT_FAILURE;
     }
 
@@ -85,8 +83,6 @@ int ReadConfig(
 
         if (!(ch >= '0' && ch <= '9') && !(ch >= 'A' && ch <= 'F'))
         {
-            free(out->ptr);
-
             return EXIT_FAILURE;
         }
     }
@@ -209,6 +205,11 @@ int main(
     {
         fprintf(stderr, "ABORT: GPU devices are not recognised.");
 
+        fprintf(
+            stderr, "Miner is now terminated\n"
+            "========================================"
+            "========================================\n"
+        );
         return EXIT_FAILURE;
     }
 
@@ -219,8 +220,6 @@ int main(
     //====================================================================//
     // curl http request variables
     string_t request;
-    InitString(&request);
-
     jsmntok_t reqtoks[T_LEN];
 
     // hash context
@@ -243,8 +242,6 @@ int main(
 
     // config variables
     string_t config;
-    InitString(&config);
-
     jsmntok_t conftoks[C_LEN];
 
     char confname[9] = "./config";
@@ -255,8 +252,8 @@ int main(
     //====================================================================//
     printf(
         "========================================"
-        "========================================"
-        "\nUsing configuration from \'%s\'\n", filename
+        "========================================\n"
+        "Using configuration from \'%s\'\n", filename
     );
     fflush(stdout);
 
@@ -265,29 +262,31 @@ int main(
     {
         fprintf(stderr, "ABORT: File \'%s\' not found\n", filename);
 
-        if (request.ptr)
-        {
-            free(request.ptr);
-        }
-
+        fprintf(
+            stderr, "Miner is now terminated\n"
+            "========================================"
+            "========================================\n"
+        );
         return EXIT_FAILURE;
     }
+
+    InitString(&config);
 
     // read config from file
     if (ReadConfig(filename, &config, conftoks) == EXIT_FAILURE)
     {
-        fprintf(stderr, "ABORT: Incompatible secret key format\n");
-
-        if (request.ptr)
-        {
-            free(request.ptr);
-        }
+        fprintf(stderr, "ABORT: Wrong secret key format\n");
 
         if (config.ptr)
         {
             free(config.ptr);
         }
 
+        fprintf(
+            stderr, "Miner is now terminated\n"
+            "========================================"
+            "========================================\n"
+        );
         return EXIT_FAILURE;
     }
 
@@ -361,12 +360,18 @@ int main(
         NUM_SIZE_8, cudaMemcpyHostToDevice
     ));
 
-    printf("Key-pair transfer from host to GPU finished\n");
+    printf(
+        "Key-pair transfer from host to GPU finished\n"
+        "========================================"
+        "========================================\n"
+    );
     fflush(stdout);
 
     //====================================================================//
     //  Autolykos puzzle cycle
     //====================================================================//
+    InitString(&request);
+
     state_t state = STATE_KEYGEN;
     uint32_t ind = 0;
     uint64_t base = 0;
@@ -377,12 +382,11 @@ int main(
         fflush(stdout);
 
         // curl http GET request
-        if (
-            (status = GetLatestBlock(
-                &config, conftoks, pkstr, &request, reqtoks, bound_h, mes_h,
-                &state
-            )) == EXIT_FAILURE
-        )
+        status = GetLatestBlock(
+            &config, conftoks, pkstr, &request, reqtoks, bound_h, mes_h, &state
+        );
+
+        if (status == EXIT_FAILURE || state == STATE_INTERRUPT)
         {
             break;
         }
@@ -554,8 +558,7 @@ int main(
             printf(
                 "Solution posted\n"
                 "========================================"
-                "========================================"
-                "\n"
+                "========================================\n"
             );
             fflush(stdout);
 
@@ -569,7 +572,7 @@ int main(
     //====================================================================//
     //  Free device memory
     //====================================================================//
-    printf("Deallocation resources started\n");
+    printf("Resources releasing started\n");
     fflush(stdout);
 
     CUDA_CALL(cudaFree(bound_d));
@@ -594,11 +597,15 @@ int main(
 
     curl_global_cleanup();
 
-    printf("Deallocation resources finished\n");
+    printf("Resources releasing finished\n");
     fflush(stdout);
 
     //====================================================================//
-    printf("Miner is now terminated\n");
+    printf(
+        "Miner is now terminated\n"
+        "========================================"
+        "========================================\n"
+    );
     fflush(stdout);
 
     return status;

@@ -137,6 +137,8 @@ int GetLatestBlock(
     CURL * curl;
 
     string_t newreq;
+    newreq.ptr = NULL;
+
     jsmntok_t newtoks[T_LEN];
     jsmn_parser parser;
 
@@ -147,9 +149,16 @@ int GetLatestBlock(
     //====================================================================//
     do 
     {
+        if (newreq.ptr)
+        {
+            free(newreq.ptr);
+            newreq.ptr = NULL;
+        }
+
         if (TerminationRequestHandler())
         {
-            return 1;
+            *state = STATE_INTERRUPT;
+            return EXIT_SUCCESS;
         }
 
         FUNCTION_CALL(curl, curl_easy_init(), ERROR_CURL);
@@ -182,10 +191,40 @@ int GetLatestBlock(
         // key-pair is not valid
         if (strncmp(pkstr, newreq.ptr + newtoks[PK_POS].start, PK_SIZE_4))
         {
-            free(newreq.ptr);
-            newreq.ptr = NULL;
+            fprintf(
+                stderr,
+                "ABORT:  Public key derived from your secret key:\n"
+                "        0x%.2s",
+                pkstr
+            );
 
-            fprintf(stderr, "ABORT: Your secret key is not valid\n");
+            for (int i = 2; i < PK_SIZE_4; i += 16)
+            {
+                fprintf(stderr, " %.16s", pkstr + i);
+            }
+            
+            fprintf(
+                stderr,
+                "\n"
+                "        is not equal to the expected public key:\n"
+                "        0x%.2s",
+                newreq.ptr + newtoks[PK_POS].start
+            );
+
+            for (int i = 2; i < PK_SIZE_4; i += 16)
+            {
+                fprintf(
+                    stderr, " %.16s", newreq.ptr + newtoks[PK_POS].start + i
+                );
+            }
+
+            fprintf(stderr, "\n");
+
+            if (newreq.ptr)
+            {
+                free(newreq.ptr);
+                newreq.ptr = NULL;
+            }
 
             return EXIT_FAILURE;
         }

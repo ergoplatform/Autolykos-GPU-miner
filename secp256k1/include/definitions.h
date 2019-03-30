@@ -110,7 +110,8 @@ typedef enum
 {
     STATE_CONTINUE = 0,
     STATE_REHASH = 1,
-    STATE_KEYGEN = 2
+    STATE_KEYGEN = 2,
+    STATE_INTERRUPT = 3
 }
 state_t;
 
