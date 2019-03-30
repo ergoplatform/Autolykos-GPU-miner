@@ -292,7 +292,6 @@ int main(
     }
 
     skstr = config.ptr + conftoks[SK_POS].start;
-    printf("skstr = %s\n", skstr);
 
     // convert secret key to little endian
     HexStrToLittleEndian(skstr, NUM_SIZE_4, sk_h, NUM_SIZE_8);
