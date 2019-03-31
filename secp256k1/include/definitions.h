@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <time.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Autolykos constants
@@ -120,6 +121,13 @@ struct string_t
 {
     char * ptr;
     size_t len;
+};
+
+struct stamp_t
+{
+    timespec realtime;
+    tm * timeinfo;
+    char timestamp[30];
 };
 
 // BLAKE2b-256 hash state context
@@ -474,6 +482,11 @@ do                                                                             \
     if ((x) != cudaSuccess)                                                    \
     {                                                                          \
         fprintf(stderr, "ERROR: CUDA failed at %s: %d\n",__FILE__,__LINE__);   \
+        fprintf(                                                               \
+            stderr, "Miner is now terminated\n"                                \
+            "========================================"                         \
+            "========================================\n"                       \
+        );                                                                     \
         exit(EXIT_FAILURE);                                                    \
     }                                                                          \
 }                                                                              \

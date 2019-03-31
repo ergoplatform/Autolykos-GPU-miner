@@ -24,9 +24,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
+
+////////////////////////////////////////////////////////////////////////////////
+//  Time stamp
+////////////////////////////////////////////////////////////////////////////////
+char * TimeStamp(
+    stamp_t * stamp
+)
+{
+    clock_gettime(CLOCK_REALTIME, &(stamp->realtime));
+    stamp->timeinfo = localtime(&((stamp->realtime).tv_sec));
+    strftime(stamp->timestamp, 30, "%a %m/%d/%Y %H:%M:%S:", stamp->timeinfo);
+
+    long int millisec = (stamp->realtime).tv_nsec / 1e6;
+    sprintf(stamp->timestamp + 24, "%03d: ", millisec);
+
+    return stamp->timestamp;
+}
  
 ////////////////////////////////////////////////////////////////////////////////
 //  Find file size
@@ -127,8 +144,6 @@ int PrintPuzzleState(
     const uint8_t * bound
 )
 {
-    printf("Processing candidate:\n"); 
-
     printf(
         "m     =    0x%016lX %016lX %016lX %016lX\n",
         REVERSE_ENDIAN((uint64_t *)mes + 0),
@@ -172,8 +187,6 @@ int PrintPuzzleSolution(
     const uint8_t * sol
 )
 {
-    printf("Solution found:\n"); 
-
     printf("nonce =    0x%016lX\n", REVERSE_ENDIAN((uint64_t *)nonce));
 
     printf(
@@ -195,6 +208,15 @@ int main(
 {
     int status = EXIT_SUCCESS;
 
+    stamp_t stamp;
+
+    printf(
+        "========================================"
+        "========================================\n"
+        "%s Checking GPU availability\n", TimeStamp(&stamp)
+    );
+    fflush(stdout);
+
     //====================================================================//
     //  GPU availability checking
     //====================================================================//
@@ -204,12 +226,6 @@ int main(
     if (!deviceCount)
     {
         fprintf(stderr, "ABORT: GPU devices are not recognised.");
-
-        fprintf(
-            stderr, "Miner is now terminated\n"
-            "========================================"
-            "========================================\n"
-        );
         return EXIT_FAILURE;
     }
 
@@ -251,8 +267,6 @@ int main(
     //  Config reading and checking
     //====================================================================//
     printf(
-        "========================================"
-        "========================================\n"
         "Using configuration from \'%s\'\n", filename
     );
     fflush(stdout);
@@ -295,19 +309,19 @@ int main(
     // convert secret key to little endian
     HexStrToLittleEndian(skstr, NUM_SIZE_4, sk_h, NUM_SIZE_8);
 
-    printf("Public key generation started\n");
+    printf("%s Public key generation started\n", TimeStamp(&stamp));
     fflush(stdout);
 
     // generate public key from secret key
     GeneratePublicKey(skstr, pkstr, pk_h);
 
-    printf("Public key generation finished\n");
+    printf("%s Public key generation finished\n", TimeStamp(&stamp));
     fflush(stdout);
 
     //====================================================================//
     //  Device memory allocation
     //====================================================================//
-    printf("GPU memory allocation started\n");
+    printf("%s GPU memory allocation started\n", TimeStamp(&stamp));
     fflush(stdout);
 
     // boundary for puzzle
@@ -342,11 +356,13 @@ int main(
     uint32_t * res_d;
     CUDA_CALL(cudaMalloc((void **)&res_d, H_LEN * L_LEN * NUM_SIZE_8));
 
-    printf("GPU memory allocation finished\n");
+    printf("%s GPU memory allocation finished\n", TimeStamp(&stamp));
     fflush(stdout);
 
     //====================================================================//
-    printf("Key-pair transfer from host to GPU started\n");
+    printf(
+        "%s Key-pair transfer from host to GPU started\n", TimeStamp(&stamp)
+    );
     fflush(stdout);
 
     // copy public key
@@ -361,9 +377,9 @@ int main(
     ));
 
     printf(
-        "Key-pair transfer from host to GPU finished\n"
+        "%s Key-pair transfer from host to GPU finished\n"
         "========================================"
-        "========================================\n"
+        "========================================\n", TimeStamp(&stamp)
     );
     fflush(stdout);
 
@@ -378,7 +394,7 @@ int main(
 
     do
     {
-        printf("Getting latest candidate block\n");
+        printf("%s Getting latest candidate block\n", TimeStamp(&stamp));
         fflush(stdout);
 
         // curl http GET request
@@ -391,7 +407,7 @@ int main(
             break;
         }
 
-        printf("Latest candidate block is obtained\n");
+        printf("%s Latest candidate block is obtained\n", TimeStamp(&stamp));
         fflush(stdout);
 
         if (TerminationRequestHandler())
@@ -402,13 +418,18 @@ int main(
         // state is changed
         if (state != STATE_CONTINUE)
         {
-            printf("One-time public key generation started\n");
+            printf(
+                "%s One-time public key generation started\n", TimeStamp(&stamp)
+            );
             fflush(stdout);
 
             // generate one-time key pair
             GenerateKeyPair(x_h, w_h);
 
-            printf("One-time public key generation finished\n");
+            printf(
+                "%s One-time public key generation finished\n",
+                TimeStamp(&stamp)
+            );
             fflush(stdout);
 
             if (TerminationRequestHandler())
@@ -416,9 +437,12 @@ int main(
                 break;
             }
 
+            printf("%s Processing candidate:\n", TimeStamp(&stamp)); 
             PrintPuzzleState(mes_h, pk_h, sk_h, w_h, x_h, bound_h);
 
-            printf("Data transfer from host to GPU started\n");
+            printf(
+                "%s Data transfer from host to GPU started\n", TimeStamp(&stamp)
+            );
             fflush(stdout);
 
             // copy boundary
@@ -445,7 +469,10 @@ int main(
                 (void *)w_h, PK_SIZE_8, cudaMemcpyHostToDevice
             ));
 
-            printf("Data transfer from host to GPU finished\n");
+            printf(
+                "%s Data transfer from host to GPU finished\n",
+                TimeStamp(&stamp)
+            );
             fflush(stdout);
 
             if (TerminationRequestHandler())
@@ -456,12 +483,12 @@ int main(
             // precalculate hashes
             if (state == STATE_REHASH)
             {
-                printf("Prehash started\n");
+                printf("%s Prehash started\n", TimeStamp(&stamp));
                 fflush(stdout);
 
                 Prehash(data_d, hash_d, indices_d);
 
-                printf("Prehash finished\n");
+                printf("%s Prehash finished\n", TimeStamp(&stamp));
                 fflush(stdout);
             }
 
@@ -475,7 +502,9 @@ int main(
             break;
         }
 
-        printf("Next batch of nonces generation started\n");
+        printf(
+            "%s Next batch of nonces generation started\n", TimeStamp(&stamp)
+        );
         fflush(stdout);
 
         // generate nonces
@@ -485,7 +514,9 @@ int main(
 
         base += H_LEN * L_LEN;
 
-        printf("Next batch of nonces generation finished\n");
+        printf(
+            "%s Next batch of nonces generation finished\n", TimeStamp(&stamp)
+        );
         fflush(stdout);
 
         if (TerminationRequestHandler())
@@ -493,7 +524,9 @@ int main(
             break;
         }
 
-        printf("Mining context preparation on CPU started\n");
+        printf(
+            "%s Mining context preparation on CPU started\n", TimeStamp(&stamp)
+        );
         fflush(stdout);
 
         // calculate unfinalized hash of message
@@ -505,7 +538,9 @@ int main(
             sizeof(blake2b_ctx), cudaMemcpyHostToDevice
         ));
 
-        printf("Mining context preparation on CPU finished\n");
+        printf(
+            "%s Mining context preparation on CPU finished\n", TimeStamp(&stamp)
+        );
         fflush(stdout);
 
         if (TerminationRequestHandler())
@@ -513,7 +548,7 @@ int main(
             break;
         }
 
-        printf("Mining iteration on GPU started\n");
+        printf("%s Mining iteration on GPU started\n", TimeStamp(&stamp));
         fflush(stdout);
 
         // calculate solution candidates
@@ -521,7 +556,7 @@ int main(
             bound_d, data_d, nonce_d, hash_d, res_d, indices_d
         );
 
-        printf("Mining iteration on GPU finished\n");
+        printf("%s Mining iteration on GPU finished\n", TimeStamp(&stamp));
         fflush(stdout);
 
         if (TerminationRequestHandler())
@@ -529,13 +564,13 @@ int main(
             break;
         }
 
-        printf("Batch checking for solutions started\n");
+        printf("%s Batch checking for solutions started\n", TimeStamp(&stamp));
         fflush(stdout);
 
         // try to find solution
         ind = FindNonZero(indices_d, indices_d + H_LEN * L_LEN, H_LEN * L_LEN);
 
-        printf("Batch checking for solutions finished\n");
+        printf("%s Batch checking for solutions finished\n", TimeStamp(&stamp));
         fflush(stdout);
 
         if (ind)
@@ -550,15 +585,17 @@ int main(
                 NONCE_SIZE_8, cudaMemcpyDeviceToHost
             ));
 
+            printf("%s Solution found:\n", TimeStamp(&stamp)); 
             PrintPuzzleSolution(nonce_h, res_h);
 
             // curl http POST request
             PostPuzzleSolution(&config, conftoks, pkstr, w_h, nonce_h, res_h);
 
             printf(
-                "Solution posted\n"
+                "%s Solution is posted\n"
                 "========================================"
-                "========================================\n"
+                "========================================\n",
+                TimeStamp(&stamp)
             );
             fflush(stdout);
 
@@ -572,7 +609,7 @@ int main(
     //====================================================================//
     //  Free device memory
     //====================================================================//
-    printf("Resources releasing started\n");
+    printf("%s Resources releasing started\n", TimeStamp(&stamp));
     fflush(stdout);
 
     CUDA_CALL(cudaFree(bound_d));
@@ -597,14 +634,15 @@ int main(
 
     curl_global_cleanup();
 
-    printf("Resources releasing finished\n");
+    printf("%s Resources releasing finished\n", TimeStamp(&stamp));
     fflush(stdout);
 
     //====================================================================//
     printf(
-        "Miner is now terminated\n"
+        "%s Miner is now terminated\n"
         "========================================"
-        "========================================\n"
+        "========================================\n",
+        TimeStamp(&stamp)
     );
     fflush(stdout);
 
