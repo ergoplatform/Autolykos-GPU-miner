@@ -74,6 +74,7 @@ __global__ void InitPrehash(
     //====================================================================//
     //  Hash constant message
     //====================================================================//
+#pragma unroll
     for (j = 0; ctx->c < 128 && j < 0x2000; ++j)
     {
         ctx->b[ctx->c++]
@@ -98,6 +99,7 @@ __global__ void InitPrehash(
     //====================================================================//
     //  Hash public key, message & one-time public key
     //====================================================================//
+#pragma unroll
     for (j = 0; ctx->c < 128 && j < 2 * PK_SIZE_8 + NUM_SIZE_8; ++j)
     {
         ctx->b[ctx->c++] = ((const uint8_t *)rem)[j];
@@ -153,120 +155,115 @@ __global__ void InitPrehash(
 ////////////////////////////////////////////////////////////////////////////////
 //  Unfinalized first iteration of hashes precalculation
 ////////////////////////////////////////////////////////////////////////////////
-/// inoperable /// __global__ void UnfinalInitPrehash(
-/// inoperable ///     // data: pk
-/// inoperable ///     const uint32_t * data,
-/// inoperable ///     // unfinalized hash contexts
-/// inoperable ///     blake2b_ctx * uctx
-/// inoperable /// )
-/// inoperable /// {
-/// inoperable ///     uint32_t j;
-/// inoperable ///     uint32_t tid = threadIdx.x;
-/// inoperable /// 
-/// inoperable ///     // shared memory
-/// inoperable ///     __shared__ uint32_t sdata[B_DIM];
-/// inoperable /// 
-/// inoperable ///     sdata[tid] = data[tid];
-/// inoperable ///     __syncthreads();
-/// inoperable /// 
-/// inoperable ///     // pk
-/// inoperable ///     // PK_SIZE_8 bytes
-/// inoperable ///     uint32_t * pk = sdata;
-/// inoperable /// 
-/// inoperable ///     // local memory
-/// inoperable ///     // 472 bytes
-/// inoperable ///     uint32_t ldata[118];
-/// inoperable /// 
-/// inoperable ///     // 32 * 64 bits = 256 bytes 
-/// inoperable ///     uint64_t * aux = (uint64_t *)ldata;
-/// inoperable ///     // (212 + 4) bytes 
-/// inoperable ///     blake2b_ctx * ctx = (blake2b_ctx *)(ldata + 64);
-/// inoperable /// 
-/// inoperable ///     tid += blockDim.x * blockIdx.x;
-/// inoperable /// 
-/// inoperable ///     //====================================================================//
-/// inoperable ///     //  Initialize context
-/// inoperable ///     //====================================================================//
-/// inoperable ///     B2B_IV(ctx->h);
-/// inoperable /// 
-/// inoperable ///     ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_SIZE_8;
-/// inoperable ///     ctx->t[0] = 0;
-/// inoperable ///     ctx->t[1] = 0;
-/// inoperable ///     ctx->c = 0;
-/// inoperable /// 
-/// inoperable /// #pragma unroll
-/// inoperable ///     for (j = 0; j < 128; ++j)
-/// inoperable ///     {
-/// inoperable ///         ctx->b[j] = 0;
-/// inoperable ///     }
-/// inoperable /// 
-/// inoperable ///     //====================================================================//
-/// inoperable ///     //  Hash tid
-/// inoperable ///     //====================================================================//
-/// inoperable /// #pragma unroll
-/// inoperable ///     for (j = 0; ctx->c < 128 && j < 4; ++j)
-/// inoperable ///     {
-/// inoperable ///         ctx->b[ctx->c++] = ((const uint8_t *)&tid)[j];
-/// inoperable ///     }
-/// inoperable /// 
-/// inoperable /// /// never reached /// #pragma unroll
-/// inoperable /// /// never reached ///     for ( ; j < 4; )
-/// inoperable /// /// never reached ///     {
-/// inoperable /// /// never reached ///         B2B_H(ctx, aux);
-/// inoperable /// /// never reached ///        
-/// inoperable /// /// never reached /// #pragma unroll
-/// inoperable /// /// never reached ///         for ( ; ctx->c < 128 && j < 4; ++j)
-/// inoperable /// /// never reached ///         {
-/// inoperable /// /// never reached ///             ctx->b[ctx->c++] = ((const uint8_t *)tid)[j];
-/// inoperable /// /// never reached ///         }
-/// inoperable /// /// never reached ///     }
-/// inoperable /// 
-/// inoperable ///     //====================================================================//
-/// inoperable ///     //  Hash constant message
-/// inoperable ///     //====================================================================//
-/// inoperable ///     for (j = 0; ctx->c < 128 && j < 0x1000; ++j)
-/// inoperable ///     {
-/// inoperable ///         ctx->b[ctx->c++] = !(j & 3) * (j >> 2);
-/// inoperable ///     }
-/// inoperable /// 
-/// inoperable ///     while (j < 0x1000)
-/// inoperable ///     {
-/// inoperable ///         B2B_H(ctx, aux);
-/// inoperable ///        
-/// inoperable ///         for ( ; ctx->c < 128 && j < 0x1000; ++j)
-/// inoperable ///         {
-/// inoperable ///             ctx->b[ctx->c++] = !(j & 3) * (j >> 2);
-/// inoperable ///         }
-/// inoperable ///     }
-/// inoperable /// 
-/// inoperable ///     //====================================================================//
-/// inoperable ///     //  Hash public key
-/// inoperable ///     //====================================================================//
-/// inoperable /// #pragma unroll
-/// inoperable ///     for (j = 0; ctx->c < 128 && j < PK_SIZE_8; ++j)
-/// inoperable ///     {
-/// inoperable ///         ctx->b[ctx->c++] = ((const uint8_t *)pk)[j];
-/// inoperable ///     }
-/// inoperable /// 
-/// inoperable /// #pragma unroll
-/// inoperable ///     for ( ; j < PK_SIZE_8; )
-/// inoperable ///     {
-/// inoperable ///         B2B_H(ctx, aux);
-/// inoperable ///        
-/// inoperable /// #pragma unroll
-/// inoperable ///         for ( ; ctx->c < 128 && j < PK_SIZE_8; )
-/// inoperable ///         {
-/// inoperable ///             ctx->b[ctx->c++] = ((const uint8_t *)pk)[j++];
-/// inoperable ///         }
-/// inoperable ///     }
-/// inoperable /// 
-/// inoperable ///     //===================================================================//
-/// inoperable ///     //  Dump result to global memory
-/// inoperable ///     //===================================================================//
-/// inoperable ///     uctx[tid] = *ctx;
-/// inoperable /// 
-/// inoperable ///     return;
-/// inoperable /// }
+__global__ void UnfinalInitPrehash(
+    // data: pk
+    const uint32_t * data,
+    // unfinalized hash contexts
+    blake2b_ctx * uctx
+)
+{
+    uint32_t j;
+    uint32_t tid = threadIdx.x;
+
+    // shared memory
+    __shared__ uint32_t sdata[B_DIM];
+
+    sdata[tid] = data[tid];
+    __syncthreads();
+
+    // public key
+    // PK_SIZE_8 bytes
+    uint32_t * pk = sdata;
+
+    // local memory
+    // 472 bytes
+    uint32_t ldata[118];
+
+    // 32 * 64 bits = 256 bytes 
+    uint64_t * aux = (uint64_t *)ldata;
+    // (212 + 4) bytes 
+    blake2b_ctx * ctx = (blake2b_ctx *)(ldata + 64);
+
+    tid += blockDim.x * blockIdx.x;
+
+    //====================================================================//
+    //  Initialize context
+    //====================================================================//
+    B2B_IV(ctx->h);
+
+    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_SIZE_8;
+    ctx->t[0] = 0;
+    ctx->t[1] = 0;
+    ctx->c = 0;
+
+#pragma unroll
+    for (j = 0; j < 128; ++j)
+    {
+        ctx->b[j] = 0;
+    }
+
+    //====================================================================//
+    //  Hash tid
+    //====================================================================//
+#pragma unroll
+    for (j = 0; ctx->c < 128 && j < 4; ++j)
+    {
+        ctx->b[ctx->c++] = ((const uint8_t *)&tid)[3 - j];
+    }
+
+    //====================================================================//
+    //  Hash constant message
+    //====================================================================//
+#pragma unroll
+    for (j = 0; ctx->c < 128 && j < 0x2000; ++j)
+    {
+        ctx->b[ctx->c++]
+            = (!((7 - (j & 7)) >> 1) * ((j >> 3) >> (((~(j & 7)) & 1) << 3)))
+            & 0xFF;
+    }
+
+    while (j < 0x2000)
+    {
+        B2B_H(ctx, aux);
+
+        for ( ; ctx->c < 128 && j < 0x2000; ++j)
+        {
+            ctx->b[ctx->c++]
+                = (
+                    !((7 - (j & 7)) >> 1)
+                    * ((j >> 3) >> (((~(j & 7)) & 1) << 3))
+                ) & 0xFF;
+        }
+    }
+
+    //====================================================================//
+    //  Hash public key
+    //====================================================================//
+#pragma unroll
+    for (j = 0; ctx->c < 128 && j < PK_SIZE_8; ++j)
+    {
+        ctx->b[ctx->c++] = ((const uint8_t *)pk)[j];
+    }
+
+#pragma unroll
+    for ( ; j < PK_SIZE_8; )
+    {
+        B2B_H(ctx, aux);
+       
+#pragma unroll
+        for ( ; ctx->c < 128 && j < PK_SIZE_8; )
+        {
+            ctx->b[ctx->c++] = ((const uint8_t *)pk)[j++];
+        }
+    }
+
+    //===================================================================//
+    //  Dump result to global memory
+    //===================================================================//
+    uctx[tid] = *ctx;
+
+    return;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Rehash out of bounds hashes

@@ -7,7 +7,7 @@
 
 ********************************************************************************
 
-initPrehash 
+InitPrehash 
     in:     array 'data' contains (pk || mes || w || padding || x || sk)
 
     out:    computes array 'hash' of N uint256_t elements:
@@ -18,7 +18,7 @@ initPrehash
 
 ********************************************************************************
 
-unfinalInitPrehash
+UnfinalInitPrehash
     in:     array 'data' contains pk
 
     out:    computes an array 'uctx' of N blake2b_ctx elements:
@@ -26,7 +26,7 @@ unfinalInitPrehash
 
 ********************************************************************************
 
-updatePrehash
+UpdatePrehash
     in:     array 'hash' of N uint256_t elements:
             hash[j] == blake2b-256(j || M || pk || mes || w) 
 
@@ -44,7 +44,7 @@ updatePrehash
 
 ********************************************************************************
 
-finalPrehash
+FinalPrehash
     in:     array 'data' contains (pk || mes || w || padding || x || sk)
 
     in:     array 'hash' of N uint256_t elements:

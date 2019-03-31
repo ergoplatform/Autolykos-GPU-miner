@@ -7,6 +7,7 @@
 
 *******************************************************************************/
 
+#include <immintrin.h> 
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -142,6 +143,22 @@ struct blake2b_ctx
     // counter for b
     uint32_t c;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+//  256-bits numbers CPU subtraction
+////////////////////////////////////////////////////////////////////////////////
+#define Q_MINUS_BOUND(bound, out)                                              \
+do                                                                             \
+{                                                                              \
+    ((uint64_t *)(out))[0] = Q0 - ((uint64_t *)(bound))[0];                    \
+    ((uint64_t *)(out))[1]                                                     \
+        = Q1 - ((uint64_t *)(bound))[1] - 1 + !(((uint64_t *)(out))[0] > Q0);  \
+    ((uint64_t *)(out))[2]                                                     \
+        = Q2 - ((uint64_t *)(bound))[2] - 1 + !(((uint64_t *)(out))[1] > Q1);  \
+    ((uint64_t *)(out))[3]                                                     \
+        = Q3 - ((uint64_t *)(bound))[3] - 1 + !(((uint64_t *)(out))[2] > Q2);  \
+}                                                                              \
+while (0)
 
 ////////////////////////////////////////////////////////////////////////////////
 //  BLAKE2b-256 hashing procedures macros
@@ -535,5 +552,8 @@ do                                                                             \
     }                                                                          \
 }                                                                              \
 while (0)
+
+#define PERSISTENT_CALL_STATUS(func, status)                                   \
+do {} while ((func) != (status))
 
 #endif // DEFINITIONS_H

@@ -277,12 +277,18 @@ int GetLatestBlock(
         );
 
         HexStrToLittleEndian(buf, NUM_SIZE_4, bound, NUM_SIZE_8);
+
+        Q_MINUS_BOUND(bound, bound + NUM_SIZE_8);
     }
 
     //====================================================================//
     //  Substitute old block with newly read
     //====================================================================//
-    free(oldreq->ptr);
+    if (oldreq->ptr)
+    {
+        free(oldreq->ptr);
+    }
+
     oldreq->ptr = newreq.ptr;
     oldreq->len = newreq.len;
     memcpy(oldtoks, newtoks, T_LEN * sizeof(jsmntok_t));
@@ -389,6 +395,11 @@ int PostPuzzleSolution(
 
     curl_easy_cleanup(curl);
     curl_slist_free_all(headers);
+
+    if (respond.ptr)
+    {
+        free(respond.ptr);
+    }
 
     return EXIT_SUCCESS;
 }

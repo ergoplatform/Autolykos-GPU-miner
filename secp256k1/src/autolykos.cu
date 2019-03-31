@@ -35,10 +35,14 @@ char * TimeStamp(
     stamp_t * stamp
 )
 {
+    // get real time
     clock_gettime(CLOCK_REALTIME, &(stamp->realtime));
+    // convert seconds to human-readable form
     stamp->timeinfo = localtime(&((stamp->realtime).tv_sec));
+    // form time stamp
     strftime(stamp->timestamp, 30, "%a %m/%d/%Y %H:%M:%S:", stamp->timeinfo);
 
+    // calculate milliseconds
     long int millisec = (stamp->realtime).tv_nsec / 1e6;
     sprintf(stamp->timestamp + 24, "%03d: ", millisec);
 
@@ -176,6 +180,8 @@ int PrintPuzzleState(
         ((uint64_t *)bound)[1], ((uint64_t *)bound)[0]
     );
 
+    fflush(stdout);
+
     return EXIT_SUCCESS;
 }
 
@@ -194,6 +200,8 @@ int PrintPuzzleSolution(
         ((uint64_t *)sol)[3], ((uint64_t *)sol)[2],
         ((uint64_t *)sol)[1], ((uint64_t *)sol)[0]
     );
+
+    fflush(stdout);
 
     return EXIT_SUCCESS;
 }
@@ -221,11 +229,17 @@ int main(
     //  GPU availability checking
     //====================================================================//
     int deviceCount;
-    CUDA_CALL(cudaGetDeviceCount(&deviceCount));
 
-    if (!deviceCount)
+    if (cudaGetDeviceCount(&deviceCount) != cudaSuccess)
     {
-        fprintf(stderr, "ABORT: GPU devices are not recognised.");
+        fprintf(stderr, "ABORT:  GPU devices are not recognised.");
+
+        fprintf(
+            stderr, "%s Miner is now terminated\n"
+            "========================================"
+            "========================================\n",
+            TimeStamp(&stamp)
+        );
         return EXIT_FAILURE;
     }
 
@@ -243,7 +257,7 @@ int main(
     blake2b_ctx ctx_h;
 
     // autolykos variables
-    uint8_t bound_h[NUM_SIZE_8];
+    uint8_t bound_h[NUM_SIZE_8 * 2];
     uint8_t mes_h[NUM_SIZE_8];
     uint8_t sk_h[NUM_SIZE_8];
     uint8_t pk_h[PK_SIZE_8];
@@ -274,12 +288,13 @@ int main(
     // check access to config file
     if (access(filename, F_OK) == -1)
     {
-        fprintf(stderr, "ABORT: File \'%s\' not found\n", filename);
+        fprintf(stderr, "ABORT:  File \'%s\' not found\n", filename);
 
         fprintf(
-            stderr, "Miner is now terminated\n"
+            stderr, "%s Miner is now terminated\n"
             "========================================"
-            "========================================\n"
+            "========================================\n",
+            TimeStamp(&stamp)
         );
         return EXIT_FAILURE;
     }
@@ -289,7 +304,7 @@ int main(
     // read config from file
     if (ReadConfig(filename, &config, conftoks) == EXIT_FAILURE)
     {
-        fprintf(stderr, "ABORT: Wrong secret key format\n");
+        fprintf(stderr, "ABORT:  Wrong secret key format\n");
 
         if (config.ptr)
         {
@@ -297,9 +312,10 @@ int main(
         }
 
         fprintf(
-            stderr, "Miner is now terminated\n"
+            stderr, "%s Miner is now terminated\n"
             "========================================"
-            "========================================\n"
+            "========================================\n",
+            TimeStamp(&stamp)
         );
         return EXIT_FAILURE;
     }
@@ -327,7 +343,7 @@ int main(
     // boundary for puzzle
     // ~0 MB
     uint32_t * bound_d;
-    CUDA_CALL(cudaMalloc((void **)&bound_d, NUM_SIZE_8));
+    CUDA_CALL(cudaMalloc((void **)&bound_d, NUM_SIZE_8 * 2));
 
     // nonces
     // H_LEN * L_LEN * NONCE_SIZE_8 bytes // 32 MB
@@ -379,7 +395,8 @@ int main(
     printf(
         "%s Key-pair transfer from host to GPU finished\n"
         "========================================"
-        "========================================\n", TimeStamp(&stamp)
+        "========================================\n",
+        TimeStamp(&stamp)
     );
     fflush(stdout);
 
@@ -447,7 +464,7 @@ int main(
 
             // copy boundary
             CUDA_CALL(cudaMemcpy(
-                (void *)bound_d, (void *)bound_h, NUM_SIZE_8,
+                (void *)bound_d, (void *)bound_h, NUM_SIZE_8 * 2,
                 cudaMemcpyHostToDevice
             ));
 
@@ -573,6 +590,7 @@ int main(
         printf("%s Batch checking for solutions finished\n", TimeStamp(&stamp));
         fflush(stdout);
 
+        // solution found
         if (ind)
         {
             CUDA_CALL(cudaMemcpy(
@@ -600,6 +618,12 @@ int main(
             fflush(stdout);
 
             state = STATE_KEYGEN;
+        }
+        // solution not found
+        else
+        {
+            printf("Solution is not found in the current batch of nonces\n");
+            fflush(stdout);
         }
     }
     while(!TerminationRequestHandler());
