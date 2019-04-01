@@ -269,8 +269,6 @@ int GetLatestBlock(
         );
 
         HexStrToLittleEndian(buf, NUM_SIZE_4, bound, NUM_SIZE_8);
-
-        Q_MINUS_BOUND(bound, bound + NUM_SIZE_8);
     }
 
     //====================================================================//

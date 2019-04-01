@@ -261,7 +261,7 @@ int main(
     context_t ctx_h;
 
     // autolykos variables
-    uint8_t bound_h[NUM_SIZE_8 * 2];
+    uint8_t bound_h[NUM_SIZE_8];
     uint8_t mes_h[NUM_SIZE_8];
     uint8_t sk_h[NUM_SIZE_8];
     uint8_t pk_h[PK_SIZE_8];
@@ -365,7 +365,7 @@ int main(
     // boundary for puzzle
     // ~0 MB
     uint32_t * bound_d;
-    CUDA_CALL(cudaMalloc((void **)&bound_d, NUM_SIZE_8 * 2));
+    CUDA_CALL(cudaMalloc((void **)&bound_d, NUM_SIZE_8));
 
     // nonces
     // H_LEN * L_LEN * NONCE_SIZE_8 bytes // 32 MB
@@ -520,7 +520,7 @@ int main(
 
             // copy boundary
             CUDA_CALL(cudaMemcpy(
-                (void *)bound_d, (void *)bound_h, NUM_SIZE_8 * 2,
+                (void *)bound_d, (void *)bound_h, NUM_SIZE_8,
                 cudaMemcpyHostToDevice
             ));
 
