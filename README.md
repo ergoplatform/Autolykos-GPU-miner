@@ -37,6 +37,10 @@ try to open *'<YOUR_PATH>/autolykos/secp256k1/config'* file.
 Secret key must be a hex string of 64 digits in hexadecimal Big-Endian representation.
 You can examine a stub config file *'<YOUR_PATH>/autolykos/secp256k1/stub.config'*.
 
+"keepPrehash" option:
+1. true -- the mode of execution with total unfinalized prehash array (5GB) reusage.
+2. false -- the mode of execution with prehash recalculation on for each block.
+
 To run the miner type:
 
 *'$ <YOUR_PATH>/autolykos/secp256k1/auto.out [YOUR_CONFIG_FILE]'*
