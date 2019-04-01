@@ -339,15 +339,6 @@ __global__ void BlockMining(
                     || ((uint64_t *)r)[1] == ((uint64_t *)bound)[1]
                     && ((uint64_t *)r)[0] < ((uint64_t *)bound)[0]
                 )
-            )
-            || ((uint64_t *)r)[3] > ((uint64_t *)bound)[7]
-            || ((uint64_t *)r)[3] == ((uint64_t *)bound)[7] && (
-                ((uint64_t *)r)[2] > ((uint64_t *)bound)[6]
-                || ((uint64_t *)r)[2] == ((uint64_t *)bound)[6] && (
-                    ((uint64_t *)r)[1] > ((uint64_t *)bound)[5]
-                    || ((uint64_t *)r)[1] == ((uint64_t *)bound)[5]
-                    && ((uint64_t *)r)[0] > ((uint64_t *)bound)[4]
-                )
             );
 
         valid[tid] = (1 - !j) * (tid + 1);
