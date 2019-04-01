@@ -14,7 +14,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 void InitMining(
     // context
-    blake2b_ctx * ctx,
+    context_t * ctx,
     // message
     const uint32_t * mes,
     // message length in bytes
@@ -99,12 +99,12 @@ __global__ void BlockMining(
     // (NUM_SIZE_8 + 4) bytes
     uint32_t * r = ind + K_LEN;
     // (212 + 4) bytes 
-    blake2b_ctx * ctx = (blake2b_ctx *)(ldata + 64);
+    context_t * ctx = (context_t *)(ldata + 64);
 
 #pragma unroll
     for (int l = 0; l < H_LEN; ++l) 
     {
-        *ctx = *((blake2b_ctx *)(sdata + NUM_SIZE_32));
+        *ctx = *((context_t *)(sdata + NUM_SIZE_32));
 
         tid = threadIdx.x + blockDim.x * blockIdx.x
             + l * gridDim.x * blockDim.x;

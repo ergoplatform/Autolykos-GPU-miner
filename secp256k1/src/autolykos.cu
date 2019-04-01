@@ -108,6 +108,11 @@ int ReadConfig(
         }
     }
 
+    for (int i = tokens[KEEP_POS].start; i < tokens[KEEP_POS].end; ++i)
+    {
+        ch = out->ptr[i] = toupper(out->ptr[i]);
+    }
+
     out->ptr[tokens[SK_POS].end] = '\0';
     out->ptr[tokens[FROM_POS].end] = '\0';
     out->ptr[tokens[TO_POS].end] = '\0';
@@ -223,7 +228,6 @@ int main(
         "========================================\n"
         "%s Checking GPU availability\n", TimeStamp(&stamp)
     );
-    fflush(stdout);
 
     //====================================================================//
     //  GPU availability checking
@@ -254,7 +258,7 @@ int main(
 
     // hash context
     // (212 + 4) bytes
-    blake2b_ctx ctx_h;
+    context_t ctx_h;
 
     // autolykos variables
     uint8_t bound_h[NUM_SIZE_8 * 2];
@@ -264,7 +268,7 @@ int main(
     uint8_t x_h[NUM_SIZE_8];
     uint8_t w_h[PK_SIZE_8];
     uint8_t res_h[NUM_SIZE_8];
-    uint8_t nonce_h[NONCE_SIZE_8];
+    uint8_t nonces_h[NONCE_SIZE_8];
 
     // cryptography variables
     char * skstr;
@@ -276,6 +280,8 @@ int main(
 
     char confname[9] = "./config";
     char * filename = (argc == 1)? confname: argv[1];
+
+    int keepPrehash = 0;
 
     //====================================================================//
     //  Config reading and checking
@@ -306,10 +312,26 @@ int main(
     {
         fprintf(stderr, "ABORT:  Wrong secret key format\n");
 
-        if (config.ptr)
-        {
-            free(config.ptr);
-        }
+        FREE(config.ptr);
+
+        fprintf(
+            stderr, "%s Miner is now terminated\n"
+            "========================================"
+            "========================================\n",
+            TimeStamp(&stamp)
+        );
+        return EXIT_FAILURE;
+    }
+
+    if (!strncmp(config.ptr + conftoks[KEEP_POS].start, "TRUE", 4))
+    {
+        keepPrehash = 1;
+    }
+    else if (strncmp(config.ptr + conftoks[KEEP_POS].start, "FALSE", 5))
+    {
+        fprintf(stderr, "ABORT:  Wrong value \"keepPrehash\"\n");
+
+        FREE(config.ptr);
 
         fprintf(
             stderr, "%s Miner is now terminated\n"
@@ -347,8 +369,8 @@ int main(
 
     // nonces
     // H_LEN * L_LEN * NONCE_SIZE_8 bytes // 32 MB
-    uint32_t * nonce_d;
-    CUDA_CALL(cudaMalloc((void **)&nonce_d, H_LEN * L_LEN * NONCE_SIZE_8));
+    uint32_t * nonces_d;
+    CUDA_CALL(cudaMalloc((void **)&nonces_d, H_LEN * L_LEN * NONCE_SIZE_8));
 
     // data: pk || mes || w || padding || x || sk || ctx
     // (2 * PK_SIZE_8 + 2 + 3 * NUM_SIZE_8 + 212 + 4) bytes // ~0 MB
@@ -357,8 +379,8 @@ int main(
 
     // precalculated hashes
     // N_LEN * NUM_SIZE_8 bytes // 2 GB
-    uint32_t * hash_d;
-    CUDA_CALL(cudaMalloc((void **)&hash_d, (uint32_t)N_LEN * NUM_SIZE_8));
+    uint32_t * hashes_d;
+    CUDA_CALL(cudaMalloc((void **)&hashes_d, (uint32_t)N_LEN * NUM_SIZE_8));
 
     // indices of unfinalized hashes
     // (H_LEN * N_LEN * INDEX_SIZE_8 * 2 + 4) bytes // ~512 MB
@@ -372,9 +394,22 @@ int main(
     uint32_t * res_d;
     CUDA_CALL(cudaMalloc((void **)&res_d, H_LEN * L_LEN * NUM_SIZE_8));
 
+    // unfinalized hash contexts
+    // N_LEN * 80 bytes // 5 GB
+    ucontext_t * uctxs_d;
+
+    if (keepPrehash)
+    {
+        CUDA_CALL(cudaMalloc(
+            (void **)&uctxs_d, (uint32_t)N_LEN * sizeof(ucontext_t)
+        ));
+    }
+
     printf("%s GPU memory allocation finished\n", TimeStamp(&stamp));
     fflush(stdout);
 
+    //====================================================================//
+    //  Key-pair transfer form host to device
     //====================================================================//
     printf(
         "%s Key-pair transfer from host to GPU started\n", TimeStamp(&stamp)
@@ -405,12 +440,33 @@ int main(
     //====================================================================//
     InitString(&request);
 
-    state_t state = STATE_KEYGEN;
+    state_t state = keepPrehash ? STATE_INITHASH: STATE_KEYGEN;
     uint32_t ind = 0;
     uint64_t base = 0;
 
     do
     {
+        if (keepPrehash && state == STATE_INITHASH)
+        {
+            printf("%s Unfinalized prehash started\n", TimeStamp(&stamp));
+            fflush(stdout);
+
+            UncompleteInitPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
+                data_d, uctxs_d
+            );
+            CUDA_CALL(cudaDeviceSynchronize());
+
+            printf("%s Unfinalized prehash finished\n", TimeStamp(&stamp));
+            fflush(stdout);
+
+            state = STATE_KEYGEN;
+        }
+
+        if (TerminationRequestHandler())
+        {
+            break;
+        }
+
         printf("%s Getting latest candidate block\n", TimeStamp(&stamp));
         fflush(stdout);
 
@@ -503,7 +559,7 @@ int main(
                 printf("%s Prehash started\n", TimeStamp(&stamp));
                 fflush(stdout);
 
-                Prehash(data_d, hash_d, indices_d);
+                Prehash(keepPrehash, data_d, uctxs_d, hashes_d, indices_d);
 
                 printf("%s Prehash finished\n", TimeStamp(&stamp));
                 fflush(stdout);
@@ -526,7 +582,7 @@ int main(
 
         // generate nonces
         GenerateConseqNonces<<<1 + (H_LEN * L_LEN - 1) / B_DIM, B_DIM>>>(
-            (uint64_t *)nonce_d, N_LEN, base
+            (uint64_t *)nonces_d, N_LEN, base
         );
 
         base += H_LEN * L_LEN;
@@ -552,7 +608,7 @@ int main(
         // copy context
         CUDA_CALL(cudaMemcpy(
             (void *)(data_d + PK2_SIZE_32 + 3 * NUM_SIZE_32), (void *)&ctx_h,
-            sizeof(blake2b_ctx), cudaMemcpyHostToDevice
+            sizeof(context_t), cudaMemcpyHostToDevice
         ));
 
         printf(
@@ -570,7 +626,7 @@ int main(
 
         // calculate solution candidates
         BlockMining<<<1 + (L_LEN - 1) / B_DIM, B_DIM>>>(
-            bound_d, data_d, nonce_d, hash_d, res_d, indices_d
+            bound_d, data_d, nonces_d, hashes_d, res_d, indices_d
         );
 
         printf("%s Mining iteration on GPU finished\n", TimeStamp(&stamp));
@@ -599,15 +655,15 @@ int main(
             ));
 
             CUDA_CALL(cudaMemcpy(
-                (void *)nonce_h, (void *)(nonce_d + ((ind - 1) << 1)),
+                (void *)nonces_h, (void *)(nonces_d + ((ind - 1) << 1)),
                 NONCE_SIZE_8, cudaMemcpyDeviceToHost
             ));
 
             printf("%s Solution found:\n", TimeStamp(&stamp)); 
-            PrintPuzzleSolution(nonce_h, res_h);
+            PrintPuzzleSolution(nonces_h, res_h);
 
             // curl http POST request
-            PostPuzzleSolution(&config, conftoks, pkstr, w_h, nonce_h, res_h);
+            PostPuzzleSolution(&config, conftoks, pkstr, w_h, nonces_h, res_h);
 
             printf(
                 "%s Solution is posted\n"
@@ -637,24 +693,22 @@ int main(
     fflush(stdout);
 
     CUDA_CALL(cudaFree(bound_d));
-    CUDA_CALL(cudaFree(nonce_d));
-    CUDA_CALL(cudaFree(hash_d));
+    CUDA_CALL(cudaFree(nonces_d));
+    CUDA_CALL(cudaFree(hashes_d));
     CUDA_CALL(cudaFree(data_d));
     CUDA_CALL(cudaFree(indices_d));
     CUDA_CALL(cudaFree(res_d));
 
+    if (keepPrehash)
+    {
+        CUDA_CALL(cudaFree(uctxs_d));
+    }
+
     //====================================================================//
     //  Free host memory
     //====================================================================//
-    if (request.ptr)
-    {
-        free(request.ptr);
-    }
-
-    if (config.ptr)
-    {
-        free(config.ptr);
-    }
+    FREE(request.ptr);
+    FREE(config.ptr);
 
     curl_global_cleanup();
 

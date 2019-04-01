@@ -21,7 +21,7 @@ InitPrehash
 UnfinalInitPrehash
     in:     array 'data' contains pk
 
-    out:    computes an array 'uctx' of N blake2b_ctx elements:
+    out:    computes an array 'uctx' of N context_t elements:
             uctx[j] := unfinalized hash context for blake2b-256(j || M || pk)
 
 ********************************************************************************
@@ -69,12 +69,24 @@ __global__ void InitPrehash(
     uint32_t * invalid
 );
 
-// unfinalized first iteration of hashes precalculation
-__global__ void UnfinalInitPrehash(
+// uncompleted first iteration of hashes precalculation
+__global__ void UncompleteInitPrehash(
     // data: pk
     const uint32_t * data,
     // unfinalized hash contexts
-    blake2b_ctx * uctx
+    ucontext_t * uctx
+);
+
+// completed first iteration of hashes precalculation
+__global__ void CompleteInitPrehash(
+    // data: pk || mes || w || padding || x || sk
+    const uint32_t * data,
+    // unfinalized hash contexts
+    const ucontext_t * uctx,
+    // hashes
+    uint32_t * hash,
+    // indices of invalid range hashes
+    uint32_t * invalid
 );
 
 // unfinalized hashes update
@@ -103,8 +115,11 @@ __global__ void FinalPrehashMultSecKey(
 
 // precalculate hashes
 int Prehash(
+    const int keep,
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
+    // uncomplete hash contexts
+    ucontext_t * uctx,
     // hashes
     uint32_t * hash,
     // indices of invalid range hashes

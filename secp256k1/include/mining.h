@@ -12,7 +12,7 @@
 // unfinalized hash of message
 void InitMining(
     // context
-    blake2b_ctx * ctx,
+    context_t * ctx,
     // message
     const uint32_t * mes,
     // message length in bytes

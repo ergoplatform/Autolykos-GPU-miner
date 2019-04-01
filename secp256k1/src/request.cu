@@ -149,11 +149,7 @@ int GetLatestBlock(
     //====================================================================//
     do 
     {
-        if (newreq.ptr)
-        {
-            free(newreq.ptr);
-            newreq.ptr = NULL;
-        }
+        FREE(newreq.ptr);
 
         if (TerminationRequestHandler())
         {
@@ -220,11 +216,7 @@ int GetLatestBlock(
 
             fprintf(stderr, "\n");
 
-            if (newreq.ptr)
-            {
-                free(newreq.ptr);
-                newreq.ptr = NULL;
-            }
+            FREE(newreq.ptr);
 
             return EXIT_FAILURE;
         }
@@ -284,10 +276,7 @@ int GetLatestBlock(
     //====================================================================//
     //  Substitute old block with newly read
     //====================================================================//
-    if (oldreq->ptr)
-    {
-        free(oldreq->ptr);
-    }
+    FREE(oldreq->ptr);
 
     oldreq->ptr = newreq.ptr;
     oldreq->len = newreq.len;
@@ -396,10 +385,7 @@ int PostPuzzleSolution(
     curl_easy_cleanup(curl);
     curl_slist_free_all(headers);
 
-    if (respond.ptr)
-    {
-        free(respond.ptr);
-    }
+    FREE(respond.ptr);
 
     return EXIT_SUCCESS;
 }
