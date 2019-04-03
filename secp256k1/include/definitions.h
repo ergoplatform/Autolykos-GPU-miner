@@ -17,7 +17,7 @@
 //  PARAMETERS: Autolykos algorithm
 ////////////////////////////////////////////////////////////////////////////////
 // constant message size
-#define CONST_MES_SIZE_8 0x2000                       // 2^10
+#define CONST_MES_SIZE_8 8192 // 2^10
 
 // prehash continue position 
 #define CONTINUE_POS     36
@@ -26,102 +26,111 @@
 #define K_LEN            32
 
 // number of precalculated hashes
-#define N_LEN            0x4000000                    // 2^26
+#define N_LEN             0x4000000 // 2^26
 
 // mod 2^26 mask
-#define N_MASK           (N_LEN - 1)
+#define N_MASK            (N_LEN - 1)
 
 ////////////////////////////////////////////////////////////////////////////////
 //  PARAMETERS: Heuristic prehash CUDA kernel parameters
 ////////////////////////////////////////////////////////////////////////////////
 // number of hashes per thread
-#define H_LEN            1
+#define THREAD_LEN        1
 
 // total number of hash loads (threads) per iteration
-#define L_LEN            (0x400000 / H_LEN)           // 2^22
+#define LOAD_LEN          (0x400000 / THREAD_LEN) // 2^22
 
 // mining kernel block size
-#define B_DIM            64
+#define BLOCK_DIM         64
 
 ////////////////////////////////////////////////////////////////////////////////
 //  CONSTANTS: Autolykos algorithm
 ////////////////////////////////////////////////////////////////////////////////
 // secret keys and hashes size
-#define NUM_SIZE_8       32
-#define NUM_SIZE_4       (NUM_SIZE_8 << 1)
-#define NUM_SIZE_32      (NUM_SIZE_8 >> 2)
-#define NUM_SIZE_64      (NUM_SIZE_8 >> 3)
+#define NUM_SIZE_8        32
+#define NUM_SIZE_4        (NUM_SIZE_8 << 1)
+#define NUM_SIZE_32       (NUM_SIZE_8 >> 2)
+#define NUM_SIZE_64       (NUM_SIZE_8 >> 3)
 
 // public keys size
-#define PK_SIZE_8        33
-#define PK_SIZE_4        (PK_SIZE_8 << 1)
-#define PK2_SIZE_32      (((PK_SIZE_8 << 1) + 3) >> 2)
+#define PK_SIZE_8         33
+#define PK_SIZE_4         (PK_SIZE_8 << 1)
+#define PK2_SIZE_32       (((PK_SIZE_8 << 1) + 3) >> 2)
 
 // nonce size
-#define NONCE_SIZE_8     8
-#define NONCE_SIZE_4     (NONCE_SIZE_8 << 1)
-#define NONCE_SIZE_32    (NONCE_SIZE_8 >> 2)
+#define NONCE_SIZE_8      8
+#define NONCE_SIZE_4      (NONCE_SIZE_8 << 1)
+#define NONCE_SIZE_32     (NONCE_SIZE_8 >> 2)
 
 // index size
-#define INDEX_SIZE_8     4
+#define INDEX_SIZE_8      4
+
+// BLAKE2b-256 hash buffer size
+#define BUF_SIZE_8        128
 
 ////////////////////////////////////////////////////////////////////////////////
 //  CONSTANTS: Q definition 64-bits and 32-bits words
 ////////////////////////////////////////////////////////////////////////////////
 // Q definition for CUDA ptx pseudo-assembler commands
 // 32 bits
-#define qhi_s            "0xFFFFFFFF"
-#define q4_s             "0xFFFFFFFE"
-#define q3_s             "0xBAAEDCE6"
-#define q2_s             "0xAF48A03B"
-#define q1_s             "0xBFD25E8C"
-#define q0_s             "0xD0364141"
+#define qhi_s             "0xFFFFFFFF"
+#define q4_s              "0xFFFFFFFE"
+#define q3_s              "0xBAAEDCE6"
+#define q2_s              "0xAF48A03B"
+#define q1_s              "0xBFD25E8C"
+#define q0_s              "0xD0364141"
 
 // Autolykos valid range
 // Q itself is multiplier-of-Q floor of 2^256
-#define Q3               0xFFFFFFFFFFFFFFFF
-#define Q2               0xFFFFFFFFFFFFFFFE
-#define Q1               0xBAAEDCE6AF48A03B
-#define Q0               0xBFD25E8CD0364141
+#define Q3                0xFFFFFFFFFFFFFFFF
+#define Q2                0xFFFFFFFFFFFFFFFE
+#define Q1                0xBAAEDCE6AF48A03B
+#define Q0                0xBFD25E8CD0364141
 
 ////////////////////////////////////////////////////////////////////////////////
 //  CONSTANTS: Curl http GET request JSMN specifiers
 ////////////////////////////////////////////////////////////////////////////////
+// default request capacity
+#define JSON_CAPACITY     256
+
+// maximal request capacity
+#define MAX_JSON_CAPACITY 8192
+
 // total JSON objects count
-#define T_LEN            7
+#define REQ_LEN           7
 
 // curl JSON position of message
-#define MES_POS          2
+#define MES_POS           2
 
 // curl JSON position of bound
-#define BOUND_POS        4
+#define BOUND_POS         4
 
 // curl JSON position of public key
-#define PK_POS           6
+#define PK_POS            6
 
 ////////////////////////////////////////////////////////////////////////////////
 //  CONSTANTS: Config-file JSMN specifiers
 ////////////////////////////////////////////////////////////////////////////////
 // total JSON objects count for config file
-#define C_LEN            7
+#define CONF_LEN          7
 
 // config JSON position of secret key
-#define SEED_POS         2
+#define SEED_POS          2
 
 // config JSON position of latest block adress
-#define NODE_POS         4
+#define NODE_POS          4
 
 // config JSON position of keep prehash option
-#define KEEP_POS         6
+#define KEEP_POS          6
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Error messages
 ////////////////////////////////////////////////////////////////////////////////
-#define ERROR_STAT    "stat"
-#define ERROR_ALLOC   "Host memory allocation"
-#define ERROR_IO      "I/O"
-#define ERROR_CURL    "Curl"
-#define ERROR_OPENSSL "OpenSSL"
+#define ERROR_STAT       "stat"
+#define ERROR_ALLOC      "Host memory allocation"
+#define ERROR_IO         "I/O"
+#define ERROR_CURL       "Curl"
+#define ERROR_OPENSSL    "OpenSSL"
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Structs
@@ -136,13 +145,6 @@ typedef enum
 }
 state_t;
 
-// string for curl http requests
-struct string_t
-{
-    char * ptr;
-    size_t len;
-};
-
 // time stamp
 struct timestamp_t
 {
@@ -151,17 +153,35 @@ struct timestamp_t
     char timestamp[30];
 };
 
-/// to do /// struct request_t: jsmntok_t
-/// to do /// {
-/// to do ///     char * ptr;
-/// to do ///     size_t len;
-/// to do /// };
+// json string for curl http requests and config 
+struct json_t
+{
+    size_t cap;
+    size_t len;
+    char * ptr;
+    jsmntok_t * toks;
+
+    json_t(const int strlen, const int toklen);
+    json_t(const json_t & newjson);
+    ~json_t(void);
+
+    // reset len to zero
+    void Reset(void) { len = 0; return; }
+
+    // tokens access methods
+    int GetTokenStartPos(const int pos) { return toks[pos].start; }
+    int GetTokenEndPos(const int pos) { return toks[pos].end; }
+    int GetTokenLen(const int pos) { return toks[pos].end - toks[pos].start; }
+
+    char * GetTokenStart(const int pos) { return ptr + toks[pos].start; }
+    char * GetTokenEnd(const int pos) { return ptr + toks[pos].end; }
+};
 
 // BLAKE2b-256 hash state context
 struct context_t
 {
     // input buffer
-    uint8_t b[128];
+    uint8_t b[BUF_SIZE_8];
     // chained state
     uint64_t h[8];
     // total number of bytes
@@ -399,8 +419,9 @@ while (0)
 #define HOST_B2B_H(ctx, aux)                                                   \
 do                                                                             \
 {                                                                              \
-    ((context_t *)(ctx))->t[0] += 128;                                         \
-    ((context_t *)(ctx))->t[1] += 1 - !(((context_t *)(ctx))->t[0] < 128);     \
+    ((context_t *)(ctx))->t[0] += BUF_SIZE_8;                                  \
+    ((context_t *)(ctx))->t[1]                                                 \
+        += 1 - !(((context_t *)(ctx))->t[0] < BUF_SIZE_8);                     \
                                                                                \
     B2B_INIT(ctx, aux);                                                        \
     B2B_FINAL(ctx, aux);                                                       \
@@ -417,7 +438,7 @@ do                                                                             \
     ((context_t *)(ctx))->t[1]                                                 \
         += 1 - !(((context_t *)(ctx))->t[0] < ((context_t *)(ctx))->c);        \
                                                                                \
-    while (((context_t *)(ctx))->c < 128)                                      \
+    while (((context_t *)(ctx))->c < BUF_SIZE_8)                               \
     {                                                                          \
         ((context_t *)(ctx))->b[((context_t *)(ctx))->c++] = 0;                \
     }                                                                          \
@@ -480,7 +501,7 @@ do                                                                             \
         "+r"(((uint32_t *)((context_t *)(ctx))->t)[3])                         \
     );                                                                         \
                                                                                \
-    while (((context_t *)(ctx))->c < 128)                                      \
+    while (((context_t *)(ctx))->c < BUF_SIZE_8)                               \
     {                                                                          \
         ((context_t *)(ctx))->b[((context_t *)(ctx))->c++] = 0;                \
     }                                                                          \
@@ -530,8 +551,8 @@ do                                                                             \
     if (x)                                                                     \
     {                                                                          \
         free(x);                                                               \
+        (x) = NULL;                                                            \
     }                                                                          \
-    (x) = NULL;                                                                \
 }                                                                              \
 while (0)
 
@@ -595,7 +616,16 @@ do                                                                             \
 }                                                                              \
 while (0)
 
+#define PERSISTENT_CALL(func)                                                  \
+do {} while (!(func))
+
+#define PERSISTENT_FUNCTION_CALL(res, func)                                    \
+do {} while (!((res) = (func)))
+
 #define PERSISTENT_CALL_STATUS(func, status)                                   \
 do {} while ((func) != (status))
+
+#define PERSISTENT_FUNCTION_CALL_STATUS(func, status)                          \
+do {} while (((res) = (func)) != (status))
 
 #endif // DEFINITIONS_H

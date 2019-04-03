@@ -29,6 +29,12 @@
 #include <time.h>
 #include <unistd.h>
 
+#define TEXT_SEPARATOR   "========================================"\
+                         "========================================\n"
+#define TEXT_GPUCHECK    " Checking GPU availability\n"
+#define TEXT_TERMINATION " Miner is now terminated\n"
+#define ERROR_GPUCHECK   "ABORT:  GPU devices are not recognised\n"
+
 ////////////////////////////////////////////////////////////////////////////////
 //  Main cycle
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,14 +44,9 @@ int main(
 )
 {
     int status = EXIT_SUCCESS;
-
     timestamp_t stamp;
 
-    printf(
-        "========================================"
-        "========================================\n"
-        "%s Checking GPU availability\n", TimeStamp(&stamp)
-    );
+    printf(TEXT_SEPARATOR "%s" TEXT_GPUCHECK, TimeStamp(&stamp));
 
     //====================================================================//
     //  GPU availability checking
@@ -54,25 +55,21 @@ int main(
 
     if (cudaGetDeviceCount(&deviceCount) != cudaSuccess)
     {
-        fprintf(stderr, "ABORT:  GPU devices are not recognised.");
-
         fprintf(
-            stderr, "%s Miner is now terminated\n"
-            "========================================"
-            "========================================\n",
+            stderr, ERROR_GPUCHECK "%s" TEXT_TERMINATION TEXT_SEPARATOR,
             TimeStamp(&stamp)
         );
+
         return EXIT_FAILURE;
     }
 
-    CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), ERROR_CURL, CURLE_OK);
+    PERSISTENT_CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), CURLE_OK);
 
     //====================================================================//
     //  Host memory allocation
     //====================================================================//
-    // curl http request variables
-    string_t request;
-    jsmntok_t reqtoks[T_LEN];
+    // curl http request
+    json_t request(0, REQ_LEN);
 
     // hash context
     // (212 + 4) bytes
@@ -95,8 +92,8 @@ int main(
     // config variables
     char confname[14] = "./config.json";
     char * filename = (argc == 1)? confname: argv[1];
-    char from[60];
-    char to[60];
+    char from[40];
+    char to[40];
     int keepPrehash = 0;
 
     //====================================================================//
@@ -113,10 +110,7 @@ int main(
         fprintf(stderr, "ABORT:  File \'%s\' not found\n", filename);
 
         fprintf(
-            stderr, "%s Miner is now terminated\n"
-            "========================================"
-            "========================================\n",
-            TimeStamp(&stamp)
+            stderr, "%s" TEXT_TERMINATION TEXT_SEPARATOR, TimeStamp(&stamp)
         );
 
         return EXIT_FAILURE;
@@ -131,10 +125,7 @@ int main(
         fprintf(stderr, "ABORT:  Wrong config format\n");
 
         fprintf(
-            stderr, "%s Miner is now terminated\n"
-            "========================================"
-            "========================================\n",
-            TimeStamp(&stamp)
+            stderr, "%s" TEXT_TERMINATION TEXT_SEPARATOR, TimeStamp(&stamp)
         );
 
         return EXIT_FAILURE;
@@ -166,14 +157,16 @@ int main(
     CUDA_CALL(cudaMalloc((void **)&bound_d, NUM_SIZE_8));
 
     // nonces
-    // H_LEN * L_LEN * NONCE_SIZE_8 bytes // 32 MiB
+    // THREAD_LEN * LOAD_LEN * NONCE_SIZE_8 bytes // 32 MiB
     uint32_t * nonces_d;
-    CUDA_CALL(cudaMalloc((void **)&nonces_d, H_LEN * L_LEN * NONCE_SIZE_8));
+    CUDA_CALL(cudaMalloc(
+        (void **)&nonces_d, THREAD_LEN * LOAD_LEN * NONCE_SIZE_8
+    ));
 
     // data: pk || mes || w || padding || x || sk || ctx
     // (2 * PK_SIZE_8 + 2 + 3 * NUM_SIZE_8 + 212 + 4) bytes // ~0 MiB
     uint32_t * data_d;
-    CUDA_CALL(cudaMalloc((void **)&data_d, (NUM_SIZE_8 + B_DIM) * 4));
+    CUDA_CALL(cudaMalloc((void **)&data_d, (NUM_SIZE_8 + BLOCK_DIM) * 4));
 
     // precalculated hashes
     // N_LEN * NUM_SIZE_8 bytes // 2 GiB
@@ -181,16 +174,16 @@ int main(
     CUDA_CALL(cudaMalloc((void **)&hashes_d, (uint32_t)N_LEN * NUM_SIZE_8));
 
     // indices of unfinalized hashes
-    // (H_LEN * N_LEN * 2 + 1) * INDEX_SIZE_8 bytes // ~512 MiB
+    // (THREAD_LEN * N_LEN * 2 + 1) * INDEX_SIZE_8 bytes // ~512 MiB
     uint32_t * indices_d;
     CUDA_CALL(cudaMalloc(
-        (void **)&indices_d, (H_LEN * N_LEN * 2 + 1) * INDEX_SIZE_8
+        (void **)&indices_d, (THREAD_LEN * N_LEN * 2 + 1) * INDEX_SIZE_8
     ));
 
     // potential solutions of puzzle
-    // H_LEN * L_LEN * NUM_SIZE_8 bytes // 128 MiB
+    // THREAD_LEN * LOAD_LEN * NUM_SIZE_8 bytes // 128 MiB
     uint32_t * res_d;
-    CUDA_CALL(cudaMalloc((void **)&res_d, H_LEN * L_LEN * NUM_SIZE_8));
+    CUDA_CALL(cudaMalloc((void **)&res_d, THREAD_LEN * LOAD_LEN * NUM_SIZE_8));
 
     // unfinalized hash contexts
     // N_LEN * 80 bytes // 5 GiB
@@ -220,8 +213,6 @@ int main(
     //====================================================================//
     //  Autolykos puzzle cycle
     //====================================================================//
-    InitString(&request);
-
     state_t state = STATE_KEYGEN;
     int diff = 0;
     uint32_t ind = 0;
@@ -230,15 +221,13 @@ int main(
     if (keepPrehash)
     {
         printf(
-            "%s Preparing unfinalized hashes\n"
-            "========================================"
-            "========================================\n",
+            "%s Preparing unfinalized hashes\n" TEXT_SEPARATOR,
             TimeStamp(&stamp)
         );
         fflush(stdout);
 
 
-        UncompleteInitPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
+        UncompleteInitPrehash<<<1 + (N_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             data_d, uctxs_d
         );
 
@@ -246,10 +235,7 @@ int main(
     }
     else
     {
-        printf(
-            "========================================"
-            "========================================\n"
-        );
+        printf(TEXT_SEPARATOR);
         fflush(stdout);
     }
 
@@ -265,7 +251,7 @@ int main(
 
         // curl http GET request
         status = GetLatestBlock(
-            from, pkstr, &request, reqtoks, bound_h, mes_h, &state, &diff
+            from, pkstr, &request, bound_h, mes_h, &state, &diff
         );
 
         if (status == EXIT_FAILURE || state == STATE_INTERRUPT)
@@ -333,10 +319,6 @@ int main(
         }
         else
         {
-            printf(
-                "                              Obtained block is the same\n"
-            );
-
             if (diff)
             {
                 printf(
@@ -346,13 +328,6 @@ int main(
                 );
 
                 diff = 0;
-            }
-            else
-            {
-                printf(
-                    "                              "
-                    "Obtained target is the same\n"
-                );
             }
 
             fflush(stdout);
@@ -368,16 +343,16 @@ int main(
         printf(
             "%s Checking solutions for nonces:\n"
             "           0x%016lX -- 0x%016lX\n",
-            TimeStamp(&stamp), base, base + H_LEN * L_LEN - 1
+            TimeStamp(&stamp), base, base + THREAD_LEN * LOAD_LEN - 1
         );
         fflush(stdout);
 
         // generate nonces
-        GenerateConseqNonces<<<1 + (H_LEN * L_LEN - 1) / B_DIM, B_DIM>>>(
+        GenerateConseqNonces<<<1 + (THREAD_LEN * LOAD_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             (uint64_t *)nonces_d, N_LEN, base
         );
 
-        base += H_LEN * L_LEN;
+        base += THREAD_LEN * LOAD_LEN;
 
         if (TerminationRequestHandler())
         {
@@ -399,7 +374,7 @@ int main(
         }
 
         // calculate solution candidates
-        BlockMining<<<1 + (L_LEN - 1) / B_DIM, B_DIM>>>(
+        BlockMining<<<1 + (LOAD_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             bound_d, data_d, nonces_d, hashes_d, res_d, indices_d
         );
 
@@ -409,7 +384,9 @@ int main(
         }
 
         // try to find solution
-        ind = FindNonZero(indices_d, indices_d + H_LEN * L_LEN, H_LEN * L_LEN);
+        ind = FindNonZero(
+            indices_d, indices_d + THREAD_LEN * LOAD_LEN, THREAD_LEN * LOAD_LEN
+        );
 
         // solution found
         if (ind)
@@ -430,12 +407,7 @@ int main(
             // curl http POST request
             PostPuzzleSolution(to, pkstr, w_h, nonces_h, res_h);
 
-            printf(
-                "%s Solution is posted\n"
-                "========================================"
-                "========================================\n",
-                TimeStamp(&stamp)
-            );
+            printf("%s Solution is posted\n" TEXT_SEPARATOR, TimeStamp(&stamp));
             fflush(stdout);
 
             state = STATE_KEYGEN;
@@ -466,17 +438,9 @@ int main(
     //====================================================================//
     //  Free host memory
     //====================================================================//
-    FREE(request.ptr);
-
     curl_global_cleanup();
 
-    //====================================================================//
-    printf(
-        "%s Miner is now terminated\n"
-        "========================================"
-        "========================================\n",
-        TimeStamp(&stamp)
-    );
+    printf("%s" TEXT_TERMINATION TEXT_SEPARATOR, TimeStamp(&stamp));
     fflush(stdout);
 
     return status;

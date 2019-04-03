@@ -27,7 +27,7 @@ __global__ void InitPrehash(
     uint32_t tid = threadIdx.x;
 
     // shared memory
-    __shared__ uint32_t sdata[B_DIM];
+    __shared__ uint32_t sdata[BLOCK_DIM];
 
     sdata[tid] = data[tid];
     __syncthreads();
@@ -50,24 +50,17 @@ __global__ void InitPrehash(
     //====================================================================//
     //  Initialize context
     //====================================================================//
+    memset(ctx->b, 0, BUF_SIZE_8);
     B2B_IV(ctx->h);
-
     ctx->h[0] ^= 0x01010000 ^ NUM_SIZE_8;
-    ctx->t[0] = 0;
-    ctx->t[1] = 0;
+    memset(ctx->t, 0, 16);
     ctx->c = 0;
-
-#pragma unroll
-    for (j = 0; j < 128; ++j)
-    {
-        ctx->b[j] = 0;
-    }
 
     //====================================================================//
     //  Hash tid
     //====================================================================//
 #pragma unroll
-    for (j = 0; ctx->c < 128 && j < INDEX_SIZE_8; ++j)
+    for (j = 0; ctx->c < BUF_SIZE_8 && j < INDEX_SIZE_8; ++j)
     {
         ctx->b[ctx->c++] = ((const uint8_t *)&tid)[INDEX_SIZE_8 - j - 1];
     }
@@ -76,7 +69,7 @@ __global__ void InitPrehash(
     //  Hash constant message
     //====================================================================//
 #pragma unroll
-    for (j = 0; ctx->c < 128 && j < CONST_MES_SIZE_8; ++j)
+    for (j = 0; ctx->c < BUF_SIZE_8 && j < CONST_MES_SIZE_8; ++j)
     {
         ctx->b[ctx->c++]
             = (!((7 - (j & 7)) >> 1) * ((j >> 3) >> (((~(j & 7)) & 1) << 3)))
@@ -87,7 +80,7 @@ __global__ void InitPrehash(
     {
         DEVICE_B2B_H(ctx, aux);
 
-        for ( ; ctx->c < 128 && j < CONST_MES_SIZE_8; ++j)
+        for ( ; ctx->c < BUF_SIZE_8 && j < CONST_MES_SIZE_8; ++j)
         {
             ctx->b[ctx->c++]
                 = (
@@ -101,7 +94,7 @@ __global__ void InitPrehash(
     //  Hash public key, message & one-time public key
     //====================================================================//
 #pragma unroll
-    for (j = 0; ctx->c < 128 && j < 2 * PK_SIZE_8 + NUM_SIZE_8; ++j)
+    for (j = 0; ctx->c < BUF_SIZE_8 && j < 2 * PK_SIZE_8 + NUM_SIZE_8; ++j)
     {
         ctx->b[ctx->c++] = ((const uint8_t *)rem)[j];
     }
@@ -110,7 +103,7 @@ __global__ void InitPrehash(
     {
         DEVICE_B2B_H(ctx, aux);
        
-        while (ctx->c < 128 && j < 2 * PK_SIZE_8 + NUM_SIZE_8)
+        while (ctx->c < BUF_SIZE_8 && j < 2 * PK_SIZE_8 + NUM_SIZE_8)
         {
             ctx->b[ctx->c++] = ((const uint8_t *)rem)[j++];
         }
@@ -167,7 +160,7 @@ __global__ void UncompleteInitPrehash(
     uint32_t tid = threadIdx.x;
 
     // shared memory
-    __shared__ uint32_t sdata[B_DIM];
+    __shared__ uint32_t sdata[BLOCK_DIM];
 
     sdata[tid] = data[tid];
     __syncthreads();
@@ -190,24 +183,17 @@ __global__ void UncompleteInitPrehash(
     //====================================================================//
     //  Initialize context
     //====================================================================//
+    memset(ctx->b, 0, BUF_SIZE_8);
     B2B_IV(ctx->h);
-
     ctx->h[0] ^= 0x01010000 ^ NUM_SIZE_8;
-    ctx->t[0] = 0;
-    ctx->t[1] = 0;
+    memset(ctx->t, 0, 16);
     ctx->c = 0;
-
-#pragma unroll
-    for (j = 0; j < 128; ++j)
-    {
-        ctx->b[j] = 0;
-    }
 
     //====================================================================//
     //  Hash tid
     //====================================================================//
 #pragma unroll
-    for (j = 0; ctx->c < 128 && j < INDEX_SIZE_8; ++j)
+    for (j = 0; ctx->c < BUF_SIZE_8 && j < INDEX_SIZE_8; ++j)
     {
         ctx->b[ctx->c++] = ((const uint8_t *)&tid)[INDEX_SIZE_8 - j - 1];
     }
@@ -216,7 +202,7 @@ __global__ void UncompleteInitPrehash(
     //  Hash constant message
     //====================================================================//
 #pragma unroll
-    for (j = 0; ctx->c < 128 && j < CONST_MES_SIZE_8; ++j)
+    for (j = 0; ctx->c < BUF_SIZE_8 && j < CONST_MES_SIZE_8; ++j)
     {
         ctx->b[ctx->c++]
             = (!((7 - (j & 7)) >> 1) * ((j >> 3) >> (((~(j & 7)) & 1) << 3)))
@@ -227,7 +213,7 @@ __global__ void UncompleteInitPrehash(
     {
         DEVICE_B2B_H(ctx, aux);
 
-        for ( ; ctx->c < 128 && j < CONST_MES_SIZE_8; ++j)
+        for ( ; ctx->c < BUF_SIZE_8 && j < CONST_MES_SIZE_8; ++j)
         {
             ctx->b[ctx->c++]
                 = (
@@ -241,7 +227,7 @@ __global__ void UncompleteInitPrehash(
     //  Hash public key
     //====================================================================//
 #pragma unroll
-    for (j = 0; ctx->c < 128 && j < PK_SIZE_8; ++j)
+    for (j = 0; ctx->c < BUF_SIZE_8 && j < PK_SIZE_8; ++j)
     {
         ctx->b[ctx->c++] = ((const uint8_t *)pk)[j];
     }
@@ -252,7 +238,7 @@ __global__ void UncompleteInitPrehash(
         DEVICE_B2B_H(ctx, aux);
        
 #pragma unroll
-        for ( ; ctx->c < 128 && j < PK_SIZE_8; )
+        for ( ; ctx->c < BUF_SIZE_8 && j < PK_SIZE_8; )
         {
             ctx->b[ctx->c++] = ((const uint8_t *)pk)[j++];
         }
@@ -285,7 +271,7 @@ __global__ void CompleteInitPrehash(
     uint32_t tid = threadIdx.x;
 
     // shared memory
-    __shared__ uint32_t sdata[B_DIM];
+    __shared__ uint32_t sdata[BLOCK_DIM];
 
     sdata[tid] = data[tid];
     __syncthreads();
@@ -313,7 +299,7 @@ __global__ void CompleteInitPrehash(
 #pragma unroll
     for (
         j = CONST_MES_SIZE_8 - 129 + PK_SIZE_8;
-        ctx->c < 128 && j < CONST_MES_SIZE_8;
+        ctx->c < BUF_SIZE_8 && j < CONST_MES_SIZE_8;
         ++j
     )
     {
@@ -342,7 +328,7 @@ __global__ void CompleteInitPrehash(
     //  Hash public key, message & one-time public key
     //====================================================================//
 #pragma unroll
-    for (j = 0; ctx->c < 128 && j < PK_SIZE_8 + NUM_SIZE_8; ++j)
+    for (j = 0; ctx->c < BUF_SIZE_8 && j < PK_SIZE_8 + NUM_SIZE_8; ++j)
     {
         ctx->b[ctx->c++] = rem[j];
     }
@@ -351,7 +337,7 @@ __global__ void CompleteInitPrehash(
     {
         DEVICE_B2B_H(ctx, aux);
        
-        while (ctx->c < 128 && j < PK_SIZE_8 + NUM_SIZE_8)
+        while (ctx->c < BUF_SIZE_8 && j < PK_SIZE_8 + NUM_SIZE_8)
         {
             ctx->b[ctx->c++] = rem[j++];
         }
@@ -424,24 +410,17 @@ __global__ void UpdatePrehash(
     //====================================================================//
     //  Initialize context
     //====================================================================//
+        memset(ctx->b, 0, BUF_SIZE_8);
         B2B_IV(ctx->h);
-
-        ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_SIZE_8;
-        ctx->t[0] = 0;
-        ctx->t[1] = 0;
+        ctx->h[0] ^= 0x01010000 ^ NUM_SIZE_8;
+        memset(ctx->t, 0, 16);
         ctx->c = 0;
-
-#pragma unroll
-        for (j = 0; j < 128; ++j)
-        {
-            ctx->b[j] = 0;
-        }
 
     //====================================================================//
     //  Hash previous hash
     //====================================================================//
 #pragma unroll
-        for (j = 0; ctx->c < 128 && j < NUM_SIZE_8; ++j)
+        for (j = 0; ctx->c < BUF_SIZE_8 && j < NUM_SIZE_8; ++j)
         {
             ctx->b[ctx->c++]
                 = ((const uint8_t *)(hash + addr * NUM_SIZE_32))[j];
@@ -453,7 +432,7 @@ __global__ void UpdatePrehash(
             DEVICE_B2B_H(ctx, aux);
            
 #pragma unroll
-            for ( ; ctx->c < 128 && j < NUM_SIZE_8; ++j)
+            for ( ; ctx->c < BUF_SIZE_8 && j < NUM_SIZE_8; ++j)
             {
                 ctx->b[ctx->c++]
                     = ((const uint8_t *)(hash + addr * NUM_SIZE_32))[j];
@@ -582,7 +561,7 @@ __global__ void FinalPrehashMultSecKey(
     uint32_t tid = threadIdx.x;
 
     // shared memory
-    __shared__ uint32_t sdata[B_DIM];
+    __shared__ uint32_t sdata[BLOCK_DIM];
 
     sdata[tid] = data[tid + PK2_SIZE_32 + NUM_SIZE_32];
     __syncthreads();
@@ -883,7 +862,7 @@ int Prehash(
     uint32_t * invalid
 )
 {
-    uint32_t len = N_LEN; // N_LEN >= H_LEN * L_LEN -- critical assumption
+    uint32_t len = N_LEN; // N_LEN >= THREAD_LEN * LOAD_LEN -- assumption
 
     uint32_t * ind = invalid;
     uint32_t * comp = invalid + N_LEN;
@@ -895,18 +874,20 @@ int Prehash(
     // complete init prehash by hashing message and public key
     if (keep)
     {
-        CompleteInitPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
+        CompleteInitPrehash<<<1 + (N_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             data, uctxs, hash, ind
         );
     }
     // hash index, constant message and public key
     else
     {
-        InitPrehash<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash, ind);
+        InitPrehash<<<1 + (N_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
+            data, hash, ind
+        );
     }
 
     // determine indices of out of bounds hashes
-    Compactify<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(
+    Compactify<<<1 + (N_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
         ind, len, comp, invalid + 2 * N_LEN
     );
 
@@ -926,10 +907,10 @@ int Prehash(
         CUDA_CALL(cudaMemset((void *)(invalid + 2 * N_LEN), 0, INDEX_SIZE_8));
 
         // rehash out of bounds hashes
-        UpdatePrehash<<<1 + (len - 1) / B_DIM, B_DIM>>>(hash, ind, len);
+        UpdatePrehash<<<1 + (len - 1) / BLOCK_DIM, BLOCK_DIM>>>(hash, ind, len);
 
         // determine indices of out of bounds hashes
-        Compactify<<<1 + (len - 1) / B_DIM, B_DIM>>>(
+        Compactify<<<1 + (len - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             ind, len, comp, invalid + 2 * N_LEN
         );
 
@@ -945,7 +926,9 @@ int Prehash(
     }
 
     // multiply by secret key moq Q
-    FinalPrehashMultSecKey<<<1 + (N_LEN - 1) / B_DIM, B_DIM>>>(data, hash);
+    FinalPrehashMultSecKey<<<1 + (N_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
+        data, hash
+    );
 
     return EXIT_SUCCESS;
 }

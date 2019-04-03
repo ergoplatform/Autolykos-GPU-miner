@@ -45,7 +45,7 @@ __global__ void BlockNonZero(
 {
     uint32_t ind = 0;
     uint32_t tid = threadIdx.x;
-    __shared__ uint32_t sdata[B_DIM];
+    __shared__ uint32_t sdata[BLOCK_DIM];
 
     cg::thread_block cta = cg::this_thread_block();
 
@@ -184,8 +184,8 @@ uint32_t FindNonZero(
 )
 {
     uint32_t res;
-    uint32_t gridSize = 1 + (inlen - 1) / (2 * B_DIM);
-    uint32_t blockSize = B_DIM;
+    uint32_t gridSize = 1 + (inlen - 1) / (2 * BLOCK_DIM);
+    uint32_t blockSize = BLOCK_DIM;
     uint32_t * tmp;
 
     while (inlen > 1)
