@@ -28,24 +28,18 @@ void InitMining(
     //====================================================================//
     //  Initialize context
     //====================================================================//
+    memset(ctx->b, 0, BUF_SIZE_8);
     B2B_IV(ctx->h);
-
     ctx->h[0] ^= 0x01010000 ^ NUM_SIZE_8;
-    ctx->t[0] = 0;
-    ctx->t[1] = 0;
+    memset(ctx->t, 0, 16);
     ctx->c = 0;
-
-    for (j = 0; j < 128; ++j)
-    {
-        ctx->b[j] = 0;
-    }
 
     //====================================================================//
     //  Hash message
     //====================================================================//
     for (j = 0; j < meslen; ++j)
     {
-        if (ctx->c == 128)
+        if (ctx->c == BUF_SIZE_8)
         {
             HOST_B2B_H(ctx, aux);
         }
@@ -78,10 +72,10 @@ __global__ void BlockMining(
     uint32_t tid = threadIdx.x;
 
     // shared memory
-    // B_DIM * 4 bytes  
-    __shared__ uint32_t sdata[B_DIM];
+    // BLOCK_DIM * 4 bytes  
+    __shared__ uint32_t sdata[BLOCK_DIM];
 
-    // B_DIM * 4 bytes
+    // BLOCK_DIM * 4 bytes
     sdata[tid] = data[tid + PK2_SIZE_32 + 2 * NUM_SIZE_32];
     __syncthreads();
 
@@ -102,7 +96,7 @@ __global__ void BlockMining(
     context_t * ctx = (context_t *)(ldata + 64);
 
 #pragma unroll
-    for (int l = 0; l < H_LEN; ++l) 
+    for (int l = 0; l < THREAD_LEN; ++l) 
     {
         *ctx = *((context_t *)(sdata + NUM_SIZE_32));
 
@@ -115,7 +109,7 @@ __global__ void BlockMining(
     //  Hash nonce
     //====================================================================//
 #pragma unroll
-        for (j = 0; ctx->c < 128 && j < NONCE_SIZE_8; ++j)
+        for (j = 0; ctx->c < BUF_SIZE_8 && j < NONCE_SIZE_8; ++j)
         {
             ctx->b[ctx->c++] = mes[j];
         }
@@ -126,7 +120,7 @@ __global__ void BlockMining(
             DEVICE_B2B_H(ctx, aux);
            
 #pragma unroll
-            for ( ; ctx->c < 128 && j < NONCE_SIZE_8; ++j)
+            for ( ; ctx->c < BUF_SIZE_8 && j < NONCE_SIZE_8; ++j)
             {
                 ctx->b[ctx->c++] = mes[j];
             }
