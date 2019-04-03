@@ -3,7 +3,7 @@
 
 To compile you need the following:
 
-1. CUDA toolkit
+1. CUDA toolkit: [installation guide](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
 2. libcurl library:
 *'$ apt install libcurl4-openssl-dev'*
 3. openssl library:
