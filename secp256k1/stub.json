@@ -1,6 +1,5 @@
 {
-    "sk": "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF", 
-    "from": "http://188.166.89.71:9052/mining/candidate",
-    "to": "http://188.166.89.71:9052/mining/solution",
+    "seed": "test-seed", 
+    "node": "http://188.166.89.71:9052",
     "keepPrehash": false
 }

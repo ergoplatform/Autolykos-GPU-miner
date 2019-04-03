@@ -30,7 +30,7 @@ To run the miner you should pass a name of a configuration
 file *'<YOUR_CONFIG_FILE>'* as an argument.
 The configuration file must contain json string of the following structure:
 
-*{ "seed":"seedstring", "node" : "https://<address>", "keepPrehash" : <true or false> }*
+*{ "seed":"seedstring", "node" : "https://address", "keepPrehash" : <true or false> }*
 
 If the filename is not specified, the miner will
 try to open *'<YOUR_PATH>/autolykos/secp256k1/config'* file.
