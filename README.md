@@ -26,11 +26,11 @@ If `make` completed successfully there will appear an executable
 
 ## Run
 
-- To run the miner you should pass a name of a configuration file `[YOUR_CONFIG]` as an optional argument.
-- If the filename is not specified, the miner will try to use `<YOUR_PATH>/autolykos/secp256k1/config.json` file as a config.
-- The configuration file must contain json string of the following structure:
+- To run the miner you should pass a name of a configuration file `[YOUR_CONFIG]` as an optional argument
+- If the filename is not specified, the miner will try to use `<YOUR_PATH>/autolykos/secp256k1/config.json` as a config
+- The configuration file must contain json string of the following structure:  
 `{ "seed" : "seedstring", "node" : "https://127.0.0.1", "keepPrehash" : false }`
-- You can examine a stub configuration file `<YOUR_PATH>/autolykos/secp256k1/stub.json`.
+- You can examine a stub configuration file `<YOUR_PATH>/autolykos/secp256k1/stub.json`
 
 The mode of execution with `keepPrehash` option:
 1. `true` -- enable total unfinalized prehashes array (5GB) reusage.
@@ -41,4 +41,4 @@ To run the miner type:
 $ <YOUR_PATH>/autolykos/secp256k1/auto.out [YOUR_CONFIG]
 ```
 
-To exit miner in foreground mode press any key.
+Press any key to exit the miner in a foreground mode.
