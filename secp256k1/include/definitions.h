@@ -7,14 +7,44 @@
 
 *******************************************************************************/
 
-#include <immintrin.h> 
+#include "jsmn.h" 
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <time.h>
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Autolykos constants
+//  PARAMETERS: Autolykos algorithm
+////////////////////////////////////////////////////////////////////////////////
+// constant message size
+#define CONST_MES_SIZE_8 0x2000                       // 2^10
+
+// prehash continue position 
+#define CONTINUE_POS     36
+
+// number of indices
+#define K_LEN            32
+
+// number of precalculated hashes
+#define N_LEN            0x4000000                    // 2^26
+
+// mod 2^26 mask
+#define N_MASK           (N_LEN - 1)
+
+////////////////////////////////////////////////////////////////////////////////
+//  PARAMETERS: Heuristic prehash CUDA kernel parameters
+////////////////////////////////////////////////////////////////////////////////
+// number of hashes per thread
+#define H_LEN            1
+
+// total number of hash loads (threads) per iteration
+#define L_LEN            (0x400000 / H_LEN)           // 2^22
+
+// mining kernel block size
+#define B_DIM            64
+
+////////////////////////////////////////////////////////////////////////////////
+//  CONSTANTS: Autolykos algorithm
 ////////////////////////////////////////////////////////////////////////////////
 // secret keys and hashes size
 #define NUM_SIZE_8       32
@@ -35,23 +65,8 @@
 // index size
 #define INDEX_SIZE_8     4
 
-// constant message size
-#define CONST_MES_SIZE_8 0x2000                       // 2^10
-
-// number of indices
-#define K_LEN            32
-
-// number of precalculated hashes
-#define N_LEN            0x4000000                    // 2^26
-
-// mod 2^26 mask
-#define N_MASK           (N_LEN - 1)
-
-// prehash continue position 
-#define CONTINUE_POS     36
-
 ////////////////////////////////////////////////////////////////////////////////
-//  Q definition 64-bits and 32-bits words
+//  CONSTANTS: Q definition 64-bits and 32-bits words
 ////////////////////////////////////////////////////////////////////////////////
 // Q definition for CUDA ptx pseudo-assembler commands
 // 32 bits
@@ -70,19 +85,7 @@
 #define Q0               0xBFD25E8CD0364141
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Heuristic prehash CUDA kernel parameters
-////////////////////////////////////////////////////////////////////////////////
-// number of hashes per thread
-#define H_LEN            1
-
-// total number of hash loads (threads) per iteration
-#define L_LEN            (0x400000 / H_LEN)           // 2^22
-
-// mining kernel block size
-#define B_DIM            64
-
-////////////////////////////////////////////////////////////////////////////////
-//  Curl http GET request JSMN specifiers
+//  CONSTANTS: Curl http GET request JSMN specifiers
 ////////////////////////////////////////////////////////////////////////////////
 // total JSON objects count
 #define T_LEN            7
@@ -97,22 +100,28 @@
 #define PK_POS           6
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Config-file JSMN specifiers
+//  CONSTANTS: Config-file JSMN specifiers
 ////////////////////////////////////////////////////////////////////////////////
 // total JSON objects count for config file
-#define C_LEN            9
+#define C_LEN            7
 
 // config JSON position of secret key
-#define SK_POS           2
+#define SEED_POS         2
 
 // config JSON position of latest block adress
-#define FROM_POS         4
-
-// config JSON position of address for solution to post
-#define TO_POS           6
+#define NODE_POS         4
 
 // config JSON position of keep prehash option
-#define KEEP_POS         8
+#define KEEP_POS         6
+
+////////////////////////////////////////////////////////////////////////////////
+//  Error messages
+////////////////////////////////////////////////////////////////////////////////
+#define ERROR_STAT    "stat"
+#define ERROR_ALLOC   "Host memory allocation"
+#define ERROR_IO      "I/O"
+#define ERROR_CURL    "Curl"
+#define ERROR_OPENSSL "OpenSSL"
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Structs
@@ -121,10 +130,9 @@
 typedef enum
 {
     STATE_CONTINUE = 0,
-    STATE_INITHASH = 1,
+    STATE_KEYGEN = 1,
     STATE_REHASH = 2,
-    STATE_KEYGEN = 3,
-    STATE_INTERRUPT = 4
+    STATE_INTERRUPT = 3
 }
 state_t;
 
@@ -136,12 +144,18 @@ struct string_t
 };
 
 // time stamp
-struct stamp_t
+struct timestamp_t
 {
     timespec realtime;
     tm * timeinfo;
     char timestamp[30];
 };
+
+/// to do /// struct request_t: jsmntok_t
+/// to do /// {
+/// to do ///     char * ptr;
+/// to do ///     size_t len;
+/// to do /// };
 
 // BLAKE2b-256 hash state context
 struct context_t
@@ -156,7 +170,7 @@ struct context_t
     uint32_t c;
 };
 
-// BLAKE2b-256 uncomplete hash packed state context 
+// BLAKE2b-256 packed uncomplete hash state context 
 struct ucontext_t
 {
     // chained state
@@ -382,7 +396,7 @@ do                                                                             \
 while (0)
 
 // blake2b intermediate mixing procedure on host
-#define B2B_H_HOST(ctx, aux)                                                   \
+#define HOST_B2B_H(ctx, aux)                                                   \
 do                                                                             \
 {                                                                              \
     ((context_t *)(ctx))->t[0] += 128;                                         \
@@ -395,8 +409,29 @@ do                                                                             \
 }                                                                              \
 while (0)
 
+// blake2b intermediate mixing procedure on host
+#define HOST_B2B_H_LAST(ctx, aux)                                              \
+do                                                                             \
+{                                                                              \
+    ((context_t *)(ctx))->t[0] += ((context_t *)(ctx))->c;                     \
+    ((context_t *)(ctx))->t[1]                                                 \
+        += 1 - !(((context_t *)(ctx))->t[0] < ((context_t *)(ctx))->c);        \
+                                                                               \
+    while (((context_t *)(ctx))->c < 128)                                      \
+    {                                                                          \
+        ((context_t *)(ctx))->b[((context_t *)(ctx))->c++] = 0;                \
+    }                                                                          \
+                                                                               \
+    B2B_INIT(ctx, aux);                                                        \
+                                                                               \
+    ((uint64_t *)(aux))[14] = ~((uint64_t *)(aux))[14];                        \
+                                                                               \
+    B2B_FINAL(ctx, aux);                                                       \
+}                                                                              \
+while (0)
+
 // blake2b intermediate mixing procedure
-#define B2B_H(ctx, aux)                                                        \
+#define DEVICE_B2B_H(ctx, aux)                                                 \
 do                                                                             \
 {                                                                              \
     asm volatile (                                                             \
@@ -424,7 +459,7 @@ do                                                                             \
 while (0)
 
 // blake2b last mixing procedure
-#define B2B_H_LAST(ctx, aux)                                                   \
+#define DEVICE_B2B_H_LAST(ctx, aux)                                            \
 do                                                                             \
 {                                                                              \
     asm volatile (                                                             \
@@ -485,15 +520,6 @@ do                                                                             \
     ((uint64_t)((uint8_t *)(p))[7]));                                          \
 }                                                                              \
 while (0)
-
-////////////////////////////////////////////////////////////////////////////////
-//  Error messages
-////////////////////////////////////////////////////////////////////////////////
-#define ERROR_STAT    "stat"
-#define ERROR_ALLOC   "Host memory allocation"
-#define ERROR_IO      "I/O"
-#define ERROR_CURL    "Curl"
-#define ERROR_OPENSSL "OpenSSL"
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Wrappers for function calls

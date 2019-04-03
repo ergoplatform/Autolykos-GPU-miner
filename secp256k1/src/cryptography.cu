@@ -18,7 +18,78 @@
 #include <openssl/pem.h>
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Generate key pair
+//  Generate secret key from seed
+////////////////////////////////////////////////////////////////////////////////
+int GenerateSecKey(
+    const char * in,
+    const int len,
+    uint8_t * sk,
+    char * skstr
+)
+{
+    context_t ctx;
+    uint64_t aux[32];
+
+    //====================================================================//
+    //  Initialize context
+    //====================================================================//
+    memset(ctx.b, 0, 128);
+    B2B_IV(ctx.h);
+    ctx.h[0] ^= 0x01010000 ^ NUM_SIZE_8;
+    memset(ctx.t, 0, 16);
+    ctx.c = 0;
+
+    //====================================================================//
+    //  Hash message
+    //====================================================================//
+    for (int i = 0; i < len; ++i)
+    {
+        if (ctx.c == 128)
+        {
+            HOST_B2B_H(&ctx, aux);
+        }
+
+        ctx.b[ctx.c++] = (uint8_t)(in[i]);
+    }
+
+    HOST_B2B_H_LAST(&ctx, aux);
+
+    for (int i = 0; i < NUM_SIZE_8; ++i)
+    {
+        sk[NUM_SIZE_8 - i - 1] = (ctx.h[i >> 3] >> ((i & 7) << 3)) & 0xFF;
+    }
+
+    //====================================================================//
+    //  Mod Q
+    //====================================================================//
+    uint8_t borrow[2];
+
+    borrow[0] = ((uint64_t *)sk)[0] < Q0;
+    aux[0] = ((uint64_t *)sk)[0] - Q0;
+
+    borrow[1] = ((uint64_t *)sk)[1] < Q1 + borrow[0];
+    aux[1] = ((uint64_t *)sk)[1] - Q1 - borrow[0];
+
+    borrow[0] = ((uint64_t *)sk)[2] < Q2 + borrow[1];
+    aux[2] = ((uint64_t *)sk)[2] - Q2 - borrow[1];
+
+    borrow[1] = ((uint64_t *)sk)[3] < Q3 + borrow[0];
+    aux[3] = ((uint64_t *)sk)[3] - Q3 - borrow[0];
+
+    if (!(borrow[1] || borrow[0]))
+    {
+        memcpy(sk, aux, NUM_SIZE_8);
+    }
+
+    // convert secret key to hex string
+    LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
+
+    return EXIT_SUCCESS;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//  Generate random key pair
 ////////////////////////////////////////////////////////////////////////////////
 int GenerateKeyPair(
     uint8_t * sk,
@@ -53,7 +124,7 @@ int GenerateKeyPair(
     CALL(ecp, ERROR_OPENSSL);
 
     char * str;
-    
+
     FUNCTION_CALL(
         str, EC_POINT_point2hex(group, ecp, POINT_CONVERSION_COMPRESSED, NULL),
         ERROR_OPENSSL
@@ -93,7 +164,7 @@ int GenerateKeyPair(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Generate public key from private
+//  Generate public key from secret key
 ////////////////////////////////////////////////////////////////////////////////
 int GeneratePublicKey(
     const char * skstr,
