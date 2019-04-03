@@ -30,7 +30,7 @@ void InitMining(
     //====================================================================//
     B2B_IV(ctx->h);
 
-    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_SIZE_8;
+    ctx->h[0] ^= 0x01010000 ^ NUM_SIZE_8;
     ctx->t[0] = 0;
     ctx->t[1] = 0;
     ctx->c = 0;
@@ -47,7 +47,7 @@ void InitMining(
     {
         if (ctx->c == 128)
         {
-            B2B_H_HOST(ctx, aux);
+            HOST_B2B_H(ctx, aux);
         }
 
         ctx->b[ctx->c++] = ((const uint8_t *)mes)[j];
@@ -123,7 +123,7 @@ __global__ void BlockMining(
 #pragma unroll
         for ( ; j < NONCE_SIZE_8; )
         {
-            B2B_H(ctx, aux);
+            DEVICE_B2B_H(ctx, aux);
            
 #pragma unroll
             for ( ; ctx->c < 128 && j < NONCE_SIZE_8; ++j)
@@ -135,7 +135,7 @@ __global__ void BlockMining(
     //====================================================================//
     //  Finalize hash
     //====================================================================//
-        B2B_H_LAST(ctx, aux);
+        DEVICE_B2B_H_LAST(ctx, aux);
 
 #pragma unroll
         for (j = 0; j < NUM_SIZE_8; ++j)
@@ -148,18 +148,18 @@ __global__ void BlockMining(
     //  Generate indices
     //===================================================================//
 #pragma unroll
-        for (int i = 1; i < 4; ++i)
+        for (int i = 1; i < INDEX_SIZE_8; ++i)
         {
             ((uint8_t *)r)[NUM_SIZE_8 + i] = ((uint8_t *)r)[i];
         }
 
 #pragma unroll
-        for (int k = 0; k < K_LEN; k += 4) 
+        for (int k = 0; k < K_LEN; k += INDEX_SIZE_8) 
         { 
             ind[k] = r[k >> 2] & N_MASK; 
         
 #pragma unroll 
-            for (int i = 1; i < 4; ++i) 
+            for (int i = 1; i < INDEX_SIZE_8; ++i) 
             { 
                 ind[k + i] 
                     = (

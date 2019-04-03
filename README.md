@@ -30,12 +30,11 @@ To run the miner you should pass a name of a configuration
 file *'<YOUR_CONFIG_FILE>'* as an argument.
 The configuration file must contain json string of the following structure:
 
-*{ "sk":"<secret_key>", "from" : "https://<address>", "to" : "https://<address>", "keepPrehash" : <true or false> }*
+*{ "seed":"seedstring", "node" : "https://<address>", "keepPrehash" : <true or false> }*
 
 If the filename is not specified, the miner will
 try to open *'<YOUR_PATH>/autolykos/secp256k1/config'* file.
-Secret key must be a hex string of 64 digits in hexadecimal Big-Endian representation.
-You can examine a stub config file *'<YOUR_PATH>/autolykos/secp256k1/stub.config'*.
+You can examine a stub config file *'<YOUR_PATH>/autolykos/secp256k1/stub.json'*.
 
 "keepPrehash" option:
 1. true -- the mode of execution with total unfinalized prehash array (5GB) reusage.

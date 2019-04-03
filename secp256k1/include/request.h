@@ -35,20 +35,19 @@ int TerminationRequestHandler(
 
 // curl http GET request
 int GetLatestBlock(
-    const string_t * config,
-    const jsmntok_t * conftoks,
+    const char * from,
     const char * pkstr,
     string_t * oldreq,
     jsmntok_t * oldtoks,
     uint8_t * bound,
     uint8_t * mes,
-    state_t * state
+    state_t * state,
+    int * diff
 );
 
 // curl http POST request
 int PostPuzzleSolution(
-    const string_t * config,
-    const jsmntok_t * conftoks,
+    const char * to,
     const char * pkstr,
     const uint8_t * w,
     const uint8_t * nonce,

@@ -124,14 +124,14 @@ int TerminationRequestHandler(
 //  Curl http GET request
 ////////////////////////////////////////////////////////////////////////////////
 int GetLatestBlock(
-    const string_t * config,
-    const jsmntok_t * conftoks,
+    const char * from,
     const char * pkstr,
     string_t * oldreq,
     jsmntok_t * oldtoks,
     uint8_t * bound,
     uint8_t * mes,
-    state_t * state
+    state_t * state,
+    int * diff
 )
 {
     CURL * curl;
@@ -161,8 +161,8 @@ int GetLatestBlock(
 
         InitString(&newreq);
 
-        curl_easy_setopt(
-            curl, CURLOPT_URL, config->ptr + conftoks[FROM_POS].start
+        CALL_STATUS(
+            curl_easy_setopt(curl, CURLOPT_URL, from), ERROR_CURL, CURLE_OK
         );
 
         CALL_STATUS(
@@ -183,6 +183,8 @@ int GetLatestBlock(
 
         jsmn_init(&parser);
         jsmn_parse(&parser, newreq.ptr, newreq.len, newtoks, T_LEN);
+
+        /// to do /// checking obtained message
 
         // key-pair is not valid
         if (strncmp(pkstr, newreq.ptr + newtoks[PK_POS].start, PK_SIZE_4))
@@ -269,6 +271,8 @@ int GetLatestBlock(
         );
 
         HexStrToLittleEndian(buf, NUM_SIZE_4, bound, NUM_SIZE_8);
+
+        *diff = 1;
     }
 
     //====================================================================//
@@ -287,8 +291,7 @@ int GetLatestBlock(
 //  Curl http POST request
 ////////////////////////////////////////////////////////////////////////////////
 int PostPuzzleSolution(
-    const string_t * config,
-    const jsmntok_t * conftoks,
+    const char * to,
     const char * pkstr,
     const uint8_t * w,
     const uint8_t * nonce,
@@ -351,12 +354,7 @@ int PostPuzzleSolution(
         ERROR_CURL
     );
 
-    CALL_STATUS(
-        curl_easy_setopt(
-            curl, CURLOPT_URL, config->ptr + conftoks[TO_POS].start
-        ),
-        ERROR_CURL, CURLE_OK
-    );
+    CALL_STATUS(curl_easy_setopt(curl, CURLOPT_URL, to), ERROR_CURL, CURLE_OK);
 
     CALL_STATUS(
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers), ERROR_CURL,

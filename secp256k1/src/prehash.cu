@@ -52,7 +52,7 @@ __global__ void InitPrehash(
     //====================================================================//
     B2B_IV(ctx->h);
 
-    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_SIZE_8;
+    ctx->h[0] ^= 0x01010000 ^ NUM_SIZE_8;
     ctx->t[0] = 0;
     ctx->t[1] = 0;
     ctx->c = 0;
@@ -85,7 +85,7 @@ __global__ void InitPrehash(
 
     while (j < CONST_MES_SIZE_8)
     {
-        B2B_H(ctx, aux);
+        DEVICE_B2B_H(ctx, aux);
 
         for ( ; ctx->c < 128 && j < CONST_MES_SIZE_8; ++j)
         {
@@ -108,7 +108,7 @@ __global__ void InitPrehash(
 
     while (j < 2 * PK_SIZE_8 + NUM_SIZE_8)
     {
-        B2B_H(ctx, aux);
+        DEVICE_B2B_H(ctx, aux);
        
         while (ctx->c < 128 && j < 2 * PK_SIZE_8 + NUM_SIZE_8)
         {
@@ -119,7 +119,7 @@ __global__ void InitPrehash(
     //====================================================================//
     //  Finalize hash
     //====================================================================//
-    B2B_H_LAST(ctx, aux);
+    DEVICE_B2B_H_LAST(ctx, aux);
 
 #pragma unroll
     for (j = 0; j < NUM_SIZE_8; ++j)
@@ -192,7 +192,7 @@ __global__ void UncompleteInitPrehash(
     //====================================================================//
     B2B_IV(ctx->h);
 
-    ctx->h[0] ^= 0x01010000 ^ (0 << 8) ^ NUM_SIZE_8;
+    ctx->h[0] ^= 0x01010000 ^ NUM_SIZE_8;
     ctx->t[0] = 0;
     ctx->t[1] = 0;
     ctx->c = 0;
@@ -225,7 +225,7 @@ __global__ void UncompleteInitPrehash(
 
     while (j < CONST_MES_SIZE_8)
     {
-        B2B_H(ctx, aux);
+        DEVICE_B2B_H(ctx, aux);
 
         for ( ; ctx->c < 128 && j < CONST_MES_SIZE_8; ++j)
         {
@@ -249,7 +249,7 @@ __global__ void UncompleteInitPrehash(
 #pragma unroll
     for ( ; j < PK_SIZE_8; )
     {
-        B2B_H(ctx, aux);
+        DEVICE_B2B_H(ctx, aux);
        
 #pragma unroll
         for ( ; ctx->c < 128 && j < PK_SIZE_8; )
@@ -349,7 +349,7 @@ __global__ void CompleteInitPrehash(
 
     while (j < PK_SIZE_8 + NUM_SIZE_8)
     {
-        B2B_H(ctx, aux);
+        DEVICE_B2B_H(ctx, aux);
        
         while (ctx->c < 128 && j < PK_SIZE_8 + NUM_SIZE_8)
         {
@@ -360,7 +360,7 @@ __global__ void CompleteInitPrehash(
     //====================================================================//
     //  Finalize hash
     //====================================================================//
-    B2B_H_LAST(ctx, aux);
+    DEVICE_B2B_H_LAST(ctx, aux);
 
 #pragma unroll
     for (j = 0; j < NUM_SIZE_8; ++j)
@@ -450,7 +450,7 @@ __global__ void UpdatePrehash(
 #pragma unroll
         for ( ; j < NUM_SIZE_8; )
         {
-            B2B_H(ctx, aux);
+            DEVICE_B2B_H(ctx, aux);
            
 #pragma unroll
             for ( ; ctx->c < 128 && j < NUM_SIZE_8; ++j)
@@ -463,7 +463,7 @@ __global__ void UpdatePrehash(
     //====================================================================//
     //  Finalize hash
     //====================================================================//
-        B2B_H_LAST(ctx, aux);
+        DEVICE_B2B_H_LAST(ctx, aux);
 
 #pragma unroll
         for (j = 0; j < NUM_SIZE_8; ++j)
