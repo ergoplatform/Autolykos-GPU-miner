@@ -161,7 +161,7 @@ int main(int argc, char* argv[])
     // main cycle - bomb node with HTTP with 10ms intervals, if new block came 
     //-> signal miners with blockId
     int curlcnt = 0;
-    const int curltimes = 10000;
+    const int curltimes = 2000;
     time_t differ = 0;
     while(!TerminationRequestHandler())
     {
@@ -185,7 +185,7 @@ int main(int argc, char* argv[])
         if(curlcnt%curltimes == 0)
         {
             printf("Average curling time %lf\n",(double)differ/(CLOCKS_PER_SEC*curltimes));
-            diff = 0;
+            differ = 0;
         }
 
         if(diff || state == STATE_REHASH)
