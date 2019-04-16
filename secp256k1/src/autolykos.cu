@@ -249,7 +249,7 @@ void minerThread(int deviceId, globalInfo *info)
     char to[40];
     int keepPrehash = 0;
     unsigned int blockId = 0;
-    time_t start;	
+    milliseconds start;	
     
     // Copy from global to thread local data
     //===============================================
@@ -363,15 +363,16 @@ void minerThread(int deviceId, globalInfo *info)
 
     int cntCycles = 0;
     int NCycles = 100;
-    start = clock();
+    start = duration_cast<milliseconds> (system_clock::now().time_since_epoch());
     do
     {
         
 	    cntCycles++;
 	    if(cntCycles%NCycles == 0)
 	    {
-		    printf("%lf MHashes per second on GPU %i \n", (double)LOAD_LEN*NCycles/(1000000*(clock()-start)/CLOCKS_PER_SEC), deviceId);
-	        start = clock();
+            milliseconds timediff = duration_cast<milliseconds> (system_clock::now().time_since_epoch()) - start;
+            printf("%lf MHashes per second on GPU %i \n", (double)LOAD_LEN*NCycles/((double)1000*timediff.count()), deviceId);
+	        start = duration_cast<milliseconds> (system_clock::now().time_since_epoch());
 	    }
 	
         // if solution was found by this thread, wait for new block to come 
