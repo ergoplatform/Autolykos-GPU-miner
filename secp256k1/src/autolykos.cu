@@ -162,7 +162,7 @@ int main(int argc, char* argv[])
     //-> signal miners with blockId
     int curlcnt = 0;
     const int curltimes = 10000;
-    time_t diff = 0;
+    time_t differ = 0;
     while(!TerminationRequestHandler())
     {
         time_t start = clock();
@@ -180,11 +180,11 @@ int main(int argc, char* argv[])
 	    }
         info.info_mutex.unlock();
 
-        diff += clock()-start;
+        differ += clock()-start;
         curlcnt++;
         if(curlcnt%curltimes == 0)
         {
-            printf("Average curling time %lf\n",(double)diff/(CLOCKS_PER_SEC*curltimes));
+            printf("Average curling time %lf\n",(double)differ/(CLOCKS_PER_SEC*curltimes));
             diff = 0;
         }
 
@@ -402,7 +402,7 @@ void minerThread(int deviceId, globalInfo *info)
             }
             info->info_mutex.unlock();
             state = STATE_REHASH;
-	        printf("Thread read new block data, blockid %i old %i\n",blockId,ss);
+	        printf("Thread read new block data, blockid %i old %i\n",blockId,controlId);
 	        blockId = controlId;
             
             GenerateKeyPair(x_h, w_h);
