@@ -33,7 +33,7 @@
 #include <chrono>
 #include <mutex>
 #include <vector>
-
+#include <iostream>
 #define TEXT_SEPARATOR   "========================================"\
                          "========================================\n"
 #define TEXT_GPUCHECK    " Checking GPU availability\n"
@@ -167,7 +167,7 @@ int main(int argc, char* argv[])
     //time_t differ = 0;
 
     //using namespace std::chrono;
-    milliseconds ms = 0; 
+    milliseconds ms = milliseconds::zero(); 
 
     while(!TerminationRequestHandler())
     {
@@ -194,7 +194,7 @@ int main(int argc, char* argv[])
         {
             //printf("Average curling time %lf\n",(double)differ/(CLOCKS_PER_SEC*curltimes));
             std::cout << "Average curling time " << ms << " ms \n";
-            ms = 0;
+            ms = milliseconds::zero();
         }
 
         if(diff || state == STATE_REHASH)
