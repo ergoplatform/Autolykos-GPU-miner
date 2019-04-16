@@ -60,6 +60,7 @@ struct globalInfo
     std::mutex info_mutex;
     
     // Mutex for curl usage/maybe future websocket
+    //not used now
 
     std::mutex io_mutex;
 
@@ -149,7 +150,7 @@ int main(int argc, char* argv[])
     status = GetLatestBlock(
         from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff
     );
-//    deviceCount = 1;
+    
     std::vector<std::thread> miners(deviceCount);
     for(int i = 0; i < deviceCount; i++)
     {
@@ -157,34 +158,46 @@ int main(int argc, char* argv[])
 
     }
 
-
+    // main cycle - bomb node with HTTP with 10ms intervals, if new block came 
+    //-> signal miners with blockId
+    int curlcnt = 0;
+    const int curltimes = 10000;
+    time_t diff = 0;
     while(!TerminationRequestHandler())
     {
+        time_t start = clock();
         info.info_mutex.lock();
-        
+        // need to fix state somehow
         state = STATE_CONTINUE;
- //       info.io_mutex.lock();
-	status = GetLatestBlock(
+        
+        status = GetLatestBlock(
             from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff
         );
-	if(status != EXIT_SUCCESS)
-	{
-	printf("Getting block error\n");
-	}
-//	info.io_mutex.unlock();
+        
+        if(status != EXIT_SUCCESS)
+	    {
+	        printf("Getting block error\n");
+	    }
         info.info_mutex.unlock();
+
+        diff += clock()-start;
+        curlcnt++;
+        if(curlcnt%curltimes == 0)
+        {
+            printf("Average curling time %lf\n",(double)diff/(CLOCKS_PER_SEC*curltimes));
+            diff = 0;
+        }
+
         if(diff || state == STATE_REHASH)
         {
             info.blockId++;
             diff = 0;
             printf("Got new block in main thread\n");
-	    fflush(stdout);
-	}
+	        fflush(stdout);
+	    }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     }    
-
-
 
 
     return EXIT_SUCCESS;
@@ -199,26 +212,7 @@ void minerThread(int deviceId, globalInfo *info)
     timestamp_t stamp;
     state_t state = STATE_KEYGEN;
     cudaSetDevice(deviceId);
-    //printf(TEXT_SEPARATOR "%s" TEXT_GPUCHECK, TimeStamp(&stamp));
-
-    //====================================================================//
-    //  GPU availability checking
-    //====================================================================//
-   /* 
-    int deviceCount;
-
-    if (cudaGetDeviceCount(&deviceCount) != cudaSuccess)
-    {
-        fprintf(
-            stderr, ERROR_GPUCHECK "%s" TEXT_TERMINATION TEXT_SEPARATOR,
-            TimeStamp(&stamp)
-        );
-
-        return EXIT_FAILURE;
-    }
-
-    PERSISTENT_CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), CURLE_OK);
-*/
+    
     //====================================================================//
     //  Host memory allocation
     //====================================================================//
@@ -242,17 +236,15 @@ void minerThread(int deviceId, globalInfo *info)
     // cryptography variables
     char skstr[NUM_SIZE_4];
     char pkstr[PK_SIZE_4 + 1];
-
-    // config variables
-    //char confname[14] = "./config.json";
-    //char * filename = (argc == 1)? confname: argv[1];
     char from[40];
     char to[40];
     int keepPrehash = 0;
     unsigned int blockId = 0;
     time_t start;	
-    // Copy from global to thread local data
     
+    // Copy from global to thread local data
+    //===============================================
+
     info->info_mutex.lock();
 
     for(int i = 0; i < NUM_SIZE_8; i++)
@@ -262,22 +254,18 @@ void minerThread(int deviceId, globalInfo *info)
         mes_h[i] = info->mes_h[i];
         bound_h[i] = info->bound_h[i];
     }
-
     for(int i =0; i< 40; i++)
 	{
-	to[i] = info->to[i];
+	    to[i] = info->to[i];
 	}
-
     for(int i = 0; i < PK_SIZE_8; i++)
     {
         pk_h[i] = info->pk_h[i];
     }
-
     for(int i = 0; i < NUM_SIZE_4; i++)
     {
         skstr[i] = info->skstr[i];
     }
-
     for(int i = 0; i < PK_SIZE_4 + 1; i++)
     {
         pkstr[i] = info->pkstr[i];
@@ -286,69 +274,15 @@ void minerThread(int deviceId, globalInfo *info)
     keepPrehash = info->keepPrehash;
     
     info->info_mutex.unlock();
-
-
-
-
-
-    //====================================================================//
-    //  Config reading and checking
-    //====================================================================//
-   
-   /*
-    printf(
-        "Using configuration from \'%s\'\n", filename
-    );
-    fflush(stdout);
-
-    // check access to config file
-    if (access(filename, F_OK) == -1)
-    {
-        fprintf(stderr, "ABORT:  File \'%s\' not found\n", filename);
-
-        fprintf(
-            stderr, "%s" TEXT_TERMINATION TEXT_SEPARATOR, TimeStamp(&stamp)
-        );
-
-        return EXIT_FAILURE;
-    }
-
-    // read config from file
-    status = ReadConfig(filename, sk_h, skstr, from, to, &keepPrehash, &stamp);
-    */
-    /// to do /// proper config error check
-    /*
-    if (status == EXIT_FAILURE)
-    {
-        fprintf(stderr, "ABORT:  Wrong config format\n");
-
-        fprintf(
-            stderr, "%s" TEXT_TERMINATION TEXT_SEPARATOR, TimeStamp(&stamp)
-        );
-
-        return EXIT_FAILURE;
-    }
     
-    // generate public key from secret key
-    GeneratePublicKey(skstr, pkstr, pk_h);
-    */
-    /*
-    printf(
-        "%s Generated public key:\n"
-        "   pk = 0x%02lX %016lX %016lX %016lX %016lX\n",
-        TimeStamp(&stamp), ((uint8_t *)pk_h)[0],
-        REVERSE_ENDIAN((uint64_t *)(pk_h + 1) + 0),
-        REVERSE_ENDIAN((uint64_t *)(pk_h + 1) + 1),
-        REVERSE_ENDIAN((uint64_t *)(pk_h + 1) + 2),
-        REVERSE_ENDIAN((uint64_t *)(pk_h + 1) + 3)
-    );
-    
-    fflush(stdout);
-*/
+    //end copy
+    //===============================
+
+
     //====================================================================//
     //  Device memory allocation
     //====================================================================//
-    //printf("%s Allocating GPU memory\n", TimeStamp(&stamp));
+    printf(" %s thread GPU %i allocating GPU memory\n", TimeStamp(&stamp), deviceId);
    // fflush(stdout);
 
     // boundary for puzzle
@@ -433,89 +367,47 @@ void minerThread(int deviceId, globalInfo *info)
 
         CUDA_CALL(cudaDeviceSynchronize());
     }
-    else
-    {
-       // printf(TEXT_SEPARATOR);
-       // fflush(stdout);
-    }
+
     int cntCycles = 0;
     int NCycles = 100;
     start = clock();
     do
     {
-        //if solution was found, wait for new block to come
-	cntCycles++;
-	if(cntCycles%NCycles == 0)
-	{
-		printf("%lf MHashes per second on GPU %i \n", (double)LOAD_LEN*NCycles/(1000000*(clock()-start)/CLOCKS_PER_SEC), deviceId);
-	start = clock();
-	}
+        
+	    cntCycles++;
+	    if(cntCycles%NCycles == 0)
+	    {
+		    printf("%lf MHashes per second on GPU %i \n", (double)LOAD_LEN*NCycles/(1000000*(clock()-start)/CLOCKS_PER_SEC), deviceId);
+	        start = clock();
+	    }
 	
-	
-	if(state == STATE_KEYGEN)
-	{
-		while(info->blockId.load() == blockId)
-		{
+        // if solution was found by this thread, wait for new block to come 
+	    if(state == STATE_KEYGEN)
+	    {
+		    while(info->blockId.load() == blockId)
+		    {}
+		    state = STATE_CONTINUE;
+	    }
 
-		}
-		state = STATE_CONTINUE;
-	}
-	/*
-        if (TerminationRequestHandler())
+	    unsigned int controlId = info->blockId.load();
+        if(blockId != controlId)
         {
-            break;
-        }
-        */
-        //printf("%s Getting latest candidate block\n", TimeStamp(&stamp));
-        //fflush(stdout);
+            //if info->blockId changed, read new message and bound to thread-local mem
 
-        // curl http GET request
-       /* status = GetLatestBlock(
-            from, pkstr, &request, bound_h, mes_h, &state, &diff
-        );
-        */
-	unsigned int ss = info->blockId.load();
-        if(blockId != ss)
-        {
             info->info_mutex.lock();
-                for(int i = 0; i < NUM_SIZE_8; i++)
-                {
-                //pk_h[i] = info->pk_h[i];
-                    sk_h[i] = info->sk_h[i];
-                    mes_h[i] = info->mes_h[i];
-                    bound_h[i] = info->bound_h[i];
-                }
+            for(int i = 0; i < NUM_SIZE_8; i++)
+            {
+                mes_h[i] = info->mes_h[i];
+                bound_h[i] = info->bound_h[i];
+            }
             info->info_mutex.unlock();
             state = STATE_REHASH;
-	    printf("Thread read new block data, blockid %i old %i\n",blockId,ss);
-	    blockId = ss;
+	        printf("Thread read new block data, blockid %i old %i\n",blockId,ss);
+	        blockId = controlId;
             
-
-
-	/*
-        if (status == EXIT_FAILURE || state == STATE_INTERRUPT)
-        {
-            break;
-        }
-	*/
-        /*
-        if (TerminationRequestHandler())
-        {
-            break;
-        }
-        */
-        // state is changed
-       // if (state != STATE_CONTINUE)
-       // {
-            // generate one-time key pair
             GenerateKeyPair(x_h, w_h);
-            /*    
-            if (TerminationRequestHandler())
-            {
-                break;
-            }
-            */
-         //   PrintPuzzleState(mes_h, pk_h, sk_h, w_h, x_h, bound_h, &stamp);
+        
+            //PrintPuzzleState(mes_h, pk_h, sk_h, w_h, x_h, bound_h, &stamp);
 
             // copy boundary
             CUDA_CALL(cudaMemcpy(
@@ -540,69 +432,30 @@ void minerThread(int deviceId, globalInfo *info)
                 (void *)((uint8_t *)data_d + PK_SIZE_8 + NUM_SIZE_8),
                 (void *)w_h, PK_SIZE_8, cudaMemcpyHostToDevice
             ));
-            /*
-            if (TerminationRequestHandler())
-            {
-                break;
-            }
-            */
-            // precalculate hashes
-         //   if (state == STATE_REHASH)
-          //  {
-                Prehash(keepPrehash, data_d, uctxs_d, hashes_d, indices_d);
-
-               // printf("%s Finalizing prehashes\n", TimeStamp(&stamp));
-               // fflush(stdout);
-           // }
+ 
+            Prehash(keepPrehash, data_d, uctxs_d, hashes_d, indices_d);
+ 
 
             state = STATE_CONTINUE;
-	//    printf("Prehashed for new block\n");
+    	    //printf("Prehashed for new block\n");
         }
-        else
-        {
-      //  printf("Going for old block\n");    
-	/*
-            if (diff)
-            {
-                printf(
-                    "       b = 0x%016lX %016lX %016lX %016lX\n",
-                    ((uint64_t *)bound_h)[3], ((uint64_t *)bound_h)[2],
-                    ((uint64_t *)bound_h)[1], ((uint64_t *)bound_h)[0]
-                );
 
-                diff = 0;
-            }
-
-            fflush(stdout);
-            */
-        }
 
         CUDA_CALL(cudaDeviceSynchronize());
-        /*
-        if (TerminationRequestHandler())
-        {
-            break;
-        }
-        */
-   /*     printf(
+ 
+         /*     printf(
             "%s Checking solutions for nonces:\n"
             "           0x%016lX -- 0x%016lX\n",
             TimeStamp(&stamp), base, base + THREAD_LEN * LOAD_LEN - 1
         );
         fflush(stdout);
-     */   
+        */   
         // generate nonces
         GenerateConseqNonces<<<1 + (THREAD_LEN * LOAD_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             (uint64_t *)nonces_d, N_LEN, base
         );
 
         base += THREAD_LEN * LOAD_LEN;
-        /*
-        if (TerminationRequestHandler())
-        {
-            break;
-        }
-        */
         // calculate unfinalized hash of message
         InitMining(&ctx_h, (uint32_t *)mes_h, NUM_SIZE_8);
 
@@ -611,22 +464,12 @@ void minerThread(int deviceId, globalInfo *info)
             (void *)(data_d + PK2_SIZE_32 + 3 * NUM_SIZE_32), (void *)&ctx_h,
             sizeof(context_t), cudaMemcpyHostToDevice
         ));
-        /*
-        if (TerminationRequestHandler())
-        {
-            break;
-        }
-        */
+
         // calculate solution candidates
         BlockMining<<<1 + (LOAD_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             bound_d, data_d, nonces_d, hashes_d, res_d, indices_d
         );
-        /*
-        if (TerminationRequestHandler())
-        {
-            break;
-        }
-        */
+
         // try to find solution
         ind = FindNonZero(
             indices_d, indices_d + THREAD_LEN * LOAD_LEN, THREAD_LEN * LOAD_LEN
@@ -647,47 +490,14 @@ void minerThread(int deviceId, globalInfo *info)
 
             printf("%s Solution found from GPU %i:\n", TimeStamp(&stamp), deviceId); 
             PrintPuzzleSolution(nonces_h, res_h);
-
-            // curl http POST request
-            
-	   // info->io_mutex.lock();
             PostPuzzleSolution(to, pkstr, w_h, nonces_h, res_h);
-           // info->io_mutex.unlock();
             printf("new Solution is posted\n");
-           fflush(stdout);
+            fflush(stdout);
 	
             state = STATE_KEYGEN;
         }
     }
-    while(1); // !TerminationRequestHandler());
-
-    CUDA_CALL(cudaDeviceSynchronize());
-
-    //====================================================================//
-    //  Free device memory
-    //====================================================================//
-    //printf("%s Releasing resources\n", TimeStamp(&stamp));
-    fflush(stdout);
-
-    CUDA_CALL(cudaFree(bound_d));
-    CUDA_CALL(cudaFree(nonces_d));
-    CUDA_CALL(cudaFree(hashes_d));
-    CUDA_CALL(cudaFree(data_d));
-    CUDA_CALL(cudaFree(indices_d));
-    CUDA_CALL(cudaFree(res_d));
-
-    if (keepPrehash)
-    {
-        CUDA_CALL(cudaFree(uctxs_d));
-    }
-
-    //====================================================================//
-    //  Free host memory
-    //====================================================================//
-    //curl_global_cleanup();
-
-    //printf("%s" TEXT_TERMINATION TEXT_SEPARATOR, TimeStamp(&stamp));
-    fflush(stdout);
+    while(1); // !TerminationRequestHandler()); 
 
     return;
 }
