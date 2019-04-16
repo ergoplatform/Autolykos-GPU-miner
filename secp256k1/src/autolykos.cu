@@ -256,6 +256,9 @@ void minerThread(int deviceId, globalInfo *info)
         mes_h[i] = info->mes_h[i];
         bound_h[i] = info->bound_h[i];
     }
+
+    
+
     for(int i =0; i< 40; i++)
 	{
 	    to[i] = info->to[i];
@@ -397,11 +400,15 @@ void minerThread(int deviceId, globalInfo *info)
             //if info->blockId changed, read new message and bound to thread-local mem
 
             info->info_mutex.lock();
+            memcpy(mes_h, info->mes_h, NUM_SIZE_8*sizeof(uint32_t));
+            memcpy(bound_h, info->bound_h, NUM_SIZE_8*sizeof(uint32_t));
+            /*
             for(int i = 0; i < NUM_SIZE_8; i++)
             {
                 mes_h[i] = info->mes_h[i];
                 bound_h[i] = info->bound_h[i];
             }
+            */
             info->info_mutex.unlock();
             state = STATE_REHASH;
 	        printf("Thread read new block data, blockid %i old %i\n",blockId,controlId);
