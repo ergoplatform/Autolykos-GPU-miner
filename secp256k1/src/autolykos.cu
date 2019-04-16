@@ -400,8 +400,8 @@ void minerThread(int deviceId, globalInfo *info)
             //if info->blockId changed, read new message and bound to thread-local mem
 
             info->info_mutex.lock();
-            memcpy(mes_h, info->mes_h, NUM_SIZE_8*sizeof(uint32_t));
-            memcpy(bound_h, info->bound_h, NUM_SIZE_8*sizeof(uint32_t));
+            memcpy(mes_h, info->mes_h, NUM_SIZE_8*sizeof(uint8_t));
+            memcpy(bound_h, info->bound_h, NUM_SIZE_8*sizeof(uint8_t));
             /*
             for(int i = 0; i < NUM_SIZE_8; i++)
             {
