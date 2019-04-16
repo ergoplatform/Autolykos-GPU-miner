@@ -1,0 +1,355 @@
+Using configuration from './config.json'
+Tue 04/16/2019 01:17:32:284:  Generated public key:
+   pk = 0x03 062BE0BA8D244856 2F79A39D549548BA 2398EB66BF232EF4 9269BC58F0D54252
+Got new block in main thread
+Tue 04/16/2019 01:17:32:573:  Preparing unfinalized hashes
+================================================================================
+Tue 04/16/2019 01:17:32:610:  Preparing unfinalized hashes
+================================================================================
+Thread read new block data, blockid 0 old 2
+Thread read new block data, blockid 0 old 2
+Got new block in main thread
+Thread read new block data, blockid 2 old 3
+Thread read new block data, blockid 2 old 3
+Tue 04/16/2019 01:20:19:094:  Solution found:
+   nonce = 0x00000000DAE749F6
+       d = 0x0000000159991004 BD586BB02EFD336D DF9097F649FA61B4 4AFDE64AF3EF32CA
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 3 old 4
+Thread read new block data, blockid 3 old 4
+Got new block in main thread
+Thread read new block data, blockid 4 old 5
+Thread read new block data, blockid 4 old 5
+Tue 04/16/2019 01:22:16:237:  Solution found:
+   nonce = 0x0000000186E8A94D
+       d = 0x0000000129B9AFAB 60FDAC52BFBE7257 306F76578CE2431F 3C7F54C934A543AD
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 5 old 6
+Thread read new block data, blockid 5 old 6
+Got new block in main thread
+Thread read new block data, blockid 6 old 7
+Thread read new block data, blockid 6 old 7
+Got new block in main thread
+Thread read new block data, blockid 7 old 8
+Thread read new block data, blockid 7 old 8
+Got new block in main thread
+Thread read new block data, blockid 8 old 9
+Thread read new block data, blockid 8 old 9
+Tue 04/16/2019 01:23:56:602:  Solution found:
+   nonce = 0x000000020FCAB3E9
+       d = 0x000000002044DF25 4D2DD12ED73FF80C A9BF7E44E34D385E AF991BCB9C7ECE8B
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 9 old 10
+Thread read new block data, blockid 9 old 10
+Tue 04/16/2019 01:24:17:232:  Solution found:
+   nonce = 0x000000022C984982
+       d = 0x000000014E7497E1 7B8983C7A088859D E0DB97F2634AB60C 116D4AB15C51B737
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 10 old 11
+Thread read new block data, blockid 10 old 11
+Tue 04/16/2019 01:24:49:817:  Solution found:
+   nonce = 0x000000025AAA6F9F
+       d = 0x000000003C33DF72 52B5E2ECA03BCA0B 2606CB586982FED3 6E778791FCAB9514
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 11 old 12
+Thread read new block data, blockid 11 old 12
+Tue 04/16/2019 01:25:54:922:  Solution found:
+   nonce = 0x00000002B78AC141
+       d = 0x0000000151C5CAF4 1F83F1672D68A488 F6A12BD2F6B365ED 25D6550C22F345C2
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 12 old 13
+Thread read new block data, blockid 12 old 13
+Got new block in main thread
+Thread read new block data, blockid 13 old 14
+Thread read new block data, blockid 13 old 14
+Tue 04/16/2019 01:27:03:583:  Solution found:
+   nonce = 0x0000000323E7DF43
+       d = 0x0000000022C2D6A4 555301569E98F2BC 0142547CA3DE7F87 35C517D9B87C09E7
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 14 old 15
+Thread read new block data, blockid 14 old 15
+Tue 04/16/2019 01:33:10:660:  Solution found:
+   nonce = 0x000000052A6DF7E8
+       d = 0x000000010195950E 4EDFF9274C257217 7010F2F9479F71AD 1C4175786206F07A
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 15 old 16
+Thread read new block data, blockid 15 old 16
+Tue 04/16/2019 01:33:15:874:  Solution found:
+   nonce = 0x0000000542DF33BE
+       d = 0x00000000A7A357FD 0F19D271C842B53A A18412D1AD630B0C 4112F6C1BF0AB9C9
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 16 old 17
+Thread read new block data, blockid 16 old 17
+Tue 04/16/2019 01:34:16:083:  Solution found:
+   nonce = 0x0000000599F4213D
+       d = 0x000000013C4D4DA3 C7C55EFB79B2DE32 316458312E1BC851 FDE7379985DF1FDE
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 17 old 18
+Thread read new block data, blockid 17 old 18
+Tue 04/16/2019 01:35:05:070:  Solution found:
+   nonce = 0x00000005CCDACA9F
+       d = 0x0000000118FCE48D 1A708109A358DACA 0680E4D5FB68538A 21393D4BF7320F9D
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 18 old 19
+Thread read new block data, blockid 18 old 19
+Tue 04/16/2019 01:35:50:961:  Solution found:
+   nonce = 0x0000000622C40F73
+       d = 0x000000008BD94829 4A9A9268EDB16A6F 747E27C018744498 6E3E64B9C5CD5600
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 19 old 20
+Thread read new block data, blockid 19 old 20
+Got new block in main thread
+Thread read new block data, blockid 20 old 21
+Thread read new block data, blockid 20 old 21
+Tue 04/16/2019 01:36:46:117:  Solution found:
+   nonce = 0x000000065C306063
+       d = 0x00000000169F8A13 60002CDAC68ECF8D 1BA32973858FEEEC 0F10E1C4F77565E7
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 21 old 22
+Thread read new block data, blockid 21 old 22
+Tue 04/16/2019 01:38:11:699:  Solution found:
+   nonce = 0x00000006EE2DD265
+       d = 0x000000019094DDA1 9DDC748A8D7A6C13 A2A462ED6130A289 797E0FF51585A599
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 22 old 23
+Thread read new block data, blockid 22 old 23
+Tue 04/16/2019 01:39:11:676:  Solution found:
+   nonce = 0x0000000744FA6FB8
+       d = 0x000000017C34DA6A 33828B2AE3B1561D 2440B2878439CBB6 ED616090EFAB35CF
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 23 old 24
+Tue 04/16/2019 01:39:11:949:  Solution found:
+   nonce = 0x000000072CCBF579
+       d = 0x000000014000F8E3 477D0C9068DB2CBD 7B1DF2064E94394E 754BF6D8CA1910CE
+new Solution is posted
+Thread read new block data, blockid 23 old 24
+Tue 04/16/2019 01:39:13:087:  Solution found:
+   nonce = 0x0000000745EB4ED1
+       d = 0x00000000C9F7D239 0B48964436BC79DD 9BFC876659707FB1 FE21089199B51B63
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 24 old 25
+Thread read new block data, blockid 24 old 25
+Tue 04/16/2019 01:40:01:268:  Solution found:
+   nonce = 0x000000078B634F44
+       d = 0x00000000BC0CFF36 5390BC02A1B76864 D2173FCBD842AE17 C022B251620C97D3
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 25 old 26
+Thread read new block data, blockid 25 old 26
+Got new block in main thread
+Thread read new block data, blockid 26 old 27
+Thread read new block data, blockid 26 old 27
+Tue 04/16/2019 01:41:18:181:  Solution found:
+   nonce = 0x00000007DFDD6DFC
+       d = 0x0000000177E1270C 4048290A29968696 C110C3ECA109C195 985EEBB769D4B3E6
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 27 old 28
+Thread read new block data, blockid 27 old 28
+Tue 04/16/2019 01:41:23:068:  Solution found:
+   nonce = 0x00000007E5E1F6E0
+       d = 0x000000005B2ABC5E 1A40B5C5209B94FD 93FC5E429FD13006 D7FF306356993A98
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 28 old 29
+Thread read new block data, blockid 28 old 29
+Tue 04/16/2019 01:41:35:910:  Solution found:
+   nonce = 0x00000007F75DB144
+       d = 0x00000001115F0C39 413A6A77DC5A90F0 463B4C99B76515F8 9EC842562B17DA8E
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 29 old 30
+Thread read new block data, blockid 29 old 30
+Tue 04/16/2019 01:41:42:726:  Solution found:
+   nonce = 0x000000081B9CC35B
+       d = 0x0000000106A278BF ADDF3CC60798F4DB 35FA16AE955364CE 1B2FB1BE4A2F8652
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 30 old 31
+Thread read new block data, blockid 30 old 31
+Tue 04/16/2019 01:42:24:803:  Solution found:
+   nonce = 0x000000083C3B3024
+       d = 0x0000000014485A22 CC7EB97993DB98E8 51D9E48FB8614DF6 5F32F28614F046DF
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 31 old 32
+Thread read new block data, blockid 31 old 32
+Tue 04/16/2019 01:42:43:581:  Solution found:
+   nonce = 0x0000000872D8BF85
+       d = 0x000000018F906C3A FC1D695CB3FB4A4E 54FD88A70B593D4F BA2111027EE51F52
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 32 old 33
+Thread read new block data, blockid 32 old 33
+Tue 04/16/2019 01:43:29:263:  Solution found:
+   nonce = 0x00000008975BE331
+       d = 0x00000000AF60069D D3E255A8AA5EC33E 0C6EFD00DF6DC2B5 578470DC675D5451
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 33 old 34
+Thread read new block data, blockid 33 old 34
+Tue 04/16/2019 01:44:10:768:  Solution found:
+   nonce = 0x00000008F098239B
+       d = 0x000000013136C514 A9F26B91FC25DD4B E1EC5FDB1E18DC52 BC3B5557FBFC5FBA
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 34 old 35
+Thread read new block data, blockid 34 old 35
+Tue 04/16/2019 01:44:14:040:  Solution found:
+   nonce = 0x00000008D6089A24
+       d = 0x0000000185702785 F8703061B84CC2FD 672A1D9A4633096B F593AF9058B3EF0F
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 35 old 36
+Thread read new block data, blockid 35 old 36
+Got new block in main thread
+Thread read new block data, blockid 36 old 37
+Thread read new block data, blockid 36 old 37
+Got new block in main thread
+Thread read new block data, blockid 37 old 38
+Thread read new block data, blockid 37 old 38
+Tue 04/16/2019 01:45:54:395:  Solution found:
+   nonce = 0x00000009645C248D
+       d = 0x000000017B1431E6 D5422A4F9CF2350E A4BEE097D23A8DE3 F2730947CE8DEFA9
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 38 old 39
+Thread read new block data, blockid 38 old 39
+Tue 04/16/2019 01:46:18:768:  Solution found:
+   nonce = 0x00000009A7BA56D8
+       d = 0x00000000772318D5 C34F8CB993CF511D 7FE2B0C46AAF63B3 4FCF90C6DBC59204
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 39 old 40
+Thread read new block data, blockid 39 old 40
+Tue 04/16/2019 01:47:23:733:  Solution found:
+   nonce = 0x0000000A05BCB182
+       d = 0x0000000135C26997 66FFF5DECFD87E7C 8B5FAFBD7E77D0A1 5FA3E7757D05441C
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 40 old 41
+Thread read new block data, blockid 40 old 41
+Tue 04/16/2019 01:51:32:516:  Solution found:
+   nonce = 0x0000000B4A31485E
+       d = 0x0000000035D78D3D 3C0FE0D6C39CAFE3 121F39526C2F6BF1 6A62745FA696A211
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 41 old 42
+Thread read new block data, blockid 41 old 42
+Tue 04/16/2019 01:52:18:568:  Solution found:
+   nonce = 0x0000000B8BA8D493
+       d = 0x0000000072783056 C63F6E06214E6318 1E1ED719CBF8B57D F66A7C4DEAB9D930
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 42 old 43
+Thread read new block data, blockid 42 old 43
+Tue 04/16/2019 01:52:52:735:  Solution found:
+   nonce = 0x0000000BBBDB3557
+       d = 0x00000000623B6AE1 A3F013E54A3F7F88 9A42D43C4B4EE207 2F0AE887A4ACFC6C
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 43 old 44
+Thread read new block data, blockid 43 old 44
+Tue 04/16/2019 01:53:42:957:  Solution found:
+   nonce = 0x0000000C0352FDC2
+       d = 0x00000000BF783D99 DD4BC4E2971680D3 814725B537DCADB8 BACA79B207B64DA4
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 44 old 45
+Thread read new block data, blockid 44 old 45
+Tue 04/16/2019 01:54:08:300:  Solution found:
+   nonce = 0x0000000C51725602
+       d = 0x0000000012F0FE19 B031D61F75A807B6 16475FD764187141 337AEC2EE8F35DB6
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 45 old 46
+Thread read new block data, blockid 45 old 46
+Got new block in main thread
+Thread read new block data, blockid 46 old 47
+Thread read new block data, blockid 46 old 47
+Got new block in main thread
+Thread read new block data, blockid 47 old 48
+Thread read new block data, blockid 47 old 48
+Tue 04/16/2019 01:56:46:953:  Solution found:
+   nonce = 0x0000000D09BB0363
+       d = 0x0000000079EA2FCE FDB3415366C4BD40 60C975C03E115443 D256031CC5705F6A
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 48 old 49
+Thread read new block data, blockid 48 old 49
+Tue 04/16/2019 01:57:22:961:  Solution found:
+   nonce = 0x0000000D6AAEEBBF
+       d = 0x000000011BD9D2F1 B9434FCFBE8A5055 E85F83DEE878C49D 1C9A6187908C5930
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 49 old 50
+Thread read new block data, blockid 49 old 50
+Tue 04/16/2019 01:57:27:936:  Solution found:
+   nonce = 0x0000000D70EF2811
+       d = 0x0000000008D4D4A2 ECBAA9D53CFCEF6E AD32007E3FED8C3E 924FA9EA54FBF8C7
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 50 old 51
+Thread read new block data, blockid 50 old 51
+Tue 04/16/2019 01:58:35:488:  Solution found:
+   nonce = 0x0000000DD287154F
+       d = 0x0000000053B459BE D872C448140227EE 36225555A880F124 B13744B591338FB8
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 51 old 52
+Thread read new block data, blockid 51 old 52
+Tue 04/16/2019 01:58:50:056:  Solution found:
+   nonce = 0x0000000DE6FE92B7
+       d = 0x0000000012EA740D AD08EC82BB0B01BB 2A9F092BCFCCFCA6 44B774EF4A95537F
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 52 old 53
+Thread read new block data, blockid 52 old 53
+Tue 04/16/2019 01:58:52:328:  Solution found:
+   nonce = 0x0000000DBA4AC34C
+       d = 0x000000012A5FDD0E 2566E87534684CE9 467AD20451FB1F3D 3EDA7F15891AD46F
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 53 old 54
+Thread read new block data, blockid 53 old 54
+Tue 04/16/2019 01:59:05:679:  Solution found:
+   nonce = 0x0000000DCCB7F45B
+       d = 0x0000000133845B6A A020AA26EA052177 7A4FBAFC3E24F2BB A339BB0AB2AD0A20
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 54 old 55
+Thread read new block data, blockid 54 old 55
+Tue 04/16/2019 02:01:21:264:  Solution found:
+   nonce = 0x0000000EC174DCC3
+       d = 0x00000000F4AFA0FA D32AFC6E16715F1D 8221D7B1E52CD01C 7852A15621C7609B
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 55 old 56
+Thread read new block data, blockid 55 old 56
+Tue 04/16/2019 02:02:02:811:  Solution found:
+   nonce = 0x0000000EFD19B4CD
+       d = 0x000000012238AB73 594C66A8DC76DE51 C2991FE1F88E6EA3 8BFD10486B850D28
+new Solution is posted
+Got new block in main thread
+Thread read new block data, blockid 56 old 57
+Thread read new block data, blockid 56 old 57
+Tue 04/16/2019 02:02:34:473:  Solution found:
+   nonce = 0x0000000F2A5B9AA0
+       d = 0x000000006D457FF4 91000DC069D4A8FA 49431D915AA46430 386FA89E4AF0F806
+new Solution is posted

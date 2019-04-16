@@ -42,7 +42,7 @@ lib: $(OBJECTS)
 	ranlib $(LIBPATH)
 
 auto:
-	$(CXX) $(SRCDIR)/autolykos.cu $(LIBPATH) $(LIBS) $(COPT) $(GENCODE_FLAGS) \
+	$(CXX) $(SRCDIR)/autolykos.cu --std=c++11 $(LIBPATH) $(LIBS) $(COPT) $(GENCODE_FLAGS) \
 	-o $(AUTOEXEC)
 
 clean:
