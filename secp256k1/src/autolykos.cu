@@ -193,7 +193,7 @@ int main(int argc, char* argv[])
         if(curlcnt%curltimes == 0)
         {
             //printf("Average curling time %lf\n",(double)differ/(CLOCKS_PER_SEC*curltimes));
-            std::cout << "Average curling time " << ms << " ms \n";
+            std::cout << "Average curling time " << ms.count() << " ms \n";
             ms = milliseconds::zero();
         }
 
