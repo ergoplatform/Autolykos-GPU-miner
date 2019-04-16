@@ -90,6 +90,8 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
+    printf("Using %i CUDA devices\n",deviceCount);
+
     PERSISTENT_CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), CURLE_OK);
 	
 
