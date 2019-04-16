@@ -40,7 +40,7 @@
 #define TEXT_TERMINATION " Miner is now terminated\n"
 #define ERROR_GPUCHECK   "ABORT:  GPU devices are not recognised\n"
 
-
+using namespace std::chrono;
 
 
 struct globalInfo
@@ -164,10 +164,16 @@ int main(int argc, char* argv[])
     //-> signal miners with blockId
     int curlcnt = 0;
     const int curltimes = 2000;
-    time_t differ = 0;
+    //time_t differ = 0;
+
+    //using namespace std::chrono;
+    milliseconds ms = 0; 
+
     while(!TerminationRequestHandler())
     {
-        time_t start = clock();
+        milliseconds start = duration_cast< milliseconds >(
+            system_clock::now().time_since_epoch()
+            );
         info.info_mutex.lock();
         // need to fix state somehow
         state = STATE_CONTINUE;
@@ -182,12 +188,13 @@ int main(int argc, char* argv[])
 	    }
         info.info_mutex.unlock();
 
-        differ += clock()-start;
+        ms +=  duration_cast< milliseconds >(system_clock::now().time_since_epoch()) - start;
         curlcnt++;
         if(curlcnt%curltimes == 0)
         {
-            printf("Average curling time %lf\n",(double)differ/(CLOCKS_PER_SEC*curltimes));
-            differ = 0;
+            //printf("Average curling time %lf\n",(double)differ/(CLOCKS_PER_SEC*curltimes));
+            std::cout << "Average curling time " << ms << " ms \n";
+            ms = 0;
         }
 
         if(diff || state == STATE_REHASH)
