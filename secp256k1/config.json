@@ -1,1 +1,1 @@
-{ "seed" : "allow me to pop a jaunty little bonnet", "node" : "http://127.0.0.1:9052", "keepPrehash" : true }
+{ "seed" : "myseed", "node" : "http://127.0.0.1:9052", "keepPrehash" : true }
