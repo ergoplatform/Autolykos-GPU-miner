@@ -249,32 +249,13 @@ void minerThread(int deviceId, globalInfo *info)
 
     info->info_mutex.lock();
 
-    for(int i = 0; i < NUM_SIZE_8; i++)
-    {
-        //pk_h[i] = info->pk_h[i];
-        sk_h[i] = info->sk_h[i];
-        mes_h[i] = info->mes_h[i];
-        bound_h[i] = info->bound_h[i];
-    }
-
-    
-
-    for(int i =0; i< 40; i++)
-	{
-	    to[i] = info->to[i];
-	}
-    for(int i = 0; i < PK_SIZE_8; i++)
-    {
-        pk_h[i] = info->pk_h[i];
-    }
-    for(int i = 0; i < NUM_SIZE_4; i++)
-    {
-        skstr[i] = info->skstr[i];
-    }
-    for(int i = 0; i < PK_SIZE_4 + 1; i++)
-    {
-        pkstr[i] = info->pkstr[i];
-    }
+    memcpy(sk_h,info->sk_h, NUM_SIZE_8*sizeof(uint8_t));
+    memcpy(mes_h, info->mes_h, NUM_SIZE_8*sizeof(uint8_t));
+    memcpy(bound_h, info->bound_h, NUM_SIZE_8*sizeof(uint8_t));
+    memcpy(pk_h, info->pk_h, PK_SIZE_8*sizeof(uint8_t));
+    memcpy(pkstr, info->pkstr, (PK_SIZE_4+1)*sizeof(uint8_t));
+    memcpy(skstr, info->skstr, NUM_SIZE_4*sizeof(uint8_t));
+    memcpy(to, info->to, 40*sizeof(char));
    // blockId = info->blockId.load();
     keepPrehash = info->keepPrehash;
     
