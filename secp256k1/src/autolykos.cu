@@ -47,8 +47,10 @@ using namespace std::chrono;
 
 struct globalInfo
 {
+    std::mutex info_mutex;
     // Puzzle data to read
     
+    	
     uint8_t bound_h[NUM_SIZE_8];
     uint8_t mes_h[NUM_SIZE_8];
     uint8_t sk_h[NUM_SIZE_8];
@@ -56,15 +58,15 @@ struct globalInfo
     char skstr[NUM_SIZE_4];
     char pkstr[PK_SIZE_4 + 1];
     int keepPrehash;
-    char to[40];
+    char to[MAX_URL_SIZE];
     // Mutex for reading/writing data from globalInfo safely
 
-    std::mutex info_mutex;
+  //  std::mutex info_mutex;
     
     // Mutex for curl usage/maybe future websocket
     //not used now
 
-    std::mutex io_mutex;
+    //std::mutex io_mutex;
 
     // Increment when new block is sent by node
 
@@ -108,8 +110,8 @@ int main(int argc, char* argv[])
 
     char confname[14] = "./config.json";
     char * filename = (argc == 1)? confname: argv[1];
-    char from[40];
-    char to[40];
+    char from[MAX_URL_SIZE];
+    char to[MAX_URL_SIZE];
     int diff;
    // int keepPrehash = 0;
     json_t request(0, REQ_LEN);
@@ -153,7 +155,8 @@ int main(int argc, char* argv[])
         */
         return EXIT_FAILURE;
     }
-
+    LOG(INFO) << "Block getting URL " << from;
+    LOG(INFO) << "Solution postin URL " << info.to;
     // generate public key from secret key
     GeneratePublicKey(info.skstr, info.pkstr, info.pk_h);
     
@@ -272,8 +275,8 @@ void minerThread(int deviceId, globalInfo *info)
     // cryptography variables
     char skstr[NUM_SIZE_4];
     char pkstr[PK_SIZE_4 + 1];
-    char from[40];
-    char to[40];
+    char from[MAX_URL_SIZE];
+    char to[MAX_URL_SIZE];
     int keepPrehash = 0;
     unsigned int blockId = 0;
     milliseconds start;	
@@ -288,8 +291,8 @@ void minerThread(int deviceId, globalInfo *info)
     memcpy(bound_h, info->bound_h, NUM_SIZE_8*sizeof(uint8_t));
     memcpy(pk_h, info->pk_h, PK_SIZE_8*sizeof(uint8_t));
     memcpy(pkstr, info->pkstr, (PK_SIZE_4+1)*sizeof(uint8_t));
-    memcpy(skstr, info->skstr, NUM_SIZE_4*sizeof(uint8_t));
-    memcpy(to, info->to, 40*sizeof(char));
+    memcpy(skstr, info->skstr,NUM_SIZE_4*sizeof(uint8_t));
+    memcpy(to, info->to, MAX_URL_SIZE*sizeof(char));
    // blockId = info->blockId.load();
     keepPrehash = info->keepPrehash;
     
