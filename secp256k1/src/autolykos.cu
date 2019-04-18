@@ -324,12 +324,12 @@ void minerThread(int deviceId, globalInfo *info)
 
     // unfinalized hash contexts
     // N_LEN * 80 bytes // 5 GiB
-    ucontext_t * uctxs_d;
+    ucontext_type * uctxs_d;
 
     if (keepPrehash)
     {
         CUDA_CALL(cudaMalloc(
-            (void **)&uctxs_d, (uint32_t)N_LEN * sizeof(ucontext_t)
+            (void **)&uctxs_d, (uint32_t)N_LEN * sizeof(ucontext_type)
         ));
     }
 

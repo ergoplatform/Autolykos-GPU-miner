@@ -191,7 +191,7 @@ struct context_t
 };
 
 // BLAKE2b-256 packed uncomplete hash state context 
-struct ucontext_t
+struct ucontext_type
 {
     // chained state
     uint64_t h[8];
