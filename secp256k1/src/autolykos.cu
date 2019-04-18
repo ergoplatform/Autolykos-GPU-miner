@@ -5,7 +5,7 @@
     AUTOLYKOS -- Autolykos puzzle cycle
 
 *******************************************************************************/
-
+#include "../include/easylogging++.h"
 #include "../include/compaction.h"
 #include "../include/conversion.h"
 #include "../include/cryptography.h"
@@ -39,6 +39,8 @@
 #define TEXT_GPUCHECK    " Checking GPU availability\n"
 #define TEXT_TERMINATION " Miner is now terminated\n"
 #define ERROR_GPUCHECK   "ABORT:  GPU devices are not recognised\n"
+
+INITIALIZE_EASYLOGGINGPP
 
 using namespace std::chrono;
 
@@ -90,7 +92,8 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    printf("Using %i CUDA devices\n",deviceCount);
+    LOG(INFO) << "Using %i CUDA devices " << deviceCount << "\n";
+    //printf("Using %i CUDA devices\n",deviceCount);
 
     PERSISTENT_CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), CURLE_OK);
 	
@@ -103,11 +106,14 @@ int main(int argc, char* argv[])
    // int keepPrehash = 0;
     json_t request(0, REQ_LEN);
     
+    LOG(INFO) << "Using configuration file from " << filename << "\n";
+
+    /*
     printf(
         "Using configuration from \'%s\'\n", filename
     );
     fflush(stdout);
-
+    */
     // check access to config file
     if (access(filename, F_OK) == -1)
     {
@@ -136,8 +142,10 @@ int main(int argc, char* argv[])
 
     // generate public key from secret key
     GeneratePublicKey(info.skstr, info.pkstr, info.pk_h);
+    
+    char logst[1000];
 
-    printf(
+    sprintf(logst,
         "%s Generated public key:\n"
         "   pk = 0x%02lX %016lX %016lX %016lX %016lX\n",
         TimeStamp(&stamp), ((uint8_t *)info.pk_h)[0],
@@ -146,8 +154,8 @@ int main(int argc, char* argv[])
         REVERSE_ENDIAN((uint64_t *)(info.pk_h + 1) + 2),
         REVERSE_ENDIAN((uint64_t *)(info.pk_h + 1) + 3)
     );
-    fflush(stdout);
-    
+    //fflush(stdout);
+    LOG(INFO) << logst;
 
     status = GetLatestBlock(
         from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff
@@ -184,7 +192,8 @@ int main(int argc, char* argv[])
         
         if(status != EXIT_SUCCESS)
 	    {
-	        printf("Getting block error\n");
+            LOG(INFO) << "Getting block error\n";
+            //printf("Getting block error\n");
 	    }
         info.info_mutex.unlock();
 
@@ -193,7 +202,7 @@ int main(int argc, char* argv[])
         if(curlcnt%curltimes == 0)
         {
             //printf("Average curling time %lf\n",(double)differ/(CLOCKS_PER_SEC*curltimes));
-            std::cout << "Average curling time " << ms.count()/(double)curltimes << " ms \n";
+            LOG(INFO) << "Average curling time " << ms.count()/(double)curltimes << " ms \n";
             ms = milliseconds::zero();
         }
 
@@ -201,7 +210,8 @@ int main(int argc, char* argv[])
         {
             info.blockId++;
             diff = 0;
-            printf("Got new block in main thread\n");
+            LOG(INFO) << "Got new block in main thread\n"; 
+            //printf("Got new block in main thread\n");
 	        fflush(stdout);
 	    }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
