@@ -76,6 +76,7 @@ void minerThread(int deviceId, globalInfo *info);
 
 int main(int argc, char* argv[])
 {
+    START_EASYLOGGINGPP(argc, argv);
     int deviceCount;
     timestamp_t stamp;
     int status = EXIT_SUCCESS;
@@ -84,15 +85,19 @@ int main(int argc, char* argv[])
     state_t state = STATE_CONTINUE;
     if (cudaGetDeviceCount(&deviceCount) != cudaSuccess)
     {
+        /*
         fprintf(
             stderr, ERROR_GPUCHECK "%s" TEXT_TERMINATION TEXT_SEPARATOR,
             TimeStamp(&stamp)
         );
+        */
+
+        LOG(ERROR) << "Error checking GPU";
 
         return EXIT_FAILURE;
     }
 
-    LOG(INFO) << "Using %i CUDA devices " << deviceCount << "\n";
+    LOG(INFO) << "Using %i CUDA devices " << deviceCount;
     //printf("Using %i CUDA devices\n",deviceCount);
 
     PERSISTENT_CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), CURLE_OK);
@@ -106,7 +111,7 @@ int main(int argc, char* argv[])
    // int keepPrehash = 0;
     json_t request(0, REQ_LEN);
     
-    LOG(INFO) << "Using configuration file from " << filename << "\n";
+    LOG(INFO) << "Using configuration file from " << filename ;
 
     /*
     printf(
@@ -117,11 +122,15 @@ int main(int argc, char* argv[])
     // check access to config file
     if (access(filename, F_OK) == -1)
     {
+        /*
         fprintf(stderr, "ABORT:  File \'%s\' not found\n", filename);
 
         fprintf(
             stderr, "%s" TEXT_TERMINATION TEXT_SEPARATOR, TimeStamp(&stamp)
         );
+        */
+
+        LOG(ERROR) << "Config file not found " << filename;
 
         return EXIT_FAILURE;
     }
@@ -131,12 +140,14 @@ int main(int argc, char* argv[])
 
     if (status == EXIT_FAILURE)
     {
-        fprintf(stderr, "ABORT:  Wrong config format\n");
+        
+        LOG(ERROR) << "Wrong config file format";
+        /*fprintf(stderr, "ABORT:  Wrong config format\n");
 
         fprintf(
             stderr, "%s" TEXT_TERMINATION TEXT_SEPARATOR, TimeStamp(&stamp)
         );
-
+        */
         return EXIT_FAILURE;
     }
 
@@ -147,7 +158,7 @@ int main(int argc, char* argv[])
 
     sprintf(logst,
         "%s Generated public key:\n"
-        "   pk = 0x%02lX %016lX %016lX %016lX %016lX\n",
+        "   pk = 0x%02lX %016lX %016lX %016lX %016lX",
         TimeStamp(&stamp), ((uint8_t *)info.pk_h)[0],
         REVERSE_ENDIAN((uint64_t *)(info.pk_h + 1) + 0),
         REVERSE_ENDIAN((uint64_t *)(info.pk_h + 1) + 1),
@@ -192,7 +203,7 @@ int main(int argc, char* argv[])
         
         if(status != EXIT_SUCCESS)
 	    {
-            LOG(INFO) << "Getting block error\n";
+            LOG(INFO) << "Getting block error";
             //printf("Getting block error\n");
 	    }
         info.info_mutex.unlock();
@@ -202,7 +213,7 @@ int main(int argc, char* argv[])
         if(curlcnt%curltimes == 0)
         {
             //printf("Average curling time %lf\n",(double)differ/(CLOCKS_PER_SEC*curltimes));
-            LOG(INFO) << "Average curling time " << ms.count()/(double)curltimes << " ms \n";
+            LOG(INFO) << "Average curling time " << ms.count()/(double)curltimes << " ms";
             ms = milliseconds::zero();
         }
 
@@ -210,11 +221,11 @@ int main(int argc, char* argv[])
         {
             info.blockId++;
             diff = 0;
-            LOG(INFO) << "Got new block in main thread\n"; 
+            LOG(INFO) << "Got new block in main thread"; 
             //printf("Got new block in main thread\n");
 	        fflush(stdout);
 	    }
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
 
     }    
 
@@ -285,8 +296,9 @@ void minerThread(int deviceId, globalInfo *info)
     //====================================================================//
     //  Device memory allocation
     //====================================================================//
-    printf(" %s thread GPU %i allocating GPU memory\n", TimeStamp(&stamp), deviceId);
-   // fflush(stdout);
+    //printf(" %s thread GPU %i allocating GPU memory\n", TimeStamp(&stamp), deviceId);
+    LOG(INFO) << "GPU " << deviceId << " allocating memory";
+    // fflush(stdout);
 
     // boundary for puzzle
     // ~0 MiB
@@ -357,12 +369,14 @@ void minerThread(int deviceId, globalInfo *info)
 
     if (keepPrehash)
     {
+        /*
         printf(
             "%s Preparing unfinalized hashes\n" TEXT_SEPARATOR,
             TimeStamp(&stamp)
         );
         fflush(stdout);
-
+        */
+        LOG(INFO) << "Preparing unfinalized hashes on GPU " << deviceId;
 
         UncompleteInitPrehash<<<1 + (N_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             data_d, uctxs_d
@@ -381,8 +395,9 @@ void minerThread(int deviceId, globalInfo *info)
 	    if(cntCycles%NCycles == 0)
 	    {
             milliseconds timediff = duration_cast<milliseconds> (system_clock::now().time_since_epoch()) - start;
-            printf("%lf MHashes per second on GPU %i \n", (double)LOAD_LEN*NCycles/((double)1000*timediff.count()), deviceId);
-	        start = duration_cast<milliseconds> (system_clock::now().time_since_epoch());
+            //printf("%lf MHashes per second on GPU %i \n", (double)LOAD_LEN*NCycles/((double)1000*timediff.count()), deviceId);
+            LOG(INFO) << "GPU " << deviceId << " hashrate " << (double)LOAD_LEN*NCycles/((double)1000*timediff.count()) << " MH/s";
+            start = duration_cast<milliseconds> (system_clock::now().time_since_epoch());
 	    }
 	
         // if solution was found by this thread, wait for new block to come 
@@ -410,13 +425,15 @@ void minerThread(int deviceId, globalInfo *info)
             */
             info->info_mutex.unlock();
             state = STATE_REHASH;
-	        printf("Thread read new block data, blockid %i old %i\n",blockId,controlId);
-	        blockId = controlId;
+	        //printf("Thread read new block data, blockid %i old %i\n",blockId,controlId);
+            LOG(INFO) << "GPU " << deviceId << " read new block data";
+            blockId = controlId;
             
+
             GenerateKeyPair(x_h, w_h);
         
             //PrintPuzzleState(mes_h, pk_h, sk_h, w_h, x_h, bound_h, &stamp);
-
+            VLOG(1) << "Generated new keypair, copying new data in device memory now";
             // copy boundary
             CUDA_CALL(cudaMemcpy(
                 (void *)bound_d, (void *)bound_h, NUM_SIZE_8,
@@ -440,7 +457,7 @@ void minerThread(int deviceId, globalInfo *info)
                 (void *)((uint8_t *)data_d + PK_SIZE_8 + NUM_SIZE_8),
                 (void *)w_h, PK_SIZE_8, cudaMemcpyHostToDevice
             ));
- 
+            VLOG(1) << "Starting prehashing with new block data";
             Prehash(keepPrehash, data_d, uctxs_d, hashes_d, indices_d);
  
 
@@ -450,7 +467,7 @@ void minerThread(int deviceId, globalInfo *info)
 
 
         CUDA_CALL(cudaDeviceSynchronize());
- 
+        VLOG(1) << "Starting mining cycle";
          /*     printf(
             "%s Checking solutions for nonces:\n"
             "           0x%016lX -- 0x%016lX\n",
@@ -462,22 +479,24 @@ void minerThread(int deviceId, globalInfo *info)
         GenerateConseqNonces<<<1 + (THREAD_LEN * LOAD_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             (uint64_t *)nonces_d, N_LEN, base
         );
-
+        VLOG(1) << "Generating nonces";
         base += THREAD_LEN * LOAD_LEN;
         // calculate unfinalized hash of message
         InitMining(&ctx_h, (uint32_t *)mes_h, NUM_SIZE_8);
+
+        VLOG(1) << "Starting InitMining";
 
         // copy context
         CUDA_CALL(cudaMemcpy(
             (void *)(data_d + PK2_SIZE_32 + 3 * NUM_SIZE_32), (void *)&ctx_h,
             sizeof(context_t), cudaMemcpyHostToDevice
         ));
-
+        VLOG(1) << "Starting main BlockMining procedure";
         // calculate solution candidates
         BlockMining<<<1 + (LOAD_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             bound_d, data_d, nonces_d, hashes_d, res_d, indices_d
         );
-
+        VLOG(1) << "Trying to find solution";
         // try to find solution
         ind = FindNonZero(
             indices_d, indices_d + THREAD_LEN * LOAD_LEN, THREAD_LEN * LOAD_LEN
@@ -496,11 +515,12 @@ void minerThread(int deviceId, globalInfo *info)
                 NONCE_SIZE_8, cudaMemcpyDeviceToHost
             ));
 
-            printf("%s Solution found from GPU %i:\n", TimeStamp(&stamp), deviceId); 
+            //printf("%s Solution found from GPU %i:\n", TimeStamp(&stamp), deviceId); 
             PrintPuzzleSolution(nonces_h, res_h);
             PostPuzzleSolution(to, pkstr, w_h, nonces_h, res_h);
-            printf("new Solution is posted\n");
-            fflush(stdout);
+            LOG(INFO) << "GPU " << deviceId << " found and posted a solution";
+            //printf("new Solution is posted\n");
+            //fflush(stdout);
 	
             state = STATE_KEYGEN;
         }
