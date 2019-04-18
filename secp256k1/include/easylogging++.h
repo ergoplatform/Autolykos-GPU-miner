@@ -13,6 +13,7 @@
 //  https://zuhd.org
 //  http://muflihun.com
 //
+#define ELPP_THREAD_SAFE
 
 #ifndef EASYLOGGINGPP_H
 #define EASYLOGGINGPP_H

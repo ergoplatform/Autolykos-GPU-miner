@@ -76,7 +76,10 @@ void minerThread(int deviceId, globalInfo *info);
 
 int main(int argc, char* argv[])
 {
-    START_EASYLOGGINGPP(argc, argv);
+ 
+   START_EASYLOGGINGPP(argc, argv);
+    el::Loggers::reconfigureAllLoggers(el::ConfigurationType::Format, "%datetime %level [%thread] %msg");
+    el::Helpers::setThreadName("main thread");
     int deviceCount;
     timestamp_t stamp;
     int status = EXIT_SUCCESS;
@@ -97,7 +100,7 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    LOG(INFO) << "Using %i CUDA devices " << deviceCount;
+    LOG(INFO) << "Using " << deviceCount <<" CUDA devices " ;
     //printf("Using %i CUDA devices\n",deviceCount);
 
     PERSISTENT_CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), CURLE_OK);
@@ -157,7 +160,7 @@ int main(int argc, char* argv[])
     char logst[1000];
 
     sprintf(logst,
-        "%s Generated public key:\n"
+        "%s Generated public key:"
         "   pk = 0x%02lX %016lX %016lX %016lX %016lX",
         TimeStamp(&stamp), ((uint8_t *)info.pk_h)[0],
         REVERSE_ENDIAN((uint64_t *)(info.pk_h + 1) + 0),
@@ -242,7 +245,10 @@ void minerThread(int deviceId, globalInfo *info)
     timestamp_t stamp;
     state_t state = STATE_KEYGEN;
     cudaSetDevice(deviceId);
-    
+    char threadName[20];
+    sprintf(threadName, "GPU %i miner",deviceId);
+    el::Helpers::setThreadName(threadName);    
+
     //====================================================================//
     //  Host memory allocation
     //====================================================================//
@@ -497,6 +503,11 @@ void minerThread(int deviceId, globalInfo *info)
             bound_d, data_d, nonces_d, hashes_d, res_d, indices_d
         );
         VLOG(1) << "Trying to find solution";
+	//interrupt cycle if new block was found
+	if(blockId!=info->blockId.load())
+	{
+		continue;
+	}
         // try to find solution
         ind = FindNonZero(
             indices_d, indices_d + THREAD_LEN * LOAD_LEN, THREAD_LEN * LOAD_LEN
