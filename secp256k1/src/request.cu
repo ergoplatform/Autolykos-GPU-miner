@@ -100,7 +100,7 @@ int TerminationRequestHandler(
     fcntl(STDIN_FILENO, F_SETFL, oldf);
 
     // terminating when any character is stroken
-    if (ch != EOF)
+    if (ch == 'q' || ch == 'Q')
     {
         ungetc(ch, stdin);
 
