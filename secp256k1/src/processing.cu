@@ -10,7 +10,7 @@
 #include "../include/cryptography.h"
 #include "../include/definitions.h"
 #include "../include/jsmn.h"
-#include "../include/request.h"
+//#include "../include/request.h"
 #include <ctype.h>
 #include <cuda.h>
 #include <curl/curl.h>
