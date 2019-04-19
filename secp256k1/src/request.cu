@@ -335,7 +335,7 @@ int PostPuzzleSolution(
     json_t respond(0, REQ_LEN);
     curl_slist * headers = NULL;
     curl_slist * tmp;
-
+    int curlError;
     PERSISTENT_FUNCTION_CALL(
         tmp, curl_slist_append(headers, "Accept: application/json")
     );
@@ -344,8 +344,9 @@ int PostPuzzleSolution(
         headers, curl_slist_append(tmp, "Content-Type: application/json")
     );
 
-    PERSISTENT_CALL_STATUS(curl_easy_setopt(curl, CURLOPT_URL, to), CURLE_OK);
-
+    curlError = curl_easy_setopt(curl, CURLOPT_URL, to);
+    CurlLogError(curlError, "Setting curl URL post error");
+    
     PERSISTENT_CALL_STATUS(
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers), CURLE_OK
     );
@@ -361,8 +362,12 @@ int PostPuzzleSolution(
     PERSISTENT_CALL_STATUS(
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &respond), CURLE_OK
     );
+    
+    //PERSISTENT_CALL_STATUS(curl_easy_perform(curl), CURLE_OK);
+    
+    curlError = curl_easy_perform(curl);
+    CurlLogError(curlError, "Posting solution error");
 
-    PERSISTENT_CALL_STATUS(curl_easy_perform(curl), CURLE_OK);
 
     curl_easy_cleanup(curl);
     curl_slist_free_all(headers);
