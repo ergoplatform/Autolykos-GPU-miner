@@ -178,7 +178,7 @@ int GetLatestBlock(
     CurlLogError(curlError, "Setting curl write function");
     curlError = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq);
     CurlLogError(curlError, "Setting curl data pointer");
-    curlError = curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+    //curlError = curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
     curlError = curl_easy_perform(curl);
     CurlLogError(curlError, "Curl request");
     curl_easy_cleanup(curl);
@@ -332,12 +332,12 @@ int PostPuzzleSolution(
     CurlLogError(curlError, "Setting curl URL post error");
 
  
-    curlError = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curlError = curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request);
-    curlError = curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 60L);
-    curlError = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
-    curlError = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &respond);
-    
+    curlError += curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curlError += curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request);
+  //  curlError += curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 60L);
+    curlError += curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
+    curlError += curl_easy_setopt(curl, CURLOPT_WRITEDATA, &respond);
+    CurlLogError(curlError, "some error during post options");
     //PERSISTENT_CALL_STATUS(curl_easy_perform(curl), CURLE_OK);
     
     curlError = curl_easy_perform(curl);
