@@ -172,6 +172,10 @@ int GetLatestBlock(
     newreq.Reset();
     int curlError;
     curl = curl_easy_init();
+    if(!curl)
+    {
+        LOG(ERROR) << "Curl doesn't init in getblock";
+    }
     curlError = curl_easy_setopt(curl, CURLOPT_URL, from);
     CurlLogError(curlError, "Setting curl URL");
     curlError = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
@@ -321,6 +325,10 @@ int PostPuzzleSolution(
     //====================================================================//
     CURL * curl;
     curl = curl_easy_init();
+    if(!curl)
+    {
+        LOG(ERROR) << "Curl doesn't initialize correctly in posting sol";
+    }
     json_t respond(0, REQ_LEN);
     curl_slist * headers = NULL;
     curl_slist * tmp;
