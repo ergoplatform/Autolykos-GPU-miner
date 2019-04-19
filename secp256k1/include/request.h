@@ -9,7 +9,7 @@
 
 #include "definitions.h"
 #include "jsmn.h"
-
+#include <curl/curl.h>
 // write function for curl http GET
 size_t WriteFunc(
     void * ptr,
@@ -36,7 +36,9 @@ int GetLatestBlock(
     uint8_t * bound,
     uint8_t * mes,
     state_t * state,
-    int * diff
+    int * diff,
+    bool checkPK,
+    CURL* curl
 );
 
 // curl http POST request

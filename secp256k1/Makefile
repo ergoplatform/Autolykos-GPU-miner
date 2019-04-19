@@ -20,7 +20,7 @@ CFLAGS = -c
 
 SRCDIR = ./src
 LIBPATH = ./lib/$(LIBNAME)
-CUSOURCES = $(filter-out $(SRCDIR)/autolykos.cu, $(wildcard $(SRCDIR)/*.cu))
+CUSOURCES = $(filter-out $(SRCDIR)/autolykos.cu $(SRCDIR)/request.cu, $(wildcard $(SRCDIR)/*.cu))
 CSOURCES = $(wildcard $(SRCDIR)/*.c)
 OBJECTS = $(CUSOURCES:.cu=.o) $(CSOURCES:.c=.o)
 
@@ -42,7 +42,7 @@ lib: $(OBJECTS)
 	ranlib $(LIBPATH)
 
 auto:
-	$(CXX) $(SRCDIR)/autolykos.cu $(SRCDIR)/easylogging++.cc --std=c++11 $(LIBPATH) $(LIBS) $(COPT) $(GENCODE_FLAGS) \
+	$(CXX) $(SRCDIR)/autolykos.cu $(SRCDIR)/easylogging++.cc $(SRCDIR)/request.cu --std=c++11 $(LIBPATH) $(LIBS) $(COPT) $(GENCODE_FLAGS) \
 	-o $(AUTOEXEC)
 
 clean:
