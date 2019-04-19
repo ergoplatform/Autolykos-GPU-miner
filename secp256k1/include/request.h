@@ -37,8 +37,7 @@ int GetLatestBlock(
     uint8_t * mes,
     state_t * state,
     int * diff,
-    bool checkPK,
-    CURL* curl
+    bool checkPK
 );
 
 // curl http POST request

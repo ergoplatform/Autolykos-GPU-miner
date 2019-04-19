@@ -47,8 +47,6 @@ using namespace std::chrono;
 
 struct globalInfo
 {
-    // CURL ptr
-    CURL *curl;
 
     // Mutex for reading/writing data from globalInfo safely
     std::mutex info_mutex;
@@ -173,7 +171,7 @@ int main(int argc, char* argv[])
     LOG(INFO) << logst;
 
     status = GetLatestBlock(
-        from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, true, info.curl
+        from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, true
     );
     
     std::vector<std::thread> miners(deviceCount);
@@ -408,13 +406,14 @@ void minerThread(int deviceId, globalInfo *info)
 	    }
 	
         // if solution was found by this thread, wait for new block to come 
-	    if(state == STATE_KEYGEN)
+        /*
+        if(state == STATE_KEYGEN)
 	    {
 		    while(info->blockId.load() == blockId)
 		    {}
 		    state = STATE_CONTINUE;
 	    }
-
+        */
 	    unsigned int controlId = info->blockId.load();
         if(blockId != controlId)
         {
@@ -528,7 +527,7 @@ void minerThread(int deviceId, globalInfo *info)
             ));
 
             //printf("%s Solution found from GPU %i:\n", TimeStamp(&stamp), deviceId); 
-            PrintPuzzleSolution(nonces_h, res_h);
+            //PrintPuzzleSolution(nonces_h, res_h);
             PostPuzzleSolution(to, pkstr, w_h, nonces_h, res_h);
             LOG(INFO) << "GPU " << deviceId << " found and posted a solution";
             //printf("new Solution is posted\n");

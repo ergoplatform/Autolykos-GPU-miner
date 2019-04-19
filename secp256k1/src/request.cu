@@ -157,11 +157,10 @@ int GetLatestBlock(
     uint8_t * mes,
     state_t * state,
     int * diff, 
-    bool checkPK,
-    CURL* curl
+    bool checkPK
 )
 {
-   // CURL * curl;
+    CURL * curl;
     json_t newreq(0, REQ_LEN);
     jsmn_parser parser;
     int changed = 0;
@@ -346,7 +345,7 @@ int PostPuzzleSolution(
 
     curlError = curl_easy_setopt(curl, CURLOPT_URL, to);
     CurlLogError(curlError, "Setting curl URL post error");
-    
+
     PERSISTENT_CALL_STATUS(
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers), CURLE_OK
     );
