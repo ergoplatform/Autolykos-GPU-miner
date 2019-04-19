@@ -21,7 +21,6 @@
 #include <unistd.h>
 #include <mutex>
 
-INITIALIZE_EASYLOGGINGPP
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Write function for curl http GET
