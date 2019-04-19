@@ -48,9 +48,8 @@ using namespace std::chrono;
 struct globalInfo
 {
     std::mutex info_mutex;
+
     // Puzzle data to read
-    
-    	
     uint8_t bound_h[NUM_SIZE_8];
     uint8_t mes_h[NUM_SIZE_8];
     uint8_t sk_h[NUM_SIZE_8];
@@ -59,28 +58,26 @@ struct globalInfo
     char pkstr[PK_SIZE_4 + 1];
     int keepPrehash;
     char to[MAX_URL_SIZE];
-    // Mutex for reading/writing data from globalInfo safely
 
-  //  std::mutex info_mutex;
+    // Mutex for reading/writing data from globalInfo safely
+    // std::mutex info_mutex;
     
     // Mutex for curl usage/maybe future websocket
-    //not used now
-
-    //std::mutex io_mutex;
+    // not used now
+    // std::mutex io_mutex;
 
     // Increment when new block is sent by node
-
     std::atomic<unsigned int> blockId; 
 };
 
 void minerThread(int deviceId, globalInfo *info);
 
-
-int main(int argc, char* argv[])
+int main(int argc, char ** argv)
 {
- 
-   START_EASYLOGGINGPP(argc, argv);
-    el::Loggers::reconfigureAllLoggers(el::ConfigurationType::Format, "%datetime %level [%thread] %msg");
+    START_EASYLOGGINGPP(argc, argv);
+    el::Loggers::reconfigureAllLoggers(
+        el::ConfigurationType::Format, "%datetime %level [%thread] %msg"
+    );
     el::Helpers::setThreadName("main thread");
     int deviceCount;
     timestamp_t stamp;
@@ -88,6 +85,7 @@ int main(int argc, char* argv[])
     globalInfo info;
     info.blockId = 1;
     state_t state = STATE_CONTINUE;
+
     if (cudaGetDeviceCount(&deviceCount) != cudaSuccess)
     {
         /*
@@ -113,7 +111,7 @@ int main(int argc, char* argv[])
     char from[MAX_URL_SIZE];
     char to[MAX_URL_SIZE];
     int diff;
-   // int keepPrehash = 0;
+    // int keepPrehash = 0;
     json_t request(0, REQ_LEN);
     
     LOG(INFO) << "Using configuration file from " << filename ;
@@ -141,7 +139,10 @@ int main(int argc, char* argv[])
     }
 
     // read config from file
-    status = ReadConfig(filename, info.sk_h, info.skstr, from, info.to, &info.keepPrehash, &stamp);
+    status = ReadConfig(
+        filename, info.sk_h, info.skstr, from, info.to, &info.keepPrehash,
+        &stamp
+    );
 
     if (status == EXIT_FAILURE)
     {
@@ -179,10 +180,9 @@ int main(int argc, char* argv[])
     );
     
     std::vector<std::thread> miners(deviceCount);
-    for(int i = 0; i < deviceCount; i++)
+    for (int i = 0; i < deviceCount; ++i)
     {
         miners[i] = std::thread(minerThread, i, &info);
-
     }
 
     // main cycle - bomb node with HTTP with 10ms intervals, if new block came 
@@ -207,23 +207,29 @@ int main(int argc, char* argv[])
             from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff
         );
         
-        if(status != EXIT_SUCCESS)
+        if (status != EXIT_SUCCESS)
 	    {
             LOG(INFO) << "Getting block error";
             //printf("Getting block error\n");
 	    }
+
         info.info_mutex.unlock();
 
-        ms +=  duration_cast< milliseconds >(system_clock::now().time_since_epoch()) - start;
-        curlcnt++;
-        if(curlcnt%curltimes == 0)
+        ms += duration_cast<milliseconds>(
+            system_clock::now().time_since_epoch()
+        ) - start;
+
+        ++curlcnt;
+
+        if (curlcnt%curltimes == 0)
         {
             //printf("Average curling time %lf\n",(double)differ/(CLOCKS_PER_SEC*curltimes));
-            LOG(INFO) << "Average curling time " << ms.count()/(double)curltimes << " ms";
+            LOG(INFO) << "Average curling time "
+                << ms.count() / (double)curltimes << " ms";
             ms = milliseconds::zero();
         }
 
-        if(diff || state == STATE_REHASH)
+        if (diff || state == STATE_REHASH)
         {
             info.blockId++;
             diff = 0;
@@ -231,10 +237,9 @@ int main(int argc, char* argv[])
             //printf("Got new block in main thread\n");
 	        fflush(stdout);
 	    }
+
         std::this_thread::sleep_for(std::chrono::milliseconds(8));
-
     }    
-
 
     return EXIT_SUCCESS;
 }
@@ -286,14 +291,14 @@ void minerThread(int deviceId, globalInfo *info)
 
     info->info_mutex.lock();
 
-    memcpy(sk_h,info->sk_h, NUM_SIZE_8*sizeof(uint8_t));
-    memcpy(mes_h, info->mes_h, NUM_SIZE_8*sizeof(uint8_t));
-    memcpy(bound_h, info->bound_h, NUM_SIZE_8*sizeof(uint8_t));
-    memcpy(pk_h, info->pk_h, PK_SIZE_8*sizeof(uint8_t));
-    memcpy(pkstr, info->pkstr, (PK_SIZE_4+1)*sizeof(uint8_t));
-    memcpy(skstr, info->skstr,NUM_SIZE_4*sizeof(uint8_t));
-    memcpy(to, info->to, MAX_URL_SIZE*sizeof(char));
-   // blockId = info->blockId.load();
+    memcpy(sk_h,info->sk_h, NUM_SIZE_8);
+    memcpy(mes_h, info->mes_h, NUM_SIZE_8);
+    memcpy(bound_h, info->bound_h, NUM_SIZE_8);
+    memcpy(pk_h, info->pk_h, PK_SIZE_8);
+    memcpy(pkstr, info->pkstr, (PK_SIZE_4 + 1) * sizeof(char));
+    memcpy(skstr, info->skstr, NUM_SIZE_4 * sizeof(char));
+    memcpy(to, info->to, MAX_URL_SIZE * sizeof(char));
+    // blockId = info->blockId.load();
     keepPrehash = info->keepPrehash;
     
     info->info_mutex.unlock();
@@ -400,25 +405,32 @@ void minerThread(int deviceId, globalInfo *info)
     do
     {
         
-	    cntCycles++;
-	    if(cntCycles%NCycles == 0)
+	    ++cntCycles;
+
+	    if (cntCycles % NCycles == 0)
 	    {
-            milliseconds timediff = duration_cast<milliseconds> (system_clock::now().time_since_epoch()) - start;
+            milliseconds timediff
+                = duration_cast<milliseconds>(
+                    system_clock::now().time_since_epoch()
+                ) - start;
             //printf("%lf MHashes per second on GPU %i \n", (double)LOAD_LEN*NCycles/((double)1000*timediff.count()), deviceId);
-            LOG(INFO) << "GPU " << deviceId << " hashrate " << (double)LOAD_LEN*NCycles/((double)1000*timediff.count()) << " MH/s";
-            start = duration_cast<milliseconds> (system_clock::now().time_since_epoch());
+            LOG(INFO) << "GPU " << deviceId << " hashrate "
+                << (double)LOAD_LEN * NCycles
+                / ((double)1000 * timediff.count()) << " MH/s";
+            start = duration_cast<milliseconds>(
+                system_clock::now().time_since_epoch()
+            );
 	    }
 	
         // if solution was found by this thread, wait for new block to come 
-	    if(state == STATE_KEYGEN)
+	    if (state == STATE_KEYGEN)
 	    {
-		    while(info->blockId.load() == blockId)
-		    {}
+		    while(info->blockId.load() == blockId) {}
 		    state = STATE_CONTINUE;
 	    }
 
 	    unsigned int controlId = info->blockId.load();
-        if(blockId != controlId)
+        if (blockId != controlId)
         {
             //if info->blockId changed, read new message and bound to thread-local mem
 
@@ -469,7 +481,6 @@ void minerThread(int deviceId, globalInfo *info)
             VLOG(1) << "Starting prehashing with new block data";
             Prehash(keepPrehash, data_d, uctxs_d, hashes_d, indices_d);
  
-
             state = STATE_CONTINUE;
     	    //printf("Prehashed for new block\n");
         }
