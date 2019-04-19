@@ -186,9 +186,9 @@ int GetLatestBlock(
     curlError = curl_easy_perform(curl);
     CurlLogError(curlError, "Curl request");
     curl_easy_cleanup(curl);
-
+    VLOG(1) << "GET request " << newreq.ptr;
     // if curl returns error on request, don't change or check anything 
-
+    VLOG(1) << "Curl request status " << curlError;
     if(!curlError)
     {
         ToUppercase(newreq.ptr);
@@ -320,6 +320,8 @@ int PostPuzzleSolution(
 
     strcpy(request + pos, "e0}\0");
 
+
+    VLOG(1) << "POST request " << request;
     //====================================================================//
     //  POST request
     //====================================================================//
