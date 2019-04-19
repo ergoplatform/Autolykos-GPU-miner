@@ -1,5 +1,17 @@
 CXX = nvcc
+STD = --std=c++11
+CFLAGS = -c
+CXXFLAGS = -c $(STD)
 AR = ar
 COPT = -O3
+SRCDIR = ./src
 LIBNAME = lib.a
+LIBPATH = ./lib/$(LIBNAME)
 LIBS = -L/usr/local/lib -lcurl -I/usr/local/include -lssl -lcrypto
+AUTOEXEC = auto.out
+CONFIG = '{ \
+			 "seed": "do not disclose the secret seed", \
+			 "node": "http://188.166.89.71:9052", \
+			 "keepPrehash": false \
+		 }'
+SHELL := /bin/bash
