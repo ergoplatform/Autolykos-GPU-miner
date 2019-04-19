@@ -174,7 +174,7 @@ int GetLatestBlock(
         newreq.Reset();
         int curlError;
         curl = curl_easy_init();
-        curlError = curl_easy_setopt(curl, CURLOPT_URL, from)
+        curlError = curl_easy_setopt(curl, CURLOPT_URL, from);
         CurlLogError(curlError, "Setting curl URL error");
         curlError = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
         CurlLogError(curlError, "Setting curl write function error");
