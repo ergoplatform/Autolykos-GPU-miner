@@ -36,9 +36,12 @@ The mode of execution with `keepPrehash` option:
 1. `true` -- enable total unfinalized prehashes array (5GB) reusage.
 2. `false` -- prehash recalculation for each block.
 
-To run the miner type:
+To run the miner on all available CUDA devices type:
 ```
 $ <YOUR_PATH>/autolykos/secp256k1/auto.out [YOUR_CONFIG]
 ```
+
+To choose CUDA devices change and use `runner.sh` or directly change environment variable `CUDA_VISIBLE_DEVICES`
+
 
 Press any key to exit the miner in a foreground mode.

@@ -68,6 +68,10 @@
 // BLAKE2b-256 hash buffer size
 #define BUF_SIZE_8        128
 
+
+//url size max
+#define MAX_URL_SIZE 1024
+
 ////////////////////////////////////////////////////////////////////////////////
 //  CONSTANTS: Q definition 64-bits and 32-bits words
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,7 +195,7 @@ struct context_t
 };
 
 // BLAKE2b-256 packed uncomplete hash state context 
-struct ucontext_t
+struct ucontext_type
 {
     // chained state
     uint64_t h[8];

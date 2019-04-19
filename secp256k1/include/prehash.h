@@ -74,7 +74,7 @@ __global__ void UncompleteInitPrehash(
     // data: pk
     const uint32_t * data,
     // unfinalized hash contexts
-    ucontext_t * uctx
+    ucontext_type * uctx
 );
 
 // completed first iteration of hashes precalculation
@@ -82,7 +82,7 @@ __global__ void CompleteInitPrehash(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // unfinalized hash contexts
-    const ucontext_t * uctx,
+    const ucontext_type * uctx,
     // hashes
     uint32_t * hash,
     // indices of invalid range hashes
@@ -119,7 +119,7 @@ int Prehash(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // uncomplete hash contexts
-    ucontext_t * uctx,
+    ucontext_type * uctx,
     // hashes
     uint32_t * hash,
     // indices of invalid range hashes
