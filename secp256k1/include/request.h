@@ -49,4 +49,7 @@ int PostPuzzleSolution(
     const uint8_t * d
 );
 
+void CurlLogError(int curl_status, const char* message);
+
+
 #endif // REQUEST_H

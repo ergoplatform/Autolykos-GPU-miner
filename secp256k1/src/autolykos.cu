@@ -171,9 +171,14 @@ int main(int argc, char* argv[])
     LOG(INFO) << logst;
 
     status = GetLatestBlock(
-        from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, true
+        from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, true, info.info_mutex
     );
-    
+    if(status != EXIT_SUCCESS)
+    {
+        LOG(INFO) << "First block getting request failed, maybe wrong node address?";
+    }
+
+
     std::vector<std::thread> miners(deviceCount);
     for(int i = 0; i < deviceCount; i++)
     {
@@ -195,20 +200,19 @@ int main(int argc, char* argv[])
         milliseconds start = duration_cast< milliseconds >(
             system_clock::now().time_since_epoch()
             );
-        info.info_mutex.lock();
+        //info.info_mutex.lock();
         // need to fix state somehow
         state = STATE_CONTINUE;
         
         status = GetLatestBlock(
-            from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, false, info.curl
-        );
+            from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, false, info.info_mutex);
         
         if(status != EXIT_SUCCESS)
 	    {
             LOG(INFO) << "Getting block error";
             //printf("Getting block error\n");
 	    }
-        info.info_mutex.unlock();
+        //info.info_mutex.unlock();
 
         ms +=  duration_cast< milliseconds >(system_clock::now().time_since_epoch()) - start;
         curlcnt++;

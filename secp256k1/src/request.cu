@@ -19,6 +19,7 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
+#include <mutex>
 
 INITIALIZE_EASYLOGGINGPP
 
@@ -47,12 +48,12 @@ size_t WriteFunc(
         */
         if(request->cap > MAX_JSON_CAPACITY)
         {
-            VLOG(1) << "request cap > json capacity error";
+            LOG(ERROR) << "request cap > json capacity error";
         }
 
         if(! (request->ptr = (char*) realloc(request->ptr, request->cap )))
         {
-            VLOG(1) << "request ptr realloc error";
+            LOG(ERROR) << "request ptr realloc error";
         } 
 
 
@@ -157,7 +158,8 @@ int GetLatestBlock(
     uint8_t * mes,
     state_t * state,
     int * diff, 
-    bool checkPK
+    bool checkPK,
+    std::mutex &mut
 )
 {
     CURL * curl;
@@ -168,115 +170,106 @@ int GetLatestBlock(
     //====================================================================//
     //  Get latest block
     //====================================================================//
- //   do 
- //   {
-        newreq.Reset();
-        int curlError;
-        curl = curl_easy_init();
-        curlError = curl_easy_setopt(curl, CURLOPT_URL, from);
-        CurlLogError(curlError, "Setting curl URL error");
-        curlError = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
-        CurlLogError(curlError, "Setting curl write function error");
-        curlError = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq);
-        CurlLogError(curlError, "Setting curl data pointer error");
-        curlError = curl_easy_perform(curl);
-        CurlLogError(curlError, "Curl request error");
-        curl_easy_cleanup(curl);
+    newreq.Reset();
+    int curlError;
+    curl = curl_easy_init();
+    curlError = curl_easy_setopt(curl, CURLOPT_URL, from);
+    CurlLogError(curlError, "Setting curl URL");
+    curlError = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
+    CurlLogError(curlError, "Setting curl write function");
+    curlError = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq);
+    CurlLogError(curlError, "Setting curl data pointer");
+    curlError = curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10);
+    curlError = curl_easy_perform(curl);
+    CurlLogError(curlError, "Curl request");
+    curl_easy_cleanup(curl);
 
+    // if curl returns error on request, don't change or check anything 
+
+    if(!curlError)
+    {
         ToUppercase(newreq.ptr);
-
         jsmn_init(&parser);
         jsmn_parse(&parser, newreq.ptr, newreq.len, newreq.toks, REQ_LEN);
-
-        /// to do /// checking obtained message
-        // key-pair is not valid
-
-    // no need to check node public keys every time
-    if(checkPK)
-    {
-        if (strncmp(pkstr, newreq.GetTokenStart(PK_POS), PK_SIZE_4))
-        {
-            fprintf(
-                stderr, "ABORT:  Public key derived from your secret key:\n"
-                "        0x%.2s",
-                pkstr
-            );
-
-            for (int i = 2; i < PK_SIZE_4; i += 16)
+    // no need to check node public keys every time, i think
+        if(checkPK)
+        {   
+            if (strncmp(pkstr, newreq.GetTokenStart(PK_POS), PK_SIZE_4))
             {
-                fprintf(stderr, " %.16s", pkstr + i);
-            }
+                fprintf(
+                 stderr, "ABORT:  Public key derived from your secret key:\n"
+                 "        0x%.2s",
+                 pkstr
+                );
+
+                for (int i = 2; i < PK_SIZE_4; i += 16)
+                {
+                    fprintf(stderr, " %.16s", pkstr + i);
+                }
             
-            fprintf(
-                stderr, "\n""        is not equal to the expected public key:\n"
-                "        0x%.2s", newreq.GetTokenStart(PK_POS)
-            );
+                fprintf(
+                    stderr, "\n""        is not equal to the expected public key:\n"
+                    "        0x%.2s", newreq.GetTokenStart(PK_POS)
+                );
 
-            for (int i = 2; i < PK_SIZE_4; i += 16)
-            {
-                fprintf(stderr, " %.16s", newreq.GetTokenStart(PK_POS) + i);
+                for (int i = 2; i < PK_SIZE_4; i += 16)
+                {
+                    fprintf(stderr, " %.16s", newreq.GetTokenStart(PK_POS) + i);
+                }
+
+                fprintf(stderr, "\n");
+
+                return EXIT_FAILURE;
             }
-
-            fprintf(stderr, "\n");
-
-            return EXIT_FAILURE;
         }
-    }
- /*
-    }
-    // repeat if solution is already posted and block is still not changed  
-    while(
-        oldreq->len
-        && !(changed = strncmp(
-            oldreq->GetTokenStart(MES_POS), newreq.GetTokenStart(MES_POS),
-            newreq.GetTokenLen(MES_POS)
-        ))
-        && *state != STATE_CONTINUE
-    );
-*/
+ 
     //====================================================================//
     //  Substitute message and change state in case message changed
     //====================================================================//
-    if (!(oldreq->len) || changed)
-    {
-        HexStrToBigEndian(
-            newreq.GetTokenStart(MES_POS), newreq.GetTokenLen(MES_POS),
-            mes, NUM_SIZE_8
-        );
+        mut.lock();
+        if (!(oldreq->len) || changed)
+        {
+            HexStrToBigEndian(
+                newreq.GetTokenStart(MES_POS), newreq.GetTokenLen(MES_POS),
+                mes, NUM_SIZE_8
+            );
 
-        *state = STATE_REHASH;
-    }
+            *state = STATE_REHASH;
+        }
 
-    int len = newreq.GetTokenLen(BOUND_POS);
+        int len = newreq.GetTokenLen(BOUND_POS);
 
     //====================================================================//
     //  Substitute bound in case it changed
     //====================================================================//
-    if (
-        !(oldreq->len)
-        || len != oldreq->GetTokenLen(BOUND_POS)
-        || strncmp(
-            oldreq->GetTokenStart(BOUND_POS), newreq.GetTokenStart(BOUND_POS),
-            len
+        if (
+            !(oldreq->len)
+            || len != oldreq->GetTokenLen(BOUND_POS)
+            || strncmp(
+                oldreq->GetTokenStart(BOUND_POS), newreq.GetTokenStart(BOUND_POS),
+                len
+            )
         )
-    )
-    {
-        char buf[NUM_SIZE_4 + 1];
+        {
+            char buf[NUM_SIZE_4 + 1];
 
-        DecStrToHexStrOf64(newreq.GetTokenStart(BOUND_POS), len, buf);
-        HexStrToLittleEndian(buf, NUM_SIZE_4, bound, NUM_SIZE_8);
+            DecStrToHexStrOf64(newreq.GetTokenStart(BOUND_POS), len, buf);
+            HexStrToLittleEndian(buf, NUM_SIZE_4, bound, NUM_SIZE_8);
 
-        *diff = 1;
-    }
-
+            *diff = 1;
+        }
+        mut.unlock();
     //====================================================================//
     //  Substitute old block with newly read
     //====================================================================//
-    *oldreq = newreq;
-    newreq.ptr = NULL;
-    newreq.toks = NULL;
+        *oldreq = newreq;
+        newreq.ptr = NULL;
+        newreq.toks = NULL;
 
-    return EXIT_SUCCESS;
+        return EXIT_SUCCESS;
+    }
+    
+    return EXIT_FAILURE;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,39 +321,23 @@ int PostPuzzleSolution(
     //  POST request
     //====================================================================//
     CURL * curl;
-
-    PERSISTENT_FUNCTION_CALL(curl, curl_easy_init());
-
+    curl = curl_easy_init();
     json_t respond(0, REQ_LEN);
     curl_slist * headers = NULL;
     curl_slist * tmp;
     int curlError;
-    PERSISTENT_FUNCTION_CALL(
-        tmp, curl_slist_append(headers, "Accept: application/json")
-    );
-
-    PERSISTENT_FUNCTION_CALL(
-        headers, curl_slist_append(tmp, "Content-Type: application/json")
-    );
+    tmp = curl_slist_append(headers, "Accept: application/json");
+    headers = curl_slist_append(tmp, "Content-Type: application/json");
 
     curlError = curl_easy_setopt(curl, CURLOPT_URL, to);
     CurlLogError(curlError, "Setting curl URL post error");
 
-    PERSISTENT_CALL_STATUS(
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers), CURLE_OK
-    );
-
-    PERSISTENT_CALL_STATUS(
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request), CURLE_OK
-    );
-
-    PERSISTENT_CALL_STATUS(
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc), CURLE_OK
-    );
-
-    PERSISTENT_CALL_STATUS(
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &respond), CURLE_OK
-    );
+ 
+    curlError = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curlError = curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request);
+    curlError = curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 60);
+    curlError = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
+    curlError = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &respond);
     
     //PERSISTENT_CALL_STATUS(curl_easy_perform(curl), CURLE_OK);
     
