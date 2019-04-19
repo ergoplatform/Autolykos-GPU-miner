@@ -10,6 +10,7 @@
 #include "definitions.h"
 #include "jsmn.h"
 #include <curl/curl.h>
+#include <mutex>
 // write function for curl http GET
 size_t WriteFunc(
     void * ptr,
@@ -37,7 +38,8 @@ int GetLatestBlock(
     uint8_t * mes,
     state_t * state,
     int * diff,
-    bool checkPK
+    bool checkPK,
+    std::mutex& mut
 );
 
 // curl http POST request
