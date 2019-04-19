@@ -47,7 +47,12 @@ using namespace std::chrono;
 
 struct globalInfo
 {
+    // CURL ptr
+    CURL *curl;
+
+    // Mutex for reading/writing data from globalInfo safely
     std::mutex info_mutex;
+
     // Puzzle data to read
     
     	
@@ -59,14 +64,7 @@ struct globalInfo
     char pkstr[PK_SIZE_4 + 1];
     int keepPrehash;
     char to[MAX_URL_SIZE];
-    // Mutex for reading/writing data from globalInfo safely
-
-  //  std::mutex info_mutex;
     
-    // Mutex for curl usage/maybe future websocket
-    //not used now
-
-    //std::mutex io_mutex;
 
     // Increment when new block is sent by node
 
@@ -175,7 +173,7 @@ int main(int argc, char* argv[])
     LOG(INFO) << logst;
 
     status = GetLatestBlock(
-        from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff
+        from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, true, info.curl
     );
     
     std::vector<std::thread> miners(deviceCount);
@@ -204,7 +202,7 @@ int main(int argc, char* argv[])
         state = STATE_CONTINUE;
         
         status = GetLatestBlock(
-            from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff
+            from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, false, info.curl
         );
         
         if(status != EXIT_SUCCESS)

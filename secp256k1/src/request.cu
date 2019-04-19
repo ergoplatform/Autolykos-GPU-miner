@@ -5,7 +5,7 @@
     REQUEST -- Http requests handling
 
 *******************************************************************************/
-
+#include "../include/easylogging++.h"
 #include "../include/request.h"
 #include "../include/conversion.h"
 #include "../include/definitions.h"
@@ -19,6 +19,8 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
+
+INITIALIZE_EASYLOGGINGPP
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Write function for curl http GET
@@ -36,12 +38,24 @@ size_t WriteFunc(
     {
         request->cap = (newlen << 1) + 1;
 
-        CALL(request->cap <= MAX_JSON_CAPACITY, ERROR_ALLOC);
-
+        //CALL(request->cap <= MAX_JSON_CAPACITY, ERROR_ALLOC);
+        /*
         FUNCTION_CALL(
             request->ptr, (char *)realloc(request->ptr, request->cap),
             ERROR_ALLOC
         );
+        */
+        if(request->cap > MAX_JSON_CAPACITY)
+        {
+            VLOG(1) << "request cap > json capacity error";
+        }
+
+        if(! (request->ptr = (char*) realloc(request->ptr, request->cap )))
+        {
+            VLOG(1) << "request ptr realloc error";
+        } 
+
+
     }
 
     memcpy(request->ptr + request->len, ptr, size * nmemb);
@@ -74,6 +88,10 @@ int TerminationRequestHandler(
     void
 )
 {
+    // maybe we don't need this handler, cause everything will die properly on Ctrl-C
+    // furthermore, on Windows it won't work (unix-specific termios stuff)
+
+    /*
     // do nothing when in background
     if (getpgrp() != tcgetpgrp(STDOUT_FILENO))
     {
@@ -109,10 +127,24 @@ int TerminationRequestHandler(
 
         return 1;
     }
-
+    */
     // continue otherwise
     return 0;
 }
+
+
+//CURL* curl;
+
+void CurlLogError(int curl_status, const char* message)
+{
+    if(curl_status != CURLE_OK)
+    {
+        LOG(ERROR) << "Curl error " << curl_status << " in " << message;
+    }
+
+}
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Curl http GET request
@@ -124,10 +156,12 @@ int GetLatestBlock(
     uint8_t * bound,
     uint8_t * mes,
     state_t * state,
-    int * diff
+    int * diff, 
+    bool checkPK,
+    CURL* curl
 )
 {
-    CURL * curl;
+   // CURL * curl;
     json_t newreq(0, REQ_LEN);
     jsmn_parser parser;
     int changed = 0;
@@ -135,34 +169,19 @@ int GetLatestBlock(
     //====================================================================//
     //  Get latest block
     //====================================================================//
-    do 
-    {
+ //   do 
+ //   {
         newreq.Reset();
-
-        if (TerminationRequestHandler())
-        {
-            *state = STATE_INTERRUPT;
-            return EXIT_SUCCESS;
-        }
-
-        PERSISTENT_FUNCTION_CALL(curl, curl_easy_init());
-
-        PERSISTENT_CALL_STATUS(
-            curl_easy_setopt(curl, CURLOPT_URL, from), CURLE_OK
-        );
-
-        PERSISTENT_CALL_STATUS(
-            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc),
-            CURLE_OK
-        );
-
-        PERSISTENT_CALL_STATUS(
-            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq),
-            CURLE_OK
-        );
-
-        PERSISTENT_CALL_STATUS(curl_easy_perform(curl), CURLE_OK);
-
+        int curlError;
+        curl = curl_easy_init();
+        curlError = curl_easy_setopt(curl, CURLOPT_URL, from)
+        CurlLogError(curlError, "Setting curl URL error");
+        curlError = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
+        CurlLogError(curlError, "Setting curl write function error");
+        curlError = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq);
+        CurlLogError(curlError, "Setting curl data pointer error");
+        curlError = curl_easy_perform(curl);
+        CurlLogError(curlError, "Curl request error");
         curl_easy_cleanup(curl);
 
         ToUppercase(newreq.ptr);
@@ -172,6 +191,10 @@ int GetLatestBlock(
 
         /// to do /// checking obtained message
         // key-pair is not valid
+
+    // no need to check node public keys every time
+    if(checkPK)
+    {
         if (strncmp(pkstr, newreq.GetTokenStart(PK_POS), PK_SIZE_4))
         {
             fprintf(
@@ -200,6 +223,8 @@ int GetLatestBlock(
             return EXIT_FAILURE;
         }
     }
+ /*
+    }
     // repeat if solution is already posted and block is still not changed  
     while(
         oldreq->len
@@ -209,7 +234,7 @@ int GetLatestBlock(
         ))
         && *state != STATE_CONTINUE
     );
-
+*/
     //====================================================================//
     //  Substitute message and change state in case message changed
     //====================================================================//
