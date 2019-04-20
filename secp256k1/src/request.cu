@@ -20,7 +20,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <mutex>
-
+#include <atomic>
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Write function for curl http GET
@@ -158,7 +158,8 @@ int GetLatestBlock(
     state_t * state,
     int * diff, 
     bool checkPK,
-    std::mutex &mut
+    std::mutex &mut,
+    std::atomic<unsigned int>& trigger
 )
 {
     CURL * curl;
@@ -266,6 +267,14 @@ int GetLatestBlock(
             *diff = 1;
         }
         mut.unlock();
+        
+        // signaling uint
+        if(changed || *diff)
+        {
+            trigger++;
+            LOG(INFO) << "Got new block in main thread";
+            *diff = 0;
+        }
     //====================================================================//
     //  Substitute old block with newly read
     //====================================================================//

@@ -171,7 +171,7 @@ int main(int argc, char* argv[])
     LOG(INFO) << logst;
 
     status = GetLatestBlock(
-        from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, true, info.info_mutex
+        from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, true, info.info_mutex, info.blockId
     );
     if(status != EXIT_SUCCESS)
     {
@@ -205,7 +205,7 @@ int main(int argc, char* argv[])
         state = STATE_CONTINUE;
         
         status = GetLatestBlock(
-            from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, false, info.info_mutex);
+            from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, false, info.info_mutex, info.blockId);
         
         if(status != EXIT_SUCCESS)
 	    {
@@ -222,7 +222,7 @@ int main(int argc, char* argv[])
             LOG(INFO) << "Average curling time " << ms.count()/(double)curltimes << " ms";
             ms = milliseconds::zero();
         }
-
+        /*
         if(diff || state == STATE_REHASH)
         {
             info.blockId++;
@@ -230,7 +230,8 @@ int main(int argc, char* argv[])
             LOG(INFO) << "Got new block in main thread"; 
             //printf("Got new block in main thread\n");
 	        fflush(stdout);
-	    }
+        }
+        */
         std::this_thread::sleep_for(std::chrono::milliseconds(8));
 
     }    
