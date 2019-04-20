@@ -230,6 +230,10 @@ int GetLatestBlock(
     //  Substitute message and change state in case message changed
     //====================================================================//
         mut.lock();
+        changed = strncmp(
+            oldreq->GetTokenStart(MES_POS), newreq.GetTokenStart(MES_POS),
+            newreq.GetTokenLen(MES_POS)
+        );
         if (!(oldreq->len) || changed)
         {
             HexStrToBigEndian(
