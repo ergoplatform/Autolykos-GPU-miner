@@ -492,10 +492,18 @@ void minerThread(int deviceId, globalInfo *info)
         );
         VLOG(1) << "Generating nonces";
         base += THREAD_LEN * LOAD_LEN;
+        
+        //interrupt cycle if new block was found
+        if(blockId!=info->blockId.load())
+	    {
+		    continue;
+	    }
+        
         // calculate unfinalized hash of message
+        VLOG(1) << "Starting InitMining";
         InitMining(&ctx_h, (uint32_t *)mes_h, NUM_SIZE_8);
 
-        VLOG(1) << "Starting InitMining";
+        
         //interrupt cycle if new block was found
 	    if(blockId!=info->blockId.load())
 	    {
