@@ -11,6 +11,7 @@
 #include "jsmn.h"
 #include <curl/curl.h>
 #include <mutex>
+#include <atomic>
 // write function for curl http GET
 size_t WriteFunc(
     void * ptr,
@@ -39,7 +40,8 @@ int GetLatestBlock(
     state_t * state,
     int * diff,
     bool checkPK,
-    std::mutex& mut
+    std::mutex& mut,
+    std::atomic<unsigned int>& trigger
 );
 
 // curl http POST request
