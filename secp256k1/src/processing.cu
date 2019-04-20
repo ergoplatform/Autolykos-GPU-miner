@@ -24,26 +24,26 @@
 #include <time.h>
 #include <unistd.h>
 
-////////////////////////////////////////////////////////////////////////////////
-//  Time stamp
-////////////////////////////////////////////////////////////////////////////////
-char * TimeStamp(
-    timestamp_t * stamp
-)
-{
-    // get real time
-    clock_gettime(CLOCK_REALTIME, &(stamp->realtime));
-    // convert seconds to human-readable form
-    stamp->timeinfo = localtime(&((stamp->realtime).tv_sec));
-    // form time stamp
-    strftime(stamp->timestamp, 30, "%a %m/%d/%Y %H:%M:%S:", stamp->timeinfo);
-
-    // calculate milliseconds
-    long int millisec = (stamp->realtime).tv_nsec / 1e6;
-    sprintf(stamp->timestamp + 24, "%03d: ", millisec);
-
-    return stamp->timestamp;
-}
+/// ////////////////////////////////////////////////////////////////////////////////
+/// //  Time stamp
+/// ////////////////////////////////////////////////////////////////////////////////
+/// char * TimeStamp(
+///     timestamp_t * stamp
+/// )
+/// {
+///     // get real time
+///     clock_gettime(CLOCK_REALTIME, &(stamp->realtime));
+///     // convert seconds to human-readable form
+///     stamp->timeinfo = localtime(&((stamp->realtime).tv_sec));
+///     // form time stamp
+///     strftime(stamp->timestamp, 30, "%a %m/%d/%Y %H:%M:%S:", stamp->timeinfo);
+/// 
+///     // calculate milliseconds
+///     long int millisec = (stamp->realtime).tv_nsec / 1e6;
+///     sprintf(stamp->timestamp + 24, "%03d: ", millisec);
+/// 
+///     return stamp->timestamp;
+/// }
  
 ////////////////////////////////////////////////////////////////////////////////
 //  Find file size
@@ -68,8 +68,8 @@ int ReadConfig(
     char * skstr,
     char * from,
     char * to,
-    int * keep,
-    timestamp_t * stamp
+    int * keep//,
+    //timestamp_t * stamp
 )
 {
     FILE * in = fopen(filename, "r");
@@ -114,10 +114,10 @@ int ReadConfig(
         fprintf(stderr, "ABORT:  Wrong value \"keepPrehash\"\n");
 
         fprintf(
-            stderr, "%s Miner is now terminated\n"
+            stderr, "Miner is now terminated\n"
             "========================================"
-            "========================================\n",
-            TimeStamp(stamp)
+            "========================================\n"//,
+            //TimeStamp(stamp)
         );
 
         return EXIT_FAILURE;
@@ -136,27 +136,6 @@ int ReadConfig(
     return EXIT_SUCCESS;
 }
 
-/// to do /// Make deprecated, move nonce generation to on-the-fly approach
-////////////////////////////////////////////////////////////////////////////////
-//  Generate consequtive nonces
-////////////////////////////////////////////////////////////////////////////////
-__global__ void GenerateConseqNonces(
-    uint64_t * arr,
-    uint32_t len,
-    uint64_t base
-)
-{
-    uint32_t tid = threadIdx.x + blockDim.x * blockIdx.x;
-
-    uint64_t nonce = base + tid;
-
-    INPLACE_REVERSE_ENDIAN(&nonce);
-
-    if (tid < len) arr[tid] = nonce;
-
-    return;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //  Print Autolukos puzzle state variables
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,11 +145,11 @@ int PrintPuzzleState(
     const uint8_t * sk,
     const uint8_t * w,
     const uint8_t * x,
-    const uint8_t * bound,
-    timestamp_t * stamp
+    const uint8_t * bound//,
+    //timestamp_t * stamp
 )
 {
-    printf("%s Obtained candidate block:\n", TimeStamp(stamp)); 
+    printf("Obtained candidate block:\n"); 
     printf(
         "       m = 0x%016lX %016lX %016lX %016lX\n",
         REVERSE_ENDIAN((uint64_t *)mes + 0),
@@ -209,7 +188,7 @@ int PrintPuzzleSolution(
     const uint8_t * sol
 )
 {
-    printf("   nonce = 0x%016lX\n", REVERSE_ENDIAN((uint64_t *)nonce));
+    printf("   nonce = 0x%016lX\n", *((uint64_t *)nonce));
 
     printf(
         "       d = 0x%016lX %016lX %016lX %016lX\n",

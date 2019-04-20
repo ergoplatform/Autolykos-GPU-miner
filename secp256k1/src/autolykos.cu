@@ -35,17 +35,11 @@
 #include <unistd.h>
 #include <vector>
 
-/// #define TEXT_SEPARATOR   "========================================"\
-///                          "========================================\n"
-/// #define TEXT_GPUCHECK    " Checking GPU availability\n"
-/// #define TEXT_TERMINATION " Miner is now terminated\n"
-/// #define ERROR_GPUCHECK   "ABORT:  GPU devices are not recognised\n"
-
 INITIALIZE_EASYLOGGINGPP
 
 using namespace std::chrono;
 
-void minerThread(int deviceId, info_t *info);
+void minerThread(int deviceId, info_t * info);
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Main
@@ -60,7 +54,7 @@ int main(int argc, char ** argv)
     el::Helpers::setThreadName("main thread");
 
     int deviceCount;
-    timestamp_t stamp;
+    //timestamp_t stamp;
     int status = EXIT_SUCCESS;
 
     info_t info;
@@ -73,7 +67,7 @@ int main(int argc, char ** argv)
         return EXIT_FAILURE;
     }
 
-    LOG(INFO) << "Using " << deviceCount << " CUDA devices";
+    LOG(INFO) << "Using " << deviceCount << " GPU devices";
 
     PERSISTENT_CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), CURLE_OK);
 
@@ -96,8 +90,8 @@ int main(int argc, char ** argv)
 
     // read config from file
     status = ReadConfig(
-        fileName, info.sk_h, info.skstr, from, info.to, &info.keepPrehash,
-        &stamp
+        fileName, info.sk_h, info.skstr, from, info.to, &info.keepPrehash//,
+        //&stamp
     );
 
     if (status == EXIT_FAILURE)
@@ -115,9 +109,9 @@ int main(int argc, char ** argv)
     char logstr[1000];
 
     sprintf(logstr,
-        "%s Generated public key:"
+        "Generated public key:\n"
         "   pk = 0x%02lX %016lX %016lX %016lX %016lX",
-        TimeStamp(&stamp), ((uint8_t *)info.pk_h)[0],
+        ((uint8_t *)info.pk_h)[0],
         REVERSE_ENDIAN((uint64_t *)(info.pk_h + 1) + 0),
         REVERSE_ENDIAN((uint64_t *)(info.pk_h + 1) + 1),
         REVERSE_ENDIAN((uint64_t *)(info.pk_h + 1) + 2),
@@ -182,11 +176,11 @@ int main(int argc, char ** argv)
 
         if (diff || state == STATE_REHASH)
         {
-            info.blockId++;
+            ++(info.blockId);
             diff = 0;
 
             LOG(INFO) << "Got new block in main thread"; 
-	    }
+        }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(8));
     }    
@@ -226,7 +220,7 @@ void minerThread(int deviceId, info_t * info)
     uint8_t x_h[NUM_SIZE_8];
     uint8_t w_h[PK_SIZE_8];
     uint8_t res_h[NUM_SIZE_8];
-    uint8_t nonces_h[NONCE_SIZE_8];
+    uint8_t nonce[NONCE_SIZE_8];
 
     // cryptography variables
     char skstr[NUM_SIZE_4];
@@ -237,7 +231,7 @@ void minerThread(int deviceId, info_t * info)
 
     // thread info variables
     unsigned int blockId = 0;
-    milliseconds start;	
+    milliseconds start; 
     
     //====================================================================//
     //  Copy from global to thread local data
@@ -265,13 +259,6 @@ void minerThread(int deviceId, info_t * info)
     // ~0 MiB
     uint32_t * bound_d;
     CUDA_CALL(cudaMalloc((void **)&bound_d, NUM_SIZE_8));
-
-    // nonces
-    // THREAD_LEN * LOAD_LEN * NONCE_SIZE_8 bytes // 32 MiB
-    uint32_t * nonces_d;
-    CUDA_CALL(cudaMalloc(
-        (void **)&nonces_d, THREAD_LEN * LOAD_LEN * NONCE_SIZE_8
-    ));
 
     // data: pk || mes || w || padding || x || sk || ctx
     // (2 * PK_SIZE_8 + 2 + 3 * NUM_SIZE_8 + 212 + 4) bytes // ~0 MiB
@@ -344,10 +331,10 @@ void minerThread(int deviceId, info_t * info)
 
     do
     {
-	    ++cntCycles;
+        ++cntCycles;
 
-	    if (!(cntCycles % NCycles))
-	    {
+        if (!(cntCycles % NCycles))
+        {
             milliseconds timediff
                 = duration_cast<milliseconds>(
                     system_clock::now().time_since_epoch()
@@ -360,38 +347,37 @@ void minerThread(int deviceId, info_t * info)
             start = duration_cast<milliseconds>(
                 system_clock::now().time_since_epoch()
             );
-	    }
-	
+        }
+    
         // if solution was found by this thread, wait for new block to come 
-	    if (state == STATE_KEYGEN)
-	    {
-		    while(info->blockId.load() == blockId) {}
-		    state = STATE_CONTINUE;
-	    }
+        if (state == STATE_KEYGEN)
+        {
+            while(info->blockId.load() == blockId) {}
 
-	    unsigned int controlId = info->blockId.load();
+            state = STATE_CONTINUE;
+        }
+
+        unsigned int controlId = info->blockId.load();
 
         if (blockId != controlId)
         {
-            // if info->blockId changed, read new message and bound to thread-local mem
+            // if info->blockId changed
+            // read new message and bound to thread-local mem
             info->info_mutex.lock();
+
             memcpy(mes_h, info->mes_h, NUM_SIZE_8);
             memcpy(bound_h, info->bound_h, NUM_SIZE_8);
 
-            /// for(int i = 0; i < NUM_SIZE_8; i++)
-            /// {
-            ///     mes_h[i] = info->mes_h[i];
-            ///     bound_h[i] = info->bound_h[i];
-            /// }
-
             info->info_mutex.unlock();
+
             state = STATE_REHASH;
             LOG(INFO) << "GPU " << deviceId << " read new block data";
             blockId = controlId;
             
             GenerateKeyPair(x_h, w_h);
             // PrintPuzzleState(mes_h, pk_h, sk_h, w_h, x_h, bound_h, &stamp);
-            VLOG(1) << "Generated new keypair, copying new data in device memory now";
+            VLOG(1) << "Generated new keypair,"
+                << " copying new data in device memory now";
 
             // copy boundary
             CUDA_CALL(cudaMemcpy(
@@ -426,19 +412,10 @@ void minerThread(int deviceId, info_t * info)
         CUDA_CALL(cudaDeviceSynchronize());
 
         VLOG(1) << "Starting mining cycle";
-        /// printf(
-        ///     "%s Checking solutions for nonces:\n"
-        ///     "           0x%016lX -- 0x%016lX\n",
-        ///     TimeStamp(&stamp), base, base + THREAD_LEN * LOAD_LEN - 1
-        /// );
-        /// fflush(stdout);
 
-        // generate nonces
-        VLOG(1) << "Generating nonces";
-        GenerateConseqNonces<<<1 + (THREAD_LEN * LOAD_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
-            (uint64_t *)nonces_d, N_LEN, base
-        );
-        base += THREAD_LEN * LOAD_LEN;
+        // restart iteration if new block was found
+        if (blockId != info->blockId.load()) { continue; }
+
         // calculate unfinalized hash of message
         VLOG(1) << "Starting InitMining";
         InitMining(&ctx_h, (uint32_t *)mes_h, NUM_SIZE_8);
@@ -449,14 +426,19 @@ void minerThread(int deviceId, info_t * info)
             sizeof(context_t), cudaMemcpyHostToDevice
         ));
 
+        // restart iteration if new block was found
+        if (blockId != info->blockId.load()) { continue; }
+
         VLOG(1) << "Starting main BlockMining procedure";
+
         // calculate solution candidates
         BlockMining<<<1 + (LOAD_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
-            bound_d, data_d, nonces_d, hashes_d, res_d, indices_d
+            bound_d, data_d, base, hashes_d, res_d, indices_d
         );
+
         VLOG(1) << "Trying to find solution";
 
-        // interrupt cycle if new block was found
+        // restart iteration if new block was found
         if (blockId != info->blockId.load()) { continue; }
 
         // try to find solution
@@ -472,17 +454,16 @@ void minerThread(int deviceId, info_t * info)
                 cudaMemcpyDeviceToHost
             ));
 
-            CUDA_CALL(cudaMemcpy(
-                (void *)nonces_h, (void *)(nonces_d + ((ind - 1) << 1)),
-                NONCE_SIZE_8, cudaMemcpyDeviceToHost
-            ));
+            *((uint64_t *)nonce) = base + ind - 1;
 
-            PrintPuzzleSolution(nonces_h, res_h);
-            PostPuzzleSolution(to, pkstr, w_h, nonces_h, res_h);
+            PrintPuzzleSolution(nonce, res_h);
+            PostPuzzleSolution(to, pkstr, w_h, nonce, res_h);
             LOG(INFO) << "GPU " << deviceId << " found and posted a solution";
-	
+    
             state = STATE_KEYGEN;
         }
+
+        base += THREAD_LEN * LOAD_LEN;
     }
     while(1); // !TerminationRequestHandler()); 
 

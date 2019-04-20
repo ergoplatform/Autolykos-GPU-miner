@@ -90,7 +90,7 @@
 #define Q0                0xBFD25E8CD0364141
 
 ////////////////////////////////////////////////////////////////////////////////
-//  CONSTANTS: Curl http GET request JSMN specifiers
+//  CONSTANTS: Curl http & JSMN specifiers
 ////////////////////////////////////////////////////////////////////////////////
 // URL max size 
 #define MAX_URL_SIZE      1024
@@ -113,9 +113,6 @@
 // curl JSON position of public key
 #define PK_POS            6
 
-////////////////////////////////////////////////////////////////////////////////
-//  CONSTANTS: Config-file JSMN specifiers
-////////////////////////////////////////////////////////////////////////////////
 // total JSON objects count for config file
 #define CONF_LEN          7
 
@@ -140,6 +137,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //  Structs
 ////////////////////////////////////////////////////////////////////////////////
+typedef unsigned int uint_t;
+
 // autolukos puzzle state
 typedef enum
 {
@@ -161,7 +160,12 @@ struct timestamp_t
 // global puzzle info
 struct info_t
 {
+    // Mutex for reading/writing data from info_t safely
     std::mutex info_mutex;
+
+    // Mutex for curl usage/maybe future websocket
+    // not used now
+    // std::mutex io_mutex;
 
     // Puzzle data to read
     uint8_t bound_h[NUM_SIZE_8];
@@ -173,15 +177,8 @@ struct info_t
     int keepPrehash;
     char to[MAX_URL_SIZE];
 
-    // Mutex for reading/writing data from info_t safely
-    // std::mutex info_mutex;
-    
-    // Mutex for curl usage/maybe future websocket
-    // not used now
-    // std::mutex io_mutex;
-
     // Increment when new block is sent by node
-    std::atomic<unsigned int> blockId; 
+    std::atomic<uint_t> blockId; 
 };
 
 // json string for curl http requests and config 

@@ -25,8 +25,8 @@ __global__ void BlockMining(
     const uint32_t * bound,
     // data: pk || mes || w || padding || x || sk || ctx
     const uint32_t * data,
-    // pregenerated nonces
-    const uint32_t * non,
+    // nonce base
+    const uint64_t base,
     // precalculated hashes
     const uint32_t * hash,
     // results
