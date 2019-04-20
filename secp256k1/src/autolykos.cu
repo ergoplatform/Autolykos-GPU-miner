@@ -496,6 +496,11 @@ void minerThread(int deviceId, globalInfo *info)
         InitMining(&ctx_h, (uint32_t *)mes_h, NUM_SIZE_8);
 
         VLOG(1) << "Starting InitMining";
+        //interrupt cycle if new block was found
+	    if(blockId!=info->blockId.load())
+	    {
+		    continue;
+	    }
 
         // copy context
         CUDA_CALL(cudaMemcpy(
@@ -508,11 +513,11 @@ void minerThread(int deviceId, globalInfo *info)
             bound_d, data_d, nonces_d, hashes_d, res_d, indices_d
         );
         VLOG(1) << "Trying to find solution";
-	//interrupt cycle if new block was found
-	if(blockId!=info->blockId.load())
-	{
-		continue;
-	}
+	    //interrupt cycle if new block was found
+	    if(blockId!=info->blockId.load())
+	    {
+		    continue;
+	    }
         // try to find solution
         ind = FindNonZero(
             indices_d, indices_d + THREAD_LEN * LOAD_LEN, THREAD_LEN * LOAD_LEN
