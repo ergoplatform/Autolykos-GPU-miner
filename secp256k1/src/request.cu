@@ -289,7 +289,7 @@ int PostPuzzleSolution(
     strcpy(request + pos, "\",\"n\":\"");
     pos += 7;
 
-    BigEndianToHexStr(nonce, NONCE_SIZE_8, request + pos);
+    LittleEndianToHexStr(nonce, NONCE_SIZE_8, request + pos);
     pos += NONCE_SIZE_4;
 
     strcpy(request + pos, "\",\"d\":");

@@ -58,8 +58,8 @@ __global__ void BlockMining(
     const uint32_t * bound,
     // data: pk || mes || w || padding || x || sk || ctx
     const uint32_t * data,
-    // pregenerated nonces
-    const uint32_t * non,
+    // nonce base
+    const uint64_t base,
     // precalculated hashes
     const uint32_t * hash,
     // results
@@ -103,7 +103,12 @@ __global__ void BlockMining(
         tid = threadIdx.x + blockDim.x * blockIdx.x
             + l * gridDim.x * blockDim.x;
 
-        const uint8_t * mes = (const uint8_t *)(non + tid * NONCE_SIZE_32);
+        uint32_t non[NONCE_SIZE_32];
+
+        *((uint64_t *)non) = base;
+
+        asm volatile ("add.cc.u32 %0, %0, %1;": "+r"(non[0]): "r"(tid));
+        asm volatile ("addc.u32 %0, %0, 0;": "+r"(non[1]));
 
     //====================================================================//
     //  Hash nonce
@@ -111,7 +116,7 @@ __global__ void BlockMining(
 #pragma unroll
         for (j = 0; ctx->c < BUF_SIZE_8 && j < NONCE_SIZE_8; ++j)
         {
-            ctx->b[ctx->c++] = mes[j];
+            ctx->b[ctx->c++] = ((uint8_t *)non)[NONCE_SIZE_8 - j - 1];
         }
 
 #pragma unroll
@@ -122,7 +127,7 @@ __global__ void BlockMining(
 #pragma unroll
             for ( ; ctx->c < BUF_SIZE_8 && j < NONCE_SIZE_8; ++j)
             {
-                ctx->b[ctx->c++] = mes[j];
+                ctx->b[ctx->c++] = ((uint8_t *)non)[NONCE_SIZE_8 - j - 1];
             }
         }
 
