@@ -17,8 +17,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef _WIN32 
 #include <termios.h>
 #include <unistd.h>
+#endif
+
 #include <mutex>
 #include <atomic>
 
@@ -47,12 +51,12 @@ size_t WriteFunc(
         */
         if(request->cap > MAX_JSON_CAPACITY)
         {
-            LOG(ERROR) << "request cap > json capacity error";
+            LOG(ERROR) << "request cap > json capacity error in WriteFunc";
         }
 
         if(! (request->ptr = (char*) realloc(request->ptr, request->cap )))
         {
-            LOG(ERROR) << "request ptr realloc error";
+            LOG(ERROR) << "request ptr realloc error in WriteFunc";
         } 
 
 
@@ -90,7 +94,10 @@ int TerminationRequestHandler(
 {
     // maybe we don't need this handler, cause everything will die properly on Ctrl-C
     // furthermore, on Windows it won't work (unix-specific termios stuff)
+    // and with new additions, it doesn't stop on Ctrl-C, which is pretty bad
 
+
+    #ifndef _WIN32
     /*
     // do nothing when in background
     if (getpgrp() != tcgetpgrp(STDOUT_FILENO))
@@ -129,6 +136,7 @@ int TerminationRequestHandler(
     }
     */
     // continue otherwise
+    #endif
     return 0;
 }
 
@@ -151,28 +159,25 @@ void CurlLogError(int curl_status, const char* message)
 ////////////////////////////////////////////////////////////////////////////////
 int GetLatestBlock(
     const char * from,
-    const char * pkstr,
     json_t * oldreq,
-    uint8_t * bound,
-    uint8_t * mes,
-    state_t * state,
-    int * diff, 
-    bool checkPK,
-    std::mutex &mut,
-    std::atomic<unsigned int>& trigger
+    info_t * info,
+    bool checkPK
 )
 {
     CURL * curl;
     json_t newreq(0, REQ_LEN);
     jsmn_parser parser;
     int changed = 0;
-
+    int boundChanged = 0;
     //====================================================================//
     //  Get latest block
     //====================================================================//
     newreq.Reset();
     int curlError;
+    int diff = 0;
+
     curl = curl_easy_init();
+    
     if(!curl)
     {
         LOG(ERROR) << "Curl doesn't init in getblock";
@@ -183,23 +188,32 @@ int GetLatestBlock(
     CurlLogError(curlError, "Setting curl write function");
     curlError = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq);
     CurlLogError(curlError, "Setting curl data pointer");
-    //curlError = curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+    
+    // set timeout to 10sec so it doesn't hang up waiting for default 5 minutes if url is unreachable/wrong 
+
+    curlError = curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
     curlError = curl_easy_perform(curl);
     CurlLogError(curlError, "Curl request");
     curl_easy_cleanup(curl);
     VLOG(1) << "GET request " << newreq.ptr;
-    // if curl returns error on request, don't change or check anything 
     VLOG(1) << "Curl request status " << curlError;
+    
+    // if curl returns error on request, don't change or check anything 
+
     if(!curlError)
     {
         ToUppercase(newreq.ptr);
         jsmn_init(&parser);
         jsmn_parse(&parser, newreq.ptr, newreq.len, newreq.toks, REQ_LEN);
-    // no need to check node public keys every time, i think
+        // no need to check node public key every time, i think
         if(checkPK)
         {   
-            if (strncmp(pkstr, newreq.GetTokenStart(PK_POS), PK_SIZE_4))
+            if (strncmp(info->pkstr, newreq.GetTokenStart(PK_POS), PK_SIZE_4))
             {
+                
+                LOG(ERROR) << "Generated and received public keys do not match\n";
+                
+                
                 fprintf(
                  stderr, "ABORT:  Public key derived from your secret key:\n"
                  "        0x%.2s",
@@ -208,7 +222,7 @@ int GetLatestBlock(
 
                 for (int i = 2; i < PK_SIZE_4; i += 16)
                 {
-                    fprintf(stderr, " %.16s", pkstr + i);
+                    fprintf(stderr, " %.16s", info->pkstr + i);
                 }
             
                 fprintf(
@@ -222,62 +236,83 @@ int GetLatestBlock(
                 }
 
                 fprintf(stderr, "\n");
-
+                
                 return EXIT_FAILURE;
             }
         }
  
-    //====================================================================//
-    //  Substitute message and change state in case message changed
-    //====================================================================//
-        mut.lock();
+        //====================================================================//
+        //  Substitute message and change state in case message changed
+        //====================================================================//
+        
         changed = strncmp(
             oldreq->GetTokenStart(MES_POS), newreq.GetTokenStart(MES_POS),
             newreq.GetTokenLen(MES_POS)
         );
-        if (!(oldreq->len) || changed)
-        {
-            HexStrToBigEndian(
-                newreq.GetTokenStart(MES_POS), newreq.GetTokenLen(MES_POS),
-                mes, NUM_SIZE_8
-            );
-
-            *state = STATE_REHASH;
-        }
-
+        
         int len = newreq.GetTokenLen(BOUND_POS);
 
-    //====================================================================//
-    //  Substitute bound in case it changed
-    //====================================================================//
-        if (
-            !(oldreq->len)
-            || len != oldreq->GetTokenLen(BOUND_POS)
-            || strncmp(
-                oldreq->GetTokenStart(BOUND_POS), newreq.GetTokenStart(BOUND_POS),
-                len
-            )
-        )
-        {
-            char buf[NUM_SIZE_4 + 1];
+        boundChanged = strncmp(
+            oldreq->GetTokenStart(BOUND_POS), newreq.GetTokenStart(BOUND_POS),
+            len
+        );
 
-            DecStrToHexStrOf64(newreq.GetTokenStart(BOUND_POS), len, buf);
-            HexStrToLittleEndian(buf, NUM_SIZE_4, bound, NUM_SIZE_8);
-
-            *diff = 1;
-        }
-        mut.unlock();
+        //check if we need to change ANYTHING, only then lock info mutex
         
-        // signaling uint
-        if(changed || *diff)
+        if( changed 
+            || boundChanged
+            || !(oldreq->len)
+            || len != oldreq->GetTokenLen(BOUND_POS)
+          )
         {
-            trigger++;
-            LOG(INFO) << "Got new block in main thread";
-            *diff = 0;
+            
+            info->info_mutex.lock();
+            
+            //====================================================================//
+            //  Substitute message and change state in case message changed
+            //====================================================================//
+            
+            
+            
+            if (!(oldreq->len) || changed)
+            {
+                 HexStrToBigEndian(
+                 newreq.GetTokenStart(MES_POS), newreq.GetTokenLen(MES_POS),
+                 info->mes_h, NUM_SIZE_8
+                 );
+            }
+
+
+            //====================================================================//
+            //  Substitute bound in case it changed
+            //====================================================================//
+            if (
+                 !(oldreq->len)
+                || len != oldreq->GetTokenLen(BOUND_POS)
+                || boundChanged
+                )
+            {
+                char buf[NUM_SIZE_4 + 1];
+
+                DecStrToHexStrOf64(newreq.GetTokenStart(BOUND_POS), len, buf);
+                HexStrToLittleEndian(buf, NUM_SIZE_4, info->bound_h, NUM_SIZE_8);
+
+                diff = 1;
+            }
+            
+            info->info_mutex.unlock();
+        
+            
+            if(changed || diff)
+            {
+                // signaling uint
+                ++(info->blockId);
+                LOG(INFO) << "Got new block in main thread";
+            }
         }
-    //====================================================================//
-    //  Substitute old block with newly read
-    //====================================================================//
+        //====================================================================//
+        //  Substitute old block with newly read
+        //====================================================================//
         *oldreq = newreq;
         newreq.ptr = NULL;
         newreq.toks = NULL;
@@ -355,12 +390,14 @@ int PostPuzzleSolution(
     CurlLogError(curlError, "Setting curl URL post error");
 
  
-    curlError += curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curlError = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curlError += curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request);
-  //  curlError += curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 60L);
+    
+    // set timeout to 60 sec for sending solution
+    curlError += curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 60L);
     curlError += curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
     curlError += curl_easy_setopt(curl, CURLOPT_WRITEDATA, &respond);
-    CurlLogError(curlError, "some error during post options");
+    CurlLogError(curlError, "POST options error");
     //PERSISTENT_CALL_STATUS(curl_easy_perform(curl), CURLE_OK);
     
     curlError = curl_easy_perform(curl);

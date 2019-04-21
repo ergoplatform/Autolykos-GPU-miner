@@ -121,7 +121,7 @@ int main(int argc, char ** argv)
     LOG(INFO) << logstr;
 
     status = GetLatestBlock(
-        from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, true, info.info_mutex, info.blockId
+        from, &request, &info, true
     );
     if(status != EXIT_SUCCESS)
     {
@@ -153,17 +153,13 @@ int main(int argc, char ** argv)
             system_clock::now().time_since_epoch()
         );
 
-        info.info_mutex.lock();
-
         // need to fix state somehow
         state = STATE_CONTINUE;
         
         status = GetLatestBlock(
-            from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, false, info.info_mutex, info.blockId);
+            from, &request, &info, false);
         
         if (status != EXIT_SUCCESS) { LOG(INFO) << "Getting block error"; }
-
-        info.info_mutex.unlock();
 
         ms += duration_cast<milliseconds>(
             system_clock::now().time_since_epoch()
@@ -176,14 +172,6 @@ int main(int argc, char ** argv)
             LOG(INFO) << "Average curling time "
                 << ms.count() / (double)curltimes << " ms";
             ms = milliseconds::zero();
-        }
-
-        if (diff || state == STATE_REHASH)
-        {
-            ++(info.blockId);
-            diff = 0;
-
-            LOG(INFO) << "Got new block in main thread"; 
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(8));

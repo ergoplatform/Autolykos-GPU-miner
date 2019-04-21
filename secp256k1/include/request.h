@@ -33,15 +33,9 @@ int TerminationRequestHandler(
 // curl http GET request
 int GetLatestBlock(
     const char * from,
-    const char * pkstr,
     json_t * oldreq,
-    uint8_t * bound,
-    uint8_t * mes,
-    state_t * state,
-    int * diff,
-    bool checkPK,
-    std::mutex& mut,
-    std::atomic<unsigned int>& trigger
+    info_t * info,
+    bool checkPK
 );
 
 // curl http POST request
