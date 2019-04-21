@@ -63,13 +63,8 @@ lib: $(OBJECTS)
 	ranlib $(LIBPATH)
 
 auto:
-<<<<<<< HEAD
-	$(CXX) $(SRCDIR)/autolykos.cu $(SRCDIR)/easylogging++.cc $(SRCDIR)/request.cu --std=c++11 $(LIBPATH) $(LIBS) $(COPT) $(GENCODE_FLAGS) \
-	-o $(AUTOEXEC)
-=======
 	$(CXX) $(SRCDIR)/autolykos.cu $(LIBPATH) $(LIBS) $(COPT) $(STD) \
 		$(GENCODE_FLAGS) -o $(AUTOEXEC)
->>>>>>> mainrep/master
 
 clean:
 	rm -f $(OBJECTS) $(SRCDIR)/autolykos.o $(LIBPATH) $(TESTEXEC) $(AUTOEXEC)

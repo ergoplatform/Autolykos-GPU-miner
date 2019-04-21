@@ -151,33 +151,19 @@ int main(int argc, char ** argv)
     {
         milliseconds start = duration_cast<milliseconds>(
             system_clock::now().time_since_epoch()
-<<<<<<< HEAD
-            );
-        //info.info_mutex.lock();
-=======
         );
 
         info.info_mutex.lock();
 
->>>>>>> mainrep/master
         // need to fix state somehow
         state = STATE_CONTINUE;
         
         status = GetLatestBlock(
             from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff, false, info.info_mutex, info.blockId);
         
-<<<<<<< HEAD
-        if(status != EXIT_SUCCESS)
-	    {
-            LOG(INFO) << "Getting block error";
-            //printf("Getting block error\n");
-	    }
-        //info.info_mutex.unlock();
-=======
         if (status != EXIT_SUCCESS) { LOG(INFO) << "Getting block error"; }
 
         info.info_mutex.unlock();
->>>>>>> mainrep/master
 
         ms += duration_cast<milliseconds>(
             system_clock::now().time_since_epoch()
@@ -191,27 +177,14 @@ int main(int argc, char ** argv)
                 << ms.count() / (double)curltimes << " ms";
             ms = milliseconds::zero();
         }
-<<<<<<< HEAD
-        /*
-        if(diff || state == STATE_REHASH)
-=======
 
         if (diff || state == STATE_REHASH)
->>>>>>> mainrep/master
         {
             ++(info.blockId);
             diff = 0;
 
             LOG(INFO) << "Got new block in main thread"; 
-<<<<<<< HEAD
-            //printf("Got new block in main thread\n");
-	        fflush(stdout);
         }
-        */
-        std::this_thread::sleep_for(std::chrono::milliseconds(8));
-=======
-        }
->>>>>>> mainrep/master
 
         std::this_thread::sleep_for(std::chrono::milliseconds(8));
     }    
@@ -381,20 +354,7 @@ void minerThread(int deviceId, info_t * info)
         }
     
         // if solution was found by this thread, wait for new block to come 
-<<<<<<< HEAD
-        /*
-        if(state == STATE_KEYGEN)
-	    {
-		    while(info->blockId.load() == blockId)
-		    {}
-		    state = STATE_CONTINUE;
-	    }
-        */
-	    unsigned int controlId = info->blockId.load();
-        if(blockId != controlId)
-=======
         if (state == STATE_KEYGEN)
->>>>>>> mainrep/master
         {
             while(info->blockId.load() == blockId) {}
 
@@ -456,38 +416,6 @@ void minerThread(int deviceId, info_t * info)
         CUDA_CALL(cudaDeviceSynchronize());
 
         VLOG(1) << "Starting mining cycle";
-<<<<<<< HEAD
-         /*     printf(
-            "%s Checking solutions for nonces:\n"
-            "           0x%016lX -- 0x%016lX\n",
-            TimeStamp(&stamp), base, base + THREAD_LEN * LOAD_LEN - 1
-        );
-        fflush(stdout);
-        */   
-        // generate nonces
-        GenerateConseqNonces<<<1 + (THREAD_LEN * LOAD_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
-            (uint64_t *)nonces_d, N_LEN, base
-        );
-        VLOG(1) << "Generating nonces";
-        base += THREAD_LEN * LOAD_LEN;
-        
-        //interrupt cycle if new block was found
-        if(blockId!=info->blockId.load())
-	    {
-		    continue;
-	    }
-        
-        // calculate unfinalized hash of message
-        VLOG(1) << "Starting InitMining";
-        InitMining(&ctx_h, (uint32_t *)mes_h, NUM_SIZE_8);
-
-        
-        //interrupt cycle if new block was found
-	    if(blockId!=info->blockId.load())
-	    {
-		    continue;
-	    }
-=======
 
         // restart iteration if new block was found
         if (blockId != info->blockId.load()) { continue; }
@@ -495,7 +423,6 @@ void minerThread(int deviceId, info_t * info)
         // calculate unfinalized hash of message
         VLOG(1) << "Starting InitMining";
         InitMining(&ctx_h, (uint32_t *)mes_h, NUM_SIZE_8);
->>>>>>> mainrep/master
 
         // copy context
         CUDA_CALL(cudaMemcpy(
@@ -514,18 +441,10 @@ void minerThread(int deviceId, info_t * info)
         );
 
         VLOG(1) << "Trying to find solution";
-<<<<<<< HEAD
-	    //interrupt cycle if new block was found
-	    if(blockId!=info->blockId.load())
-	    {
-		    continue;
-	    }
-=======
 
         // restart iteration if new block was found
         if (blockId != info->blockId.load()) { continue; }
 
->>>>>>> mainrep/master
         // try to find solution
         ind = FindNonZero(
             indices_d, indices_d + THREAD_LEN * LOAD_LEN, THREAD_LEN * LOAD_LEN
@@ -541,14 +460,8 @@ void minerThread(int deviceId, info_t * info)
 
             *((uint64_t *)nonce) = base + ind - 1;
 
-<<<<<<< HEAD
-            //printf("%s Solution found from GPU %i:\n", TimeStamp(&stamp), deviceId); 
-            //PrintPuzzleSolution(nonces_h, res_h);
-            PostPuzzleSolution(to, pkstr, w_h, nonces_h, res_h);
-=======
             PrintPuzzleSolution(nonce, res_h);
             PostPuzzleSolution(to, pkstr, w_h, nonce, res_h);
->>>>>>> mainrep/master
             LOG(INFO) << "GPU " << deviceId << " found and posted a solution";
     
             state = STATE_KEYGEN;
