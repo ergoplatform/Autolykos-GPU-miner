@@ -150,9 +150,6 @@ int main(int argc, char ** argv)
         milliseconds start = duration_cast<milliseconds>(
             system_clock::now().time_since_epoch()
         );
-
-        // need to fix state somehow
-        state = STATE_CONTINUE;
         
         status = GetLatestBlock(
             from, &request, &info, false);
