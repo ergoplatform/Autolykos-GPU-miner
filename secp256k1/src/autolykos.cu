@@ -349,7 +349,7 @@ void minerThread(int deviceId, info_t * info)
             state = STATE_CONTINUE;
         }
 
-        unsigned int controlId = info->blockId.load();
+        uint_t controlId = info->blockId.load();
 
         if (blockId != controlId)
         {

@@ -192,6 +192,7 @@ int GetLatestBlock(
     // set timeout to 10sec so it doesn't hang up waiting for default 5 minutes if url is unreachable/wrong 
 
     curlError = curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+    curlError = curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
     curlError = curl_easy_perform(curl);
     CurlLogError(curlError, "Curl request");
     curl_easy_cleanup(curl);
@@ -395,6 +396,7 @@ int PostPuzzleSolution(
     
     // set timeout to 60 sec for sending solution
     curlError += curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 60L);
+    curlError += curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);    
     curlError += curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
     curlError += curl_easy_setopt(curl, CURLOPT_WRITEDATA, &respond);
     CurlLogError(curlError, "POST options error");
