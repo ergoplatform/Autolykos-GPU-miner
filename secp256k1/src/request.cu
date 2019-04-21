@@ -98,7 +98,7 @@ int TerminationRequestHandler(
 
 
     #ifndef _WIN32
-    /*
+    
     // do nothing when in background
     if (getpgrp() != tcgetpgrp(STDOUT_FILENO))
     {
@@ -134,7 +134,7 @@ int TerminationRequestHandler(
 
         return 1;
     }
-    */
+    
     // continue otherwise
     #endif
     return 0;
