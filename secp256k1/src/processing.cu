@@ -10,7 +10,7 @@
 #include "../include/cryptography.h"
 #include "../include/definitions.h"
 #include "../include/jsmn.h"
-#include "../include/request.h"
+//#include "../include/request.h"
 #include <ctype.h>
 #include <cuda.h>
 #include <curl/curl.h>
@@ -22,8 +22,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
-#include <unistd.h>
 
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 /// ////////////////////////////////////////////////////////////////////////////////
 /// //  Time stamp
 /// ////////////////////////////////////////////////////////////////////////////////

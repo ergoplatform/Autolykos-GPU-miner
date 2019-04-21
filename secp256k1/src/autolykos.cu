@@ -32,7 +32,20 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <thread>
+
+#ifdef _WIN32
+#include <io.h>
+#define R_OK    4       
+#define W_OK    2       
+#define F_OK    0       
+#define access _access
+
+#else
+
 #include <unistd.h>
+
+#endif
+
 #include <vector>
 
 INITIALIZE_EASYLOGGINGPP
@@ -59,7 +72,6 @@ int main(int argc, char ** argv)
 
     info_t info;
     info.blockId = 1;
-    state_t state = STATE_CONTINUE;
 
     if (cudaGetDeviceCount(&deviceCount) != cudaSuccess)
     {
@@ -75,11 +87,11 @@ int main(int argc, char ** argv)
     char * fileName = (argc == 1)? confName: argv[1];
     char from[MAX_URL_SIZE];
     //char to[MAX_URL_SIZE];
-    int diff;
     // int keepPrehash = 0;
     json_t request(0, REQ_LEN);
     
     LOG(INFO) << "Using configuration file " << fileName;
+
 
     // check access to config file
     if (access(fileName, F_OK) == -1)
@@ -121,9 +133,14 @@ int main(int argc, char ** argv)
     LOG(INFO) << logstr;
 
     status = GetLatestBlock(
-        from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff
+        from, &request, &info, true
     );
-    
+    if(status != EXIT_SUCCESS)
+    {
+        LOG(INFO) << "First block getting request failed, maybe wrong node address?";
+    }
+
+
     std::vector<std::thread> miners(deviceCount);
 
     for (int i = 0; i < deviceCount; ++i)
@@ -147,19 +164,11 @@ int main(int argc, char ** argv)
         milliseconds start = duration_cast<milliseconds>(
             system_clock::now().time_since_epoch()
         );
-
-        info.info_mutex.lock();
-
-        // need to fix state somehow
-        state = STATE_CONTINUE;
         
         status = GetLatestBlock(
-            from, info.pkstr, &request, info.bound_h, info.mes_h, &state, &diff
-        );
+            from, &request, &info, false);
         
         if (status != EXIT_SUCCESS) { LOG(INFO) << "Getting block error"; }
-
-        info.info_mutex.unlock();
 
         ms += duration_cast<milliseconds>(
             system_clock::now().time_since_epoch()
@@ -172,14 +181,6 @@ int main(int argc, char ** argv)
             LOG(INFO) << "Average curling time "
                 << ms.count() / (double)curltimes << " ms";
             ms = milliseconds::zero();
-        }
-
-        if (diff || state == STATE_REHASH)
-        {
-            ++(info.blockId);
-            diff = 0;
-
-            LOG(INFO) << "Got new block in main thread"; 
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(8));
@@ -357,7 +358,7 @@ void minerThread(int deviceId, info_t * info)
             state = STATE_CONTINUE;
         }
 
-        unsigned int controlId = info->blockId.load();
+        uint_t controlId = info->blockId.load();
 
         if (blockId != controlId)
         {
