@@ -218,7 +218,7 @@ int GetLatestBlock(
                 fprintf(
                  stderr, "ABORT:  Public key derived from your secret key:\n"
                  "        0x%.2s",
-                 pkstr
+                 info->pkstr
                 );
 
                 for (int i = 2; i < PK_SIZE_4; i += 16)
