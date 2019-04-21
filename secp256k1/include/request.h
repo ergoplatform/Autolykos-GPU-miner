@@ -9,7 +9,9 @@
 
 #include "definitions.h"
 #include "jsmn.h"
-
+#include <curl/curl.h>
+#include <mutex>
+#include <atomic>
 // write function for curl http GET
 size_t WriteFunc(
     void * ptr,
@@ -29,12 +31,9 @@ int TerminationRequestHandler(
 // curl http GET request
 int GetLatestBlock(
     const char * from,
-    const char * pkstr,
     json_t * oldreq,
-    uint8_t * bound,
-    uint8_t * mes,
-    state_t * state,
-    int * diff
+    info_t * info,
+    bool checkPK
 );
 
 // curl http POST request
@@ -45,5 +44,8 @@ int PostPuzzleSolution(
     const uint8_t * nonce,
     const uint8_t * d
 );
+
+void CurlLogError(CURLcode curl_status);
+
 
 #endif // REQUEST_H

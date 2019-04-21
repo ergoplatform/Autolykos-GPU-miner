@@ -22,7 +22,12 @@ int DecStrToHexStrOf64(
     const uint32_t inlen,
     char * out
 ) {
+    //somehow MSVC does not accept array with const size
+    #ifndef _WIN32
     uint32_t fs[inlen];
+    #else
+    uint32_t fs[1024];
+    #endif
     uint32_t tmp;
     uint32_t rem;
     uint32_t ip;
