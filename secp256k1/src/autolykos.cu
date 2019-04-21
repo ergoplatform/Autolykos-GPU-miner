@@ -32,7 +32,20 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <thread>
+
+#ifdef _WIN32
+#include <io.h>
+#define R_OK    4       
+#define W_OK    2       
+#define F_OK    0       
+#define access _access
+
+#else
+
 #include <unistd.h>
+
+#endif
+
 #include <vector>
 
 INITIALIZE_EASYLOGGINGPP
@@ -78,6 +91,7 @@ int main(int argc, char ** argv)
     json_t request(0, REQ_LEN);
     
     LOG(INFO) << "Using configuration file " << fileName;
+
 
     // check access to config file
     if (access(fileName, F_OK) == -1)
