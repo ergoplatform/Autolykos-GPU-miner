@@ -19,120 +19,152 @@
 //  PARAMETERS: Autolykos algorithm
 ////////////////////////////////////////////////////////////////////////////////
 // constant message size
-#define CONST_MES_SIZE_8 8192 // 2^10
+#define CONST_MES_SIZE_8   8192 // 2^10
 
 // prehash continue position 
-#define CONTINUE_POS     36
+#define CONTINUE_POS       36
 
 // number of indices
-#define K_LEN            32
+#define K_LEN              32
 
 // number of precalculated hashes
-#define N_LEN             0x4000000 // 2^26
+#define N_LEN              0x4000000 // 2^26
 
 // mod 2^26 mask
-#define N_MASK            (N_LEN - 1)
+#define N_MASK             (N_LEN - 1)
 
 ////////////////////////////////////////////////////////////////////////////////
 //  PARAMETERS: Heuristic prehash CUDA kernel parameters
 ////////////////////////////////////////////////////////////////////////////////
 // number of hashes per thread
-#define THREAD_LEN        1
+#define THREAD_LEN         1
 
 // total number of hash loads (threads) per iteration
-#define LOAD_LEN          (0x400000 / THREAD_LEN) // 2^22
-
-// mining kernel block size
-#define BLOCK_DIM         64
+#define LOAD_LEN           (0x400000 / THREAD_LEN) // 2^22
 
 ////////////////////////////////////////////////////////////////////////////////
 //  CONSTANTS: Autolykos algorithm
 ////////////////////////////////////////////////////////////////////////////////
 // secret keys and hashes size
-#define NUM_SIZE_8        32
-#define NUM_SIZE_4        (NUM_SIZE_8 << 1)
-#define NUM_SIZE_32       (NUM_SIZE_8 >> 2)
-#define NUM_SIZE_64       (NUM_SIZE_8 >> 3)
+#define NUM_SIZE_8         32
+#define NUM_SIZE_4         (NUM_SIZE_8 << 1)
+#define NUM_SIZE_32        (NUM_SIZE_8 >> 2)
+#define NUM_SIZE_64        (NUM_SIZE_8 >> 3)
+#define NUM_SIZE_32_BLOCK  (1 + (NUM_SIZE_32 - 1) / BLOCK_DIM)
+#define NUM_SIZE_8_BLOCK   (NUM_SIZE_32_BLOCK << 2)
+#define ROUND_NUM_SIZE_32  (NUM_SIZE_32_BLOCK * BLOCK_DIM)
 
 // public keys size
-#define PK_SIZE_8         33
-#define PK_SIZE_4         (PK_SIZE_8 << 1)
-#define PK2_SIZE_32       (((PK_SIZE_8 << 1) + 3) >> 2)
+#define PK_SIZE_8          33
+#define PK_SIZE_4          (PK_SIZE_8 << 1)
+#define PK_SIZE_32_BLOCK   (1 + NUM_SIZE_32 / BLOCK_DIM)
+#define PK_SIZE_8_BLOCK    (PK_SIZE_32_BLOCK << 2)
+#define ROUND_PK_SIZE_32   (PK_SIZE_32_BLOCK * BLOCK_DIM)
+#define COUPLED_PK_SIZE_32 (((PK_SIZE_8 << 1) + 3) >> 2)
 
 // nonce size
-#define NONCE_SIZE_8      8
-#define NONCE_SIZE_4      (NONCE_SIZE_8 << 1)
-#define NONCE_SIZE_32     (NONCE_SIZE_8 >> 2)
+#define NONCE_SIZE_8       8
+#define NONCE_SIZE_4       (NONCE_SIZE_8 << 1)
+#define NONCE_SIZE_32      (NONCE_SIZE_8 >> 2)
 
 // index size
-#define INDEX_SIZE_8      4
+#define INDEX_SIZE_8       4
 
 // BLAKE2b-256 hash buffer size
-#define BUF_SIZE_8        128
+#define BUF_SIZE_8         128
+
+struct ctx_t;
+
+// puzzle data size
+#define DATA_SIZE_8                                                            \
+(                                                                              \
+    (1 + (2 * PK_SIZE_8 + 2 + 3 * NUM_SIZE_8 + sizeof(ctx_t) - 1) / BLOCK_DIM) \
+    * BLOCK_DIM                                                                \
+)
+
+// mes || w sizes
+#define NP_SIZE_32_BLOCK   (1 + (NUM_SIZE_32 << 1) / BLOCK_DIM)
+#define NP_SIZE_8_BLOCK    (NP_SIZE_32_BLOCK << 2)
+#define ROUND_NP_SIZE_32   (NP_SIZE_32_BLOCK * BLOCK_DIM)
+
+// pk || mew || w sizes
+#define PNP_SIZE_32_BLOCK                                                      \
+(1 + (COUPLED_PK_SIZE_32 + NUM_SIZE_32 - 1) / BLOCK_DIM)
+
+#define PNP_SIZE_8_BLOCK   (PNP_SIZE_32_BLOCK << 2)
+#define ROUND_PNP_SIZE_32  (PNP_SIZE_32_BLOCK * BLOCK_DIM)
+
+// x || ctx sizes
+#define NC_SIZE_32_BLOCK                                                       \
+(1 + (NUM_SIZE_32 + sizeof(ctx_t) - 1) / BLOCK_DIM)
+
+#define NC_SIZE_8_BLOCK    (NC_SIZE_32_BLOCK << 2)
+#define ROUND_NC_SIZE_32   (NC_SIZE_32_BLOCK * BLOCK_DIM)
 
 ////////////////////////////////////////////////////////////////////////////////
 //  CONSTANTS: Q definition 64-bits and 32-bits words
 ////////////////////////////////////////////////////////////////////////////////
 // Q definition for CUDA ptx pseudo-assembler commands
 // 32 bits
-#define qhi_s             "0xFFFFFFFF"
-#define q4_s              "0xFFFFFFFE"
-#define q3_s              "0xBAAEDCE6"
-#define q2_s              "0xAF48A03B"
-#define q1_s              "0xBFD25E8C"
-#define q0_s              "0xD0364141"
+#define qhi_s              "0xFFFFFFFF"
+#define q4_s               "0xFFFFFFFE"
+#define q3_s               "0xBAAEDCE6"
+#define q2_s               "0xAF48A03B"
+#define q1_s               "0xBFD25E8C"
+#define q0_s               "0xD0364141"
 
 // Autolykos valid range
 // Q itself is multiplier-of-Q floor of 2^256
-#define Q3                0xFFFFFFFFFFFFFFFF
-#define Q2                0xFFFFFFFFFFFFFFFE
-#define Q1                0xBAAEDCE6AF48A03B
-#define Q0                0xBFD25E8CD0364141
+// 64 bits
+#define Q3                 0xFFFFFFFFFFFFFFFF
+#define Q2                 0xFFFFFFFFFFFFFFFE
+#define Q1                 0xBAAEDCE6AF48A03B
+#define Q0                 0xBFD25E8CD0364141
 
 ////////////////////////////////////////////////////////////////////////////////
 //  CONSTANTS: Curl http & JSMN specifiers
 ////////////////////////////////////////////////////////////////////////////////
 // URL max size 
-#define MAX_URL_SIZE      1024
+#define MAX_URL_SIZE       1024
 
 // default request capacity
-#define JSON_CAPACITY     256
+#define JSON_CAPACITY      256
 
 // maximal request capacity
-#define MAX_JSON_CAPACITY 8192
+#define MAX_JSON_CAPACITY  8192
 
 // total JSON objects count
-#define REQ_LEN           7
+#define REQ_LEN            7
 
 // curl JSON position of message
-#define MES_POS           2
+#define MES_POS            2
 
 // curl JSON position of bound
-#define BOUND_POS         4
+#define BOUND_POS          4
 
 // curl JSON position of public key
-#define PK_POS            6
+#define PK_POS             6
 
 // total JSON objects count for config file
-#define CONF_LEN          7
+#define CONF_LEN           7
 
 // config JSON position of secret key
-#define SEED_POS          2
+#define SEED_POS           2
 
 // config JSON position of latest block adress
-#define NODE_POS          4
+#define NODE_POS           4
 
 // config JSON position of keep prehash option
-#define KEEP_POS          6
+#define KEEP_POS           6
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Error messages
 ////////////////////////////////////////////////////////////////////////////////
-#define ERROR_STAT       "stat"
-#define ERROR_ALLOC      "Host memory allocation"
-#define ERROR_IO         "I/O"
-#define ERROR_CURL       "Curl"
-#define ERROR_OPENSSL    "OpenSSL"
+#define ERROR_STAT         "stat"
+#define ERROR_ALLOC        "Host memory allocation"
+#define ERROR_IO           "I/O"
+#define ERROR_CURL         "Curl"
+#define ERROR_OPENSSL      "OpenSSL"
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Structs
@@ -149,15 +181,7 @@ typedef enum
 }
 state_t;
 
-// time stamp
-struct timestamp_t
-{
-    timespec realtime;
-    tm * timeinfo;
-    char timestamp[30];
-};
-
-// global puzzle info
+// puzzle global info
 struct info_t
 {
     // Mutex for reading/writing data from info_t safely
@@ -206,7 +230,7 @@ struct json_t
 };
 
 // BLAKE2b-256 hash state context
-struct context_t
+struct ctx_t
 {
     // input buffer
     uint8_t b[BUF_SIZE_8];
@@ -219,7 +243,7 @@ struct context_t
 };
 
 // BLAKE2b-256 packed uncomplete hash state context 
-struct ucontext_type
+struct uctx_t
 {
     // chained state
     uint64_t h[8];
@@ -385,19 +409,19 @@ while (0)
 #define B2B_INIT(ctx, aux)                                                     \
 do                                                                             \
 {                                                                              \
-    ((uint64_t *)(aux))[0] = ((context_t *)(ctx))->h[0];                       \
-    ((uint64_t *)(aux))[1] = ((context_t *)(ctx))->h[1];                       \
-    ((uint64_t *)(aux))[2] = ((context_t *)(ctx))->h[2];                       \
-    ((uint64_t *)(aux))[3] = ((context_t *)(ctx))->h[3];                       \
-    ((uint64_t *)(aux))[4] = ((context_t *)(ctx))->h[4];                       \
-    ((uint64_t *)(aux))[5] = ((context_t *)(ctx))->h[5];                       \
-    ((uint64_t *)(aux))[6] = ((context_t *)(ctx))->h[6];                       \
-    ((uint64_t *)(aux))[7] = ((context_t *)(ctx))->h[7];                       \
+    ((uint64_t *)(aux))[0] = ((ctx_t *)(ctx))->h[0];                           \
+    ((uint64_t *)(aux))[1] = ((ctx_t *)(ctx))->h[1];                           \
+    ((uint64_t *)(aux))[2] = ((ctx_t *)(ctx))->h[2];                           \
+    ((uint64_t *)(aux))[3] = ((ctx_t *)(ctx))->h[3];                           \
+    ((uint64_t *)(aux))[4] = ((ctx_t *)(ctx))->h[4];                           \
+    ((uint64_t *)(aux))[5] = ((ctx_t *)(ctx))->h[5];                           \
+    ((uint64_t *)(aux))[6] = ((ctx_t *)(ctx))->h[6];                           \
+    ((uint64_t *)(aux))[7] = ((ctx_t *)(ctx))->h[7];                           \
                                                                                \
     B2B_IV(aux + 8);                                                           \
                                                                                \
-    ((uint64_t *)(aux))[12] ^= ((context_t *)(ctx))->t[0];                     \
-    ((uint64_t *)(aux))[13] ^= ((context_t *)(ctx))->t[1];                     \
+    ((uint64_t *)(aux))[12] ^= ((ctx_t *)(ctx))->t[0];                         \
+    ((uint64_t *)(aux))[13] ^= ((ctx_t *)(ctx))->t[1];                         \
 }                                                                              \
 while (0)
 
@@ -405,41 +429,33 @@ while (0)
 #define B2B_FINAL(ctx, aux)                                                    \
 do                                                                             \
 {                                                                              \
-    ((uint64_t *)(aux))[16] = ((uint64_t *)(((context_t *)(ctx))->b))[ 0];     \
-    ((uint64_t *)(aux))[17] = ((uint64_t *)(((context_t *)(ctx))->b))[ 1];     \
-    ((uint64_t *)(aux))[18] = ((uint64_t *)(((context_t *)(ctx))->b))[ 2];     \
-    ((uint64_t *)(aux))[19] = ((uint64_t *)(((context_t *)(ctx))->b))[ 3];     \
-    ((uint64_t *)(aux))[20] = ((uint64_t *)(((context_t *)(ctx))->b))[ 4];     \
-    ((uint64_t *)(aux))[21] = ((uint64_t *)(((context_t *)(ctx))->b))[ 5];     \
-    ((uint64_t *)(aux))[22] = ((uint64_t *)(((context_t *)(ctx))->b))[ 6];     \
-    ((uint64_t *)(aux))[23] = ((uint64_t *)(((context_t *)(ctx))->b))[ 7];     \
-    ((uint64_t *)(aux))[24] = ((uint64_t *)(((context_t *)(ctx))->b))[ 8];     \
-    ((uint64_t *)(aux))[25] = ((uint64_t *)(((context_t *)(ctx))->b))[ 9];     \
-    ((uint64_t *)(aux))[26] = ((uint64_t *)(((context_t *)(ctx))->b))[10];     \
-    ((uint64_t *)(aux))[27] = ((uint64_t *)(((context_t *)(ctx))->b))[11];     \
-    ((uint64_t *)(aux))[28] = ((uint64_t *)(((context_t *)(ctx))->b))[12];     \
-    ((uint64_t *)(aux))[29] = ((uint64_t *)(((context_t *)(ctx))->b))[13];     \
-    ((uint64_t *)(aux))[30] = ((uint64_t *)(((context_t *)(ctx))->b))[14];     \
-    ((uint64_t *)(aux))[31] = ((uint64_t *)(((context_t *)(ctx))->b))[15];     \
+    ((uint64_t *)(aux))[16] = ((uint64_t *)(((ctx_t *)(ctx))->b))[ 0];         \
+    ((uint64_t *)(aux))[17] = ((uint64_t *)(((ctx_t *)(ctx))->b))[ 1];         \
+    ((uint64_t *)(aux))[18] = ((uint64_t *)(((ctx_t *)(ctx))->b))[ 2];         \
+    ((uint64_t *)(aux))[19] = ((uint64_t *)(((ctx_t *)(ctx))->b))[ 3];         \
+    ((uint64_t *)(aux))[20] = ((uint64_t *)(((ctx_t *)(ctx))->b))[ 4];         \
+    ((uint64_t *)(aux))[21] = ((uint64_t *)(((ctx_t *)(ctx))->b))[ 5];         \
+    ((uint64_t *)(aux))[22] = ((uint64_t *)(((ctx_t *)(ctx))->b))[ 6];         \
+    ((uint64_t *)(aux))[23] = ((uint64_t *)(((ctx_t *)(ctx))->b))[ 7];         \
+    ((uint64_t *)(aux))[24] = ((uint64_t *)(((ctx_t *)(ctx))->b))[ 8];         \
+    ((uint64_t *)(aux))[25] = ((uint64_t *)(((ctx_t *)(ctx))->b))[ 9];         \
+    ((uint64_t *)(aux))[26] = ((uint64_t *)(((ctx_t *)(ctx))->b))[10];         \
+    ((uint64_t *)(aux))[27] = ((uint64_t *)(((ctx_t *)(ctx))->b))[11];         \
+    ((uint64_t *)(aux))[28] = ((uint64_t *)(((ctx_t *)(ctx))->b))[12];         \
+    ((uint64_t *)(aux))[29] = ((uint64_t *)(((ctx_t *)(ctx))->b))[13];         \
+    ((uint64_t *)(aux))[30] = ((uint64_t *)(((ctx_t *)(ctx))->b))[14];         \
+    ((uint64_t *)(aux))[31] = ((uint64_t *)(((ctx_t *)(ctx))->b))[15];         \
                                                                                \
     B2B_MIX(aux, aux + 16);                                                    \
                                                                                \
-    ((context_t *)(ctx))->h[0]                                                 \
-        ^= ((uint64_t *)(aux))[0] ^ ((uint64_t *)(aux))[ 8];                   \
-    ((context_t *)(ctx))->h[1]                                                 \
-        ^= ((uint64_t *)(aux))[1] ^ ((uint64_t *)(aux))[ 9];                   \
-    ((context_t *)(ctx))->h[2]                                                 \
-        ^= ((uint64_t *)(aux))[2] ^ ((uint64_t *)(aux))[10];                   \
-    ((context_t *)(ctx))->h[3]                                                 \
-        ^= ((uint64_t *)(aux))[3] ^ ((uint64_t *)(aux))[11];                   \
-    ((context_t *)(ctx))->h[4]                                                 \
-        ^= ((uint64_t *)(aux))[4] ^ ((uint64_t *)(aux))[12];                   \
-    ((context_t *)(ctx))->h[5]                                                 \
-        ^= ((uint64_t *)(aux))[5] ^ ((uint64_t *)(aux))[13];                   \
-    ((context_t *)(ctx))->h[6]                                                 \
-        ^= ((uint64_t *)(aux))[6] ^ ((uint64_t *)(aux))[14];                   \
-    ((context_t *)(ctx))->h[7]                                                 \
-        ^= ((uint64_t *)(aux))[7] ^ ((uint64_t *)(aux))[15];                   \
+    ((ctx_t *)(ctx))->h[0] ^= ((uint64_t *)(aux))[0] ^ ((uint64_t *)(aux))[ 8];\
+    ((ctx_t *)(ctx))->h[1] ^= ((uint64_t *)(aux))[1] ^ ((uint64_t *)(aux))[ 9];\
+    ((ctx_t *)(ctx))->h[2] ^= ((uint64_t *)(aux))[2] ^ ((uint64_t *)(aux))[10];\
+    ((ctx_t *)(ctx))->h[3] ^= ((uint64_t *)(aux))[3] ^ ((uint64_t *)(aux))[11];\
+    ((ctx_t *)(ctx))->h[4] ^= ((uint64_t *)(aux))[4] ^ ((uint64_t *)(aux))[12];\
+    ((ctx_t *)(ctx))->h[5] ^= ((uint64_t *)(aux))[5] ^ ((uint64_t *)(aux))[13];\
+    ((ctx_t *)(ctx))->h[6] ^= ((uint64_t *)(aux))[6] ^ ((uint64_t *)(aux))[14];\
+    ((ctx_t *)(ctx))->h[7] ^= ((uint64_t *)(aux))[7] ^ ((uint64_t *)(aux))[15];\
 }                                                                              \
 while (0)
 
@@ -447,14 +463,13 @@ while (0)
 #define HOST_B2B_H(ctx, aux)                                                   \
 do                                                                             \
 {                                                                              \
-    ((context_t *)(ctx))->t[0] += BUF_SIZE_8;                                  \
-    ((context_t *)(ctx))->t[1]                                                 \
-        += 1 - !(((context_t *)(ctx))->t[0] < BUF_SIZE_8);                     \
+    ((ctx_t *)(ctx))->t[0] += BUF_SIZE_8;                                      \
+    ((ctx_t *)(ctx))->t[1] += 1 - !(((ctx_t *)(ctx))->t[0] < BUF_SIZE_8);      \
                                                                                \
     B2B_INIT(ctx, aux);                                                        \
     B2B_FINAL(ctx, aux);                                                       \
                                                                                \
-    ((context_t *)(ctx))->c = 0;                                               \
+    ((ctx_t *)(ctx))->c = 0;                                                   \
 }                                                                              \
 while (0)
 
@@ -462,13 +477,13 @@ while (0)
 #define HOST_B2B_H_LAST(ctx, aux)                                              \
 do                                                                             \
 {                                                                              \
-    ((context_t *)(ctx))->t[0] += ((context_t *)(ctx))->c;                     \
-    ((context_t *)(ctx))->t[1]                                                 \
-        += 1 - !(((context_t *)(ctx))->t[0] < ((context_t *)(ctx))->c);        \
+    ((ctx_t *)(ctx))->t[0] += ((ctx_t *)(ctx))->c;                             \
+    ((ctx_t *)(ctx))->t[1]                                                     \
+        += 1 - !(((ctx_t *)(ctx))->t[0] < ((ctx_t *)(ctx))->c);                \
                                                                                \
-    while (((context_t *)(ctx))->c < BUF_SIZE_8)                               \
+    while (((ctx_t *)(ctx))->c < BUF_SIZE_8)                                   \
     {                                                                          \
-        ((context_t *)(ctx))->b[((context_t *)(ctx))->c++] = 0;                \
+        ((ctx_t *)(ctx))->b[((ctx_t *)(ctx))->c++] = 0;                        \
     }                                                                          \
                                                                                \
     B2B_INIT(ctx, aux);                                                        \
@@ -484,26 +499,22 @@ while (0)
 do                                                                             \
 {                                                                              \
     asm volatile (                                                             \
-        "add.cc.u32 %0, %0, 128;":                                             \
-        "+r"(((uint32_t *)((context_t *)(ctx))->t)[0])                         \
+        "add.cc.u32 %0, %0, 128;": "+r"(((uint32_t *)((ctx_t *)(ctx))->t)[0])  \
     );                                                                         \
     asm volatile (                                                             \
-        "addc.cc.u32 %0, %0, 0;":                                              \
-        "+r"(((uint32_t *)((context_t *)(ctx))->t)[1])                         \
+        "addc.cc.u32 %0, %0, 0;": "+r"(((uint32_t *)((ctx_t *)(ctx))->t)[1])   \
     );                                                                         \
     asm volatile (                                                             \
-        "addc.cc.u32 %0, %0, 0;":                                              \
-        "+r"(((uint32_t *)((context_t *)(ctx))->t)[2])                         \
+        "addc.cc.u32 %0, %0, 0;": "+r"(((uint32_t *)((ctx_t *)(ctx))->t)[2])   \
     );                                                                         \
     asm volatile (                                                             \
-        "addc.u32 %0, %0, 0;":                                                 \
-        "+r"(((uint32_t *)((context_t *)(ctx))->t)[3])                         \
+        "addc.u32 %0, %0, 0;": "+r"(((uint32_t *)((ctx_t *)(ctx))->t)[3])      \
     );                                                                         \
                                                                                \
     B2B_INIT(ctx, aux);                                                        \
     B2B_FINAL(ctx, aux);                                                       \
                                                                                \
-    ((context_t *)(ctx))->c = 0;                                               \
+    ((ctx_t *)(ctx))->c = 0;                                                   \
 }                                                                              \
 while (0)
 
@@ -513,25 +524,25 @@ do                                                                             \
 {                                                                              \
     asm volatile (                                                             \
         "add.cc.u32 %0, %0, %1;":                                              \
-        "+r"(((uint32_t *)((context_t *)(ctx))->t)[0]):                        \
-        "r"(((context_t *)(ctx))->c)                                           \
+        "+r"(((uint32_t *)((ctx_t *)(ctx))->t)[0]):                            \
+        "r"(((ctx_t *)(ctx))->c)                                               \
     );                                                                         \
     asm volatile (                                                             \
         "addc.cc.u32 %0, %0, 0;":                                              \
-        "+r"(((uint32_t *)((context_t *)(ctx))->t)[1])                         \
+        "+r"(((uint32_t *)((ctx_t *)(ctx))->t)[1])                             \
     );                                                                         \
     asm volatile (                                                             \
         "addc.cc.u32 %0, %0, 0;":                                              \
-        "+r"(((uint32_t *)((context_t *)(ctx))->t)[2])                         \
+        "+r"(((uint32_t *)((ctx_t *)(ctx))->t)[2])                             \
     );                                                                         \
     asm volatile (                                                             \
         "addc.u32 %0, %0, 0;":                                                 \
-        "+r"(((uint32_t *)((context_t *)(ctx))->t)[3])                         \
+        "+r"(((uint32_t *)((ctx_t *)(ctx))->t)[3])                             \
     );                                                                         \
                                                                                \
-    while (((context_t *)(ctx))->c < BUF_SIZE_8)                               \
+    while (((ctx_t *)(ctx))->c < BUF_SIZE_8)                                   \
     {                                                                          \
-        ((context_t *)(ctx))->b[((context_t *)(ctx))->c++] = 0;                \
+        ((ctx_t *)(ctx))->b[((ctx_t *)(ctx))->c++] = 0;                        \
     }                                                                          \
                                                                                \
     B2B_INIT(ctx, aux);                                                        \

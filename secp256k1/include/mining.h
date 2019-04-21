@@ -12,7 +12,7 @@
 // unfinalized hash of message
 void InitMining(
     // context
-    context_t * ctx,
+    ctx_t * ctx,
     // message
     const uint32_t * mes,
     // message length in bytes
@@ -28,7 +28,7 @@ __global__ void BlockMining(
     // nonce base
     const uint64_t base,
     // precalculated hashes
-    const uint32_t * hash,
+    const uint32_t * hashes,
     // results
     uint32_t * res,
     // indices of valid solutions

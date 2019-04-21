@@ -39,7 +39,7 @@ INITIALIZE_EASYLOGGINGPP
 
 using namespace std::chrono;
 
-void minerThread(int deviceId, info_t * info);
+void MinerThread(int deviceId, info_t * info);
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Main
@@ -51,10 +51,10 @@ int main(int argc, char ** argv)
     el::Loggers::reconfigureAllLoggers(
         el::ConfigurationType::Format, "%datetime %level [%thread] %msg"
     );
+
     el::Helpers::setThreadName("main thread");
 
     int deviceCount;
-    //timestamp_t stamp;
     int status = EXIT_SUCCESS;
 
     info_t info;
@@ -74,9 +74,8 @@ int main(int argc, char ** argv)
     char confName[14] = "./config.json";
     char * fileName = (argc == 1)? confName: argv[1];
     char from[MAX_URL_SIZE];
-    //char to[MAX_URL_SIZE];
+
     int diff;
-    // int keepPrehash = 0;
     json_t request(0, REQ_LEN);
     
     LOG(INFO) << "Using configuration file " << fileName;
@@ -90,8 +89,7 @@ int main(int argc, char ** argv)
 
     // read config from file
     status = ReadConfig(
-        fileName, info.sk_h, info.skstr, from, info.to, &info.keepPrehash//,
-        //&stamp
+        fileName, info.sk_h, info.skstr, from, info.to, &info.keepPrehash
     );
 
     if (status == EXIT_FAILURE)
@@ -128,7 +126,7 @@ int main(int argc, char ** argv)
 
     for (int i = 0; i < deviceCount; ++i)
     {
-        miners[i] = std::thread(minerThread, i, &info);
+        miners[i] = std::thread(MinerThread, i, &info);
     }
 
     //====================================================================//
@@ -136,8 +134,8 @@ int main(int argc, char ** argv)
     //====================================================================//
     // bomb node with HTTP with 10ms intervals, if new block came 
     // signal miners with blockId
-    int curlcnt = 0;
-    const int curltimes = 2000;
+    uint_t curlcnt = 0;
+    const uint_t curltimes = 2000;
 
     // using namespace std::chrono;
     milliseconds ms = milliseconds::zero(); 
@@ -191,10 +189,8 @@ int main(int argc, char ** argv)
 ////////////////////////////////////////////////////////////////////////////////
 //  Miner thread cycle
 ////////////////////////////////////////////////////////////////////////////////
-void minerThread(int deviceId, info_t * info)
+void MinerThread(int deviceId, info_t * info)
 {
-    //int status = EXIT_SUCCESS;
-    //timestamp_t stamp;
     state_t state = STATE_KEYGEN;
     char threadName[20];
 
@@ -210,7 +206,7 @@ void minerThread(int deviceId, info_t * info)
 
     // hash context
     // (212 + 4) bytes
-    context_t ctx_h;
+    ctx_t ctx_h;
 
     // autolykos variables
     uint8_t bound_h[NUM_SIZE_8];
@@ -230,7 +226,7 @@ void minerThread(int deviceId, info_t * info)
     int keepPrehash = 0;
 
     // thread info variables
-    unsigned int blockId = 0;
+    uint_t blockId = 0;
     milliseconds start; 
     
     //====================================================================//
@@ -263,7 +259,7 @@ void minerThread(int deviceId, info_t * info)
     // data: pk || mes || w || padding || x || sk || ctx
     // (2 * PK_SIZE_8 + 2 + 3 * NUM_SIZE_8 + 212 + 4) bytes // ~0 MiB
     uint32_t * data_d;
-    CUDA_CALL(cudaMalloc((void **)&data_d, (NUM_SIZE_8 + BLOCK_DIM) * 4));
+    CUDA_CALL(cudaMalloc((void **)&data_d, DATA_SIZE_8));
 
     // precalculated hashes
     // N_LEN * NUM_SIZE_8 bytes // 2 GiB
@@ -284,12 +280,12 @@ void minerThread(int deviceId, info_t * info)
 
     // unfinalized hash contexts
     // N_LEN * 80 bytes // 5 GiB
-    ucontext_type * uctxs_d;
+    uctx_t * uctxs_d;
 
     if (keepPrehash)
     {
         CUDA_CALL(cudaMalloc(
-            (void **)&uctxs_d, (uint32_t)N_LEN * sizeof(ucontext_type)
+            (void **)&uctxs_d, (uint32_t)N_LEN * sizeof(uctx_t)
         ));
     }
 
@@ -303,7 +299,7 @@ void minerThread(int deviceId, info_t * info)
 
     // copy secret key
     CUDA_CALL(cudaMemcpy(
-        (void *)(data_d + PK2_SIZE_32 + 2 * NUM_SIZE_32), (void *)sk_h,
+        (void *)(data_d + COUPLED_PK_SIZE_32 + 2 * NUM_SIZE_32), (void *)sk_h,
         NUM_SIZE_8, cudaMemcpyHostToDevice
     ));
 
@@ -349,15 +345,15 @@ void minerThread(int deviceId, info_t * info)
             );
         }
     
-        // if solution was found by this thread, wait for new block to come 
+        // if solution was found by this thread wait for new block to come 
         if (state == STATE_KEYGEN)
         {
-            while(info->blockId.load() == blockId) {}
+            while (info->blockId.load() == blockId) {}
 
             state = STATE_CONTINUE;
         }
 
-        unsigned int controlId = info->blockId.load();
+        uint_t controlId = info->blockId.load();
 
         if (blockId != controlId)
         {
@@ -375,7 +371,7 @@ void minerThread(int deviceId, info_t * info)
             blockId = controlId;
             
             GenerateKeyPair(x_h, w_h);
-            // PrintPuzzleState(mes_h, pk_h, sk_h, w_h, x_h, bound_h, &stamp);
+
             VLOG(1) << "Generated new keypair,"
                 << " copying new data in device memory now";
 
@@ -393,8 +389,8 @@ void minerThread(int deviceId, info_t * info)
 
             // copy one time secret key
             CUDA_CALL(cudaMemcpy(
-                (void *)(data_d + PK2_SIZE_32 + NUM_SIZE_32), (void *)x_h,
-                NUM_SIZE_8, cudaMemcpyHostToDevice
+                (void *)(data_d + COUPLED_PK_SIZE_32 + NUM_SIZE_32),
+                (void *)x_h, NUM_SIZE_8, cudaMemcpyHostToDevice
             ));
 
             // copy one time public key
@@ -422,8 +418,8 @@ void minerThread(int deviceId, info_t * info)
 
         // copy context
         CUDA_CALL(cudaMemcpy(
-            (void *)(data_d + PK2_SIZE_32 + 3 * NUM_SIZE_32), (void *)&ctx_h,
-            sizeof(context_t), cudaMemcpyHostToDevice
+            (void *)(data_d + COUPLED_PK_SIZE_32 + 3 * NUM_SIZE_32),
+            (void *)&ctx_h, sizeof(ctx_t), cudaMemcpyHostToDevice
         ));
 
         // restart iteration if new block was found
@@ -458,6 +454,7 @@ void minerThread(int deviceId, info_t * info)
 
             PrintPuzzleSolution(nonce, res_h);
             PostPuzzleSolution(to, pkstr, w_h, nonce, res_h);
+
             LOG(INFO) << "GPU " << deviceId << " found and posted a solution";
     
             state = STATE_KEYGEN;

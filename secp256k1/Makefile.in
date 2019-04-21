@@ -1,15 +1,13 @@
 # CUDA architechture
-CUDAARCH = 30
+CUDAARCH = 70
 
-# compiler
+# CUDA maximum register usage per thread
+MAXREG = 179 -Xptxas -v
+
+BLOCKDIM = 16
+
+# compiler standard
 STD = --std=c++11
 
-# side libs
+# side libs paths
 LIBS = -L/usr/local/lib -lcurl -I/usr/local/include -lssl -lcrypto
-
-# stub config content
-CONFIG = '{ \
-			 "seed": "do not disclose the secret seed", \
-			 "node": "http://188.166.89.71:9052", \
-			 "keepPrehash": false \
-		 }'

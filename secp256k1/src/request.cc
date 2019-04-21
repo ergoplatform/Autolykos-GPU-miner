@@ -1,4 +1,4 @@
-// request.cu
+// request.cc
 
 /*******************************************************************************
 
@@ -59,10 +59,7 @@ int ToUppercase(
     char * str
 )
 {
-    for (int i = 0; str[i] != '\0'; ++i)
-    {
-        str[i] = toupper(str[i]);
-    }
+    for (int i = 0; str[i] != '\0'; ++i) { str[i] = toupper(str[i]); }
 
     return EXIT_SUCCESS;
 }
@@ -75,10 +72,7 @@ int TerminationRequestHandler(
 )
 {
     // do nothing when in background
-    if (getpgrp() != tcgetpgrp(STDOUT_FILENO))
-    {
-        return 0;
-    }
+    if (getpgrp() != tcgetpgrp(STDOUT_FILENO)) { return 0; }
 
     termios oldt;
     termios newt;
@@ -345,4 +339,4 @@ int PostPuzzleSolution(
     return EXIT_SUCCESS;
 }
 
-// request.cu
+// request.cc

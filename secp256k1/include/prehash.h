@@ -21,7 +21,7 @@ InitPrehash
 UnfinalInitPrehash
     in:     array 'data' contains pk
 
-    out:    computes an array 'uctx' of N context_t elements:
+    out:    computes an array 'uctx' of N ctx_t elements:
             uctx[j] := unfinalized hash context for blake2b-256(j || M || pk)
 
 ********************************************************************************
@@ -64,7 +64,7 @@ __global__ void InitPrehash(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // hashes
-    uint32_t * hash,
+    uint32_t * hashes,
     // indices of invalid range hashes
     uint32_t * invalid
 );
@@ -74,7 +74,7 @@ __global__ void UncompleteInitPrehash(
     // data: pk
     const uint32_t * data,
     // unfinalized hash contexts
-    ucontext_type * uctx
+    uctx_t * uctxs
 );
 
 // completed first iteration of hashes precalculation
@@ -82,9 +82,9 @@ __global__ void CompleteInitPrehash(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // unfinalized hash contexts
-    const ucontext_type * uctx,
+    const uctx_t * uctxs,
     // hashes
-    uint32_t * hash,
+    uint32_t * hashes,
     // indices of invalid range hashes
     uint32_t * invalid
 );
@@ -92,7 +92,7 @@ __global__ void CompleteInitPrehash(
 // unfinalized hashes update
 __global__ void UpdatePrehash(
     // hashes
-    uint32_t * hash,
+    uint32_t * hashes,
     // indices of invalid range hashes
     uint32_t * invalid,
     // length of invalid
@@ -102,7 +102,7 @@ __global__ void UpdatePrehash(
 // hashes modulo Q 
 __global__ void FinalPrehash(
     // hashes
-    uint32_t * hash
+    uint32_t * hashes
 );
 
 // hashes by secret key multiplication modulo Q 
@@ -110,7 +110,7 @@ __global__ void FinalPrehashMultSecKey(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // hashes
-    uint32_t * hash
+    uint32_t * hashes
 );
 
 // precalculate hashes
@@ -119,9 +119,9 @@ int Prehash(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,
     // uncomplete hash contexts
-    ucontext_type * uctx,
+    uctx_t * uctxs,
     // hashes
-    uint32_t * hash,
+    uint32_t * hashes,
     // indices of invalid range hashes
     uint32_t * invalid
 );

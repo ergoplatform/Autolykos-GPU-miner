@@ -7,6 +7,13 @@ include Makefile.in
 # set shell
 SHELL := /bin/bash
 
+# stub config content
+CONFIG = '{ \
+			 "seed": "do not disclose the secret seed", \
+			 "node": "http://188.166.89.71:9052", \
+			 "keepPrehash": false \
+		 }'
+
 # compiler 
 CXX = nvcc
 CFLAGS = -c
@@ -45,7 +52,8 @@ AUTOEXEC = auto.out
 
 # compile objects
 %.o: %.cu
-	$(CXX) $(COPT) $(CXXFLAGS) $(GENCODE_FLAGS) $< -o $@
+	$(CXX) $(COPT) $(CXXFLAGS) $(GENCODE_FLAGS) --maxrregcount $(MAXREG) \
+		-DBLOCK_DIM=$(BLOCKDIM) $< -o $@
 %.o: %.cc
 	$(CXX) $(COPT) $(CXXFLAGS) $< -o $@
 %.o: %.c
@@ -64,7 +72,7 @@ lib: $(OBJECTS)
 
 auto:
 	$(CXX) $(SRCDIR)/autolykos.cu $(LIBPATH) $(LIBS) $(COPT) $(STD) \
-		$(GENCODE_FLAGS) -o $(AUTOEXEC)
+		$(GENCODE_FLAGS) -DBLOCK_DIM=$(BLOCKDIM) -o $(AUTOEXEC)
 
 clean:
 	rm -f $(OBJECTS) $(SRCDIR)/autolykos.o $(LIBPATH) $(TESTEXEC) $(AUTOEXEC)

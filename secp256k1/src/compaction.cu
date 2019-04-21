@@ -16,17 +16,12 @@ namespace cg = cooperative_groups;
 ////////////////////////////////////////////////////////////////////////////////
 //  Increment a counter in a warp
 ////////////////////////////////////////////////////////////////////////////////
-__device__ uint32_t WarpInc(
-    uint32_t * len
-)
+__device__ uint32_t WarpInc(uint32_t * len)
 {
     uint32_t res = 0;
     cg::coalesced_group active = cg::coalesced_threads();
 
-    if (!active.thread_rank())
-    {
-        res = atomicAdd(len, active.size());
-    }
+    if (!active.thread_rank()) { res = atomicAdd(len, active.size()); }
 
     return active.shfl(res, 0) + active.thread_rank();
 }
@@ -45,7 +40,7 @@ __global__ void Compactify(
 
     for (int i = tid; i < inlen; i += gridDim.x * blockDim.x)
     {
-        if (in[i]) out[WarpInc(outlen)] = in[i];
+        if (in[i]) { out[WarpInc(outlen)] = in[i]; }
     }
 }
 

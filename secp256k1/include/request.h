@@ -19,9 +19,7 @@ size_t WriteFunc(
 );
 
 // lowercase letters convert to uppercase
-int ToUppercase(
-    char * str
-);
+int ToUppercase(char * str);
 
 // process termination handler
 int TerminationRequestHandler(

@@ -10,12 +10,10 @@
 #include "definitions.h"
 
 // find smallest power of two not lesser then given number
-uint32_t CeilToPower(
-    uint32_t x
-);
+uint32_t CeilToPower(uint32_t x);
 
 // find non zero item in block
-template <uint32_t blockSize>
+template<uint32_t blockSize>
 __global__ void BlockNonZero(
     uint32_t * in,
     uint32_t inlen,

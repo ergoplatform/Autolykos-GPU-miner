@@ -10,9 +10,7 @@
 #include "definitions.h"
 
 // increment a counter in a warp
-__device__ uint32_t WarpInc(
-    uint32_t * len
-);
+__device__ uint32_t WarpInc(uint32_t * len);
 
 // compactify an array, omit all zeros
 __global__ void Compactify(

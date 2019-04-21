@@ -1,4 +1,4 @@
-// processing.cu
+// processing.cc
 
 /*******************************************************************************
 
@@ -12,7 +12,6 @@
 #include "../include/jsmn.h"
 #include "../include/request.h"
 #include <ctype.h>
-#include <cuda.h>
 #include <curl/curl.h>
 #include <inttypes.h>
 #include <stdint.h>
@@ -24,33 +23,10 @@
 #include <time.h>
 #include <unistd.h>
 
-/// ////////////////////////////////////////////////////////////////////////////////
-/// //  Time stamp
-/// ////////////////////////////////////////////////////////////////////////////////
-/// char * TimeStamp(
-///     timestamp_t * stamp
-/// )
-/// {
-///     // get real time
-///     clock_gettime(CLOCK_REALTIME, &(stamp->realtime));
-///     // convert seconds to human-readable form
-///     stamp->timeinfo = localtime(&((stamp->realtime).tv_sec));
-///     // form time stamp
-///     strftime(stamp->timestamp, 30, "%a %m/%d/%Y %H:%M:%S:", stamp->timeinfo);
-/// 
-///     // calculate milliseconds
-///     long int millisec = (stamp->realtime).tv_nsec / 1e6;
-///     sprintf(stamp->timestamp + 24, "%03d: ", millisec);
-/// 
-///     return stamp->timestamp;
-/// }
- 
 ////////////////////////////////////////////////////////////////////////////////
 //  Find file size
 ////////////////////////////////////////////////////////////////////////////////
-long int FindFileSize(
-    const char * filename
-)
+long int FindFileSize(const char * filename)
 {
     struct stat st;
 
@@ -68,8 +44,7 @@ int ReadConfig(
     char * skstr,
     char * from,
     char * to,
-    int * keep//,
-    //timestamp_t * stamp
+    int * keep
 )
 {
     FILE * in = fopen(filename, "r");
@@ -116,8 +91,7 @@ int ReadConfig(
         fprintf(
             stderr, "Miner is now terminated\n"
             "========================================"
-            "========================================\n"//,
-            //TimeStamp(stamp)
+            "========================================\n"
         );
 
         return EXIT_FAILURE;
@@ -145,8 +119,7 @@ int PrintPuzzleState(
     const uint8_t * sk,
     const uint8_t * w,
     const uint8_t * x,
-    const uint8_t * bound//,
-    //timestamp_t * stamp
+    const uint8_t * bound
 )
 {
     printf("Obtained candidate block:\n"); 
@@ -201,4 +174,4 @@ int PrintPuzzleSolution(
     return EXIT_SUCCESS;
 }
 
-// processing.cu
+// processing.cc

@@ -1,4 +1,4 @@
-// definitions.cu
+// definitions.cc
 
 /*******************************************************************************
 
@@ -35,9 +35,7 @@ json_t::json_t(
 ////////////////////////////////////////////////////////////////////////////////
 //  Initialize JSON string with other JSON string
 ////////////////////////////////////////////////////////////////////////////////
-json_t::json_t(
-    const json_t & newjson
-)
+json_t::json_t(const json_t & newjson)
 {
     cap = newjson.cap;
     len = newjson.len;
@@ -54,9 +52,7 @@ json_t::json_t(
 ////////////////////////////////////////////////////////////////////////////////
 //  Delete JSON string
 ////////////////////////////////////////////////////////////////////////////////
-json_t::~json_t(
-    void
-)
+json_t::~json_t(void)
 {
     FREE(ptr);
     FREE(toks);
@@ -64,4 +60,4 @@ json_t::~json_t(
     return;
 }
 
-// definitions.cu
+// definitions.cc
