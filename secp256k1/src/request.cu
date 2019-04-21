@@ -143,11 +143,11 @@ int TerminationRequestHandler(
 
 //CURL* curl;
 
-void CurlLogError(int curl_status, const char* message)
+void CurlLogError(CURLcode curl_status)
 {
     if(curl_status != CURLE_OK)
     {
-        LOG(ERROR) << "Curl error " << curl_status << " in " << message;
+        LOG(ERROR) << "CURL: " << curl_easy_strerror(curl_status) ;
     }
 
 }
@@ -173,7 +173,7 @@ int GetLatestBlock(
     //  Get latest block
     //====================================================================//
     newreq.Reset();
-    int curlError;
+    CURLcode curlError;
     int diff = 0;
 
     curl = curl_easy_init();
@@ -182,22 +182,18 @@ int GetLatestBlock(
     {
         LOG(ERROR) << "Curl doesn't init in getblock";
     }
-    curlError = curl_easy_setopt(curl, CURLOPT_URL, from);
-    CurlLogError(curlError, "Setting curl URL");
-    curlError = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
-    CurlLogError(curlError, "Setting curl write function");
-    curlError = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq);
-    CurlLogError(curlError, "Setting curl data pointer");
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_URL, from));
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc));
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq));
     
     // set timeout to 10sec so it doesn't hang up waiting for default 5 minutes if url is unreachable/wrong 
 
-    curlError = curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
-    curlError = curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L));
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L));
     curlError = curl_easy_perform(curl);
-    CurlLogError(curlError, "Curl request");
+    CurlLogError(curlError);
     curl_easy_cleanup(curl);
     VLOG(1) << "GET request " << newreq.ptr;
-    VLOG(1) << "Curl request status " << curlError;
     
     // if curl returns error on request, don't change or check anything 
 
@@ -383,27 +379,27 @@ int PostPuzzleSolution(
     json_t respond(0, REQ_LEN);
     curl_slist * headers = NULL;
     curl_slist * tmp;
-    int curlError;
+    CURLcode curlError;
     tmp = curl_slist_append(headers, "Accept: application/json");
     headers = curl_slist_append(tmp, "Content-Type: application/json");
 
-    curlError = curl_easy_setopt(curl, CURLOPT_URL, to);
-    CurlLogError(curlError, "Setting curl URL post error");
-
- 
-    curlError = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curlError += curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request);
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_URL, to));
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers));;
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request));
     
-    // set timeout to 60 sec for sending solution
-    curlError += curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 60L);
-    curlError += curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);    
-    curlError += curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc);
-    curlError += curl_easy_setopt(curl, CURLOPT_WRITEDATA, &respond);
-    CurlLogError(curlError, "POST options error");
-    //PERSISTENT_CALL_STATUS(curl_easy_perform(curl), CURLE_OK);
-    
-    curlError = curl_easy_perform(curl);
-    CurlLogError(curlError, "Posting solution error");
+    // set timeout to 10 sec for sending solution
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L));
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L));    
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc));
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEDATA, &respond));
+    int retries = 0;
+    do
+    {
+        curlError = curl_easy_perform(curl);
+        ++retries;
+    }
+    while (retries < MAX_POST_RETRIES && curlError != CURLE_OK);
+    CurlLogError(curlError);
 
 
     curl_easy_cleanup(curl);

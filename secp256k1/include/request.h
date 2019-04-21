@@ -47,7 +47,7 @@ int PostPuzzleSolution(
     const uint8_t * d
 );
 
-void CurlLogError(int curl_status, const char* message);
+void CurlLogError(CURLcode curl_status);
 
 
 #endif // REQUEST_H
