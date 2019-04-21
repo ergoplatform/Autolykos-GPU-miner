@@ -44,7 +44,7 @@ a config file `<YOUR_PATH>/autolykos/secp256k1/config.json` with stub contents.
 
 The mode of execution with `keepPrehash` option:
 1. `true` -- enable total unfinalized prehashes array (5GB) reusage. ( Should only be used if your CUDA devices have >= 8GB memory)
-2. `false` -- prehash recalculation for each block. (For CUDA devices with >= 4GB memory)
+2. `false` -- prehash recalculation for each block. (For CUDA devices with >= 3GB memory)
 
 To run the miner on all available CUDA devices type:
 ```
@@ -62,7 +62,7 @@ Press the key 'q' or 'Q' to exit the miner in a foreground mode (Linux).
 
 The mode of execution with `keepPrehash` option:
 1. `true` -- enable total unfinalized prehashes array (5GB) reusage. ( Should only be used if your CUDA devices have >= 8GB memory)
-2. `false` -- prehash recalculation for each block. (For CUDA devices with >= 4GB memory)
+2. `false` -- prehash recalculation for each block. (For CUDA devices with >= 3GB memory)
 
 To change CUDA devices available to the miner change environment variable `CUDA_VISIBLE_DEVICES` , for example ` set CUDA_VISIBLE_DEVICES="0,1" `
 
