@@ -1,5 +1,15 @@
-CXX = nvcc
-AR = ar
-COPT = -O3
-LIBNAME = lib.a
+# CUDA architechture
+CUDAARCH = 30
+
+# compiler
+STD = --std=c++11
+
+# side libs
 LIBS = -L/usr/local/lib -lcurl -I/usr/local/include -lssl -lcrypto
+
+# stub config content
+CONFIG = '{ \
+			 "seed": "do not disclose the secret seed", \
+			 "node": "http://188.166.89.71:9052", \
+			 "keepPrehash": false \
+		 }'

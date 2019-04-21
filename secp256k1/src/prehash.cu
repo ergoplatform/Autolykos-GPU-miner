@@ -502,16 +502,16 @@ __global__ void FinalPrehash(
     //====================================================================//
     uint32_t carry;
 
-    asm volatile ("sub.cc.u32 %0, %0, "q0_s";": "+r"(h[0]));
-    asm volatile ("subc.cc.u32 %0, %0, "q1_s";": "+r"(h[1]));
-    asm volatile ("subc.cc.u32 %0, %0, "q2_s";": "+r"(h[2]));
-    asm volatile ("subc.cc.u32 %0, %0, "q3_s";": "+r"(h[3]));
-    asm volatile ("subc.cc.u32 %0, %0, "q4_s";": "+r"(h[4]));
+    asm volatile ("sub.cc.u32 %0, %0, " q0_s ";": "+r"(h[0]));
+    asm volatile ("subc.cc.u32 %0, %0, " q1_s ";": "+r"(h[1]));
+    asm volatile ("subc.cc.u32 %0, %0, " q2_s ";": "+r"(h[2]));
+    asm volatile ("subc.cc.u32 %0, %0, " q3_s ";": "+r"(h[3]));
+    asm volatile ("subc.cc.u32 %0, %0, " q4_s ";": "+r"(h[4]));
 
 #pragma unroll
     for (int j = 5; j < 8; ++j)
     {
-        asm volatile ("subc.cc.u32 %0, %0, "qhi_s";": "+r"(h[j]));
+        asm volatile ("subc.cc.u32 %0, %0, " qhi_s ";": "+r"(h[j]));
     }
 
     asm volatile ("subc.u32 %0, 0, 0;": "=r"(carry));
@@ -519,21 +519,31 @@ __global__ void FinalPrehash(
     carry = 0 - carry;
 
     //====================================================================//
-    asm volatile ("mad.lo.cc.u32 %0, %1, "q0_s", %0;": "+r"(h[0]): "r"(carry));
-    asm volatile ("madc.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(h[1]): "r"(carry));
-    asm volatile ("madc.lo.cc.u32 %0, %1, "q2_s", %0;": "+r"(h[2]): "r"(carry));
-    asm volatile ("madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(h[3]): "r"(carry));
-    asm volatile ("madc.lo.cc.u32 %0, %1, "q4_s", %0;": "+r"(h[4]): "r"(carry));
+    asm volatile (
+        "mad.lo.cc.u32 %0, %1, " q0_s ", %0;": "+r"(h[0]): "r"(carry)
+    );
+    asm volatile (
+        "madc.lo.cc.u32 %0, %1, " q1_s ", %0;": "+r"(h[1]): "r"(carry)
+    );
+    asm volatile (
+        "madc.lo.cc.u32 %0, %1, " q2_s ", %0;": "+r"(h[2]): "r"(carry)
+    );
+    asm volatile (
+        "madc.lo.cc.u32 %0, %1, " q3_s ", %0;": "+r"(h[3]): "r"(carry)
+    );
+    asm volatile (
+        "madc.lo.cc.u32 %0, %1, " q4_s ", %0;": "+r"(h[4]): "r"(carry)
+    );
 
 #pragma unroll
     for (int j = 5; j < 7; ++j)
     {
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "qhi_s", %0;": "+r"(h[j]): "r"(carry)
+            "madc.lo.cc.u32 %0, %1, " qhi_s ", %0;": "+r"(h[j]): "r"(carry)
         );
     }
 
-    asm volatile ("madc.lo.u32 %0, %1, "qhi_s", %0;": "+r"(h[7]): "r"(carry));
+    asm volatile ("madc.lo.u32 %0, %1, " qhi_s ", %0;": "+r"(h[7]): "r"(carry));
 
     //===================================================================//
     //  Dump result to global memory -- BIG ENDIAN
@@ -713,38 +723,38 @@ __global__ void FinalPrehashMultSecKey(
     //====================================================================//
     //  med[0, ..., 5] = d * Q
     //====================================================================//
-        asm volatile ("mul.lo.u32 %0, %1, "q0_s";": "=r"(med[0]): "r"(d[0]));
-        asm volatile ("mul.hi.u32 %0, %1, "q0_s";": "=r"(med[1]): "r"(d[0]));
-        asm volatile ("mul.lo.u32 %0, %1, "q2_s";": "=r"(med[2]): "r"(d[0]));
-        asm volatile ("mul.hi.u32 %0, %1, "q2_s";": "=r"(med[3]): "r"(d[0]));
+        asm volatile ("mul.lo.u32 %0, %1, " q0_s ";": "=r"(med[0]): "r"(d[0]));
+        asm volatile ("mul.hi.u32 %0, %1, " q0_s ";": "=r"(med[1]): "r"(d[0]));
+        asm volatile ("mul.lo.u32 %0, %1, " q2_s ";": "=r"(med[2]): "r"(d[0]));
+        asm volatile ("mul.hi.u32 %0, %1, " q2_s ";": "=r"(med[3]): "r"(d[0]));
 
         asm volatile (
-            "mad.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[1]): "r"(d[0])
+            "mad.lo.cc.u32 %0, %1, " q1_s ", %0;": "+r"(med[1]): "r"(d[0])
         );
 
         asm volatile (
-            "madc.hi.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[2]): "r"(d[0])
+            "madc.hi.cc.u32 %0, %1, " q1_s ", %0;": "+r"(med[2]): "r"(d[0])
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(med[3]): "r"(d[0])
+            "madc.lo.cc.u32 %0, %1, " q3_s ", %0;": "+r"(med[3]): "r"(d[0])
         );
 
         asm volatile (
-            "madc.hi.u32 %0, %1, "q3_s", 0;": "=r"(med[4]): "r"(d[0])
+            "madc.hi.u32 %0, %1, " q3_s ", 0;": "=r"(med[4]): "r"(d[0])
         );
 
     //====================================================================//
         asm volatile (
-            "mad.lo.cc.u32 %0, %1, "q0_s", %0;": "+r"(med[1]): "r"(d[1])
+            "mad.lo.cc.u32 %0, %1, " q0_s ", %0;": "+r"(med[1]): "r"(d[1])
         );
 
         asm volatile (
-            "madc.hi.cc.u32 %0, %1, "q0_s", %0;": "+r"(med[2]): "r"(d[1])
+            "madc.hi.cc.u32 %0, %1, " q0_s ", %0;": "+r"(med[2]): "r"(d[1])
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q2_s", %0;": "+r"(med[3]): "r"(d[1])
+            "madc.lo.cc.u32 %0, %1, " q2_s ", %0;": "+r"(med[3]): "r"(d[1])
         );
 
         asm volatile (
@@ -754,19 +764,19 @@ __global__ void FinalPrehashMultSecKey(
         asm volatile ("addc.u32 %0, 0, 0;": "=r"(med[5]));
 
         asm volatile (
-            "mad.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[2]): "r"(d[1])
+            "mad.lo.cc.u32 %0, %1, " q1_s ", %0;": "+r"(med[2]): "r"(d[1])
         );
 
         asm volatile (
-            "madc.hi.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[3]): "r"(d[1])
+            "madc.hi.cc.u32 %0, %1, " q1_s ", %0;": "+r"(med[3]): "r"(d[1])
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(med[4]): "r"(d[1])
+            "madc.lo.cc.u32 %0, %1, " q3_s ", %0;": "+r"(med[4]): "r"(d[1])
         );
 
         asm volatile (
-            "madc.hi.u32 %0, %1, "q3_s", %0;": "+r"(med[5]): "r"(d[1])
+            "madc.hi.u32 %0, %1, " q3_s ", %0;": "+r"(med[5]): "r"(d[1])
         );
 
     //====================================================================//
@@ -801,16 +811,16 @@ __global__ void FinalPrehashMultSecKey(
     //====================================================================//
     //  Last 256 bit correction
     //====================================================================//
-    asm volatile ("sub.cc.u32 %0, %0, "q0_s";": "+r"(r[0]));
-    asm volatile ("subc.cc.u32 %0, %0, "q1_s";": "+r"(r[1]));
-    asm volatile ("subc.cc.u32 %0, %0, "q2_s";": "+r"(r[2]));
-    asm volatile ("subc.cc.u32 %0, %0, "q3_s";": "+r"(r[3]));
-    asm volatile ("subc.cc.u32 %0, %0, "q4_s";": "+r"(r[4]));
+    asm volatile ("sub.cc.u32 %0, %0, " q0_s ";": "+r"(r[0]));
+    asm volatile ("subc.cc.u32 %0, %0, " q1_s ";": "+r"(r[1]));
+    asm volatile ("subc.cc.u32 %0, %0, " q2_s ";": "+r"(r[2]));
+    asm volatile ("subc.cc.u32 %0, %0, " q3_s ";": "+r"(r[3]));
+    asm volatile ("subc.cc.u32 %0, %0, " q4_s ";": "+r"(r[4]));
 
 #pragma unroll
     for (int j = 5; j < 8; ++j)
     {
-        asm volatile ("subc.cc.u32 %0, %0, "qhi_s";": "+r"(r[j]));
+        asm volatile ("subc.cc.u32 %0, %0, " qhi_s ";": "+r"(r[j]));
     }
 
     //====================================================================//
@@ -819,21 +829,31 @@ __global__ void FinalPrehashMultSecKey(
     carry = 0 - carry;
 
     //====================================================================//
-    asm volatile ("mad.lo.cc.u32 %0, %1, "q0_s", %0;": "+r"(r[0]): "r"(carry));
-    asm volatile ("madc.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(r[1]): "r"(carry));
-    asm volatile ("madc.lo.cc.u32 %0, %1, "q2_s", %0;": "+r"(r[2]): "r"(carry));
-    asm volatile ("madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(r[3]): "r"(carry));
-    asm volatile ("madc.lo.cc.u32 %0, %1, "q4_s", %0;": "+r"(r[4]): "r"(carry));
+    asm volatile (
+        "mad.lo.cc.u32 %0, %1, " q0_s ", %0;": "+r"(r[0]): "r"(carry)
+    );
+    asm volatile (
+        "madc.lo.cc.u32 %0, %1, " q1_s ", %0;": "+r"(r[1]): "r"(carry)
+    );
+    asm volatile (
+        "madc.lo.cc.u32 %0, %1, " q2_s ", %0;": "+r"(r[2]): "r"(carry)
+    );
+    asm volatile (
+        "madc.lo.cc.u32 %0, %1, " q3_s ", %0;": "+r"(r[3]): "r"(carry)
+    );
+    asm volatile (
+        "madc.lo.cc.u32 %0, %1, " q4_s ", %0;": "+r"(r[4]): "r"(carry)
+    );
 
 #pragma unroll
     for (int j = 5; j < 7; ++j)
     {
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "qhi_s", %0;": "+r"(r[j]): "r"(carry)
+            "madc.lo.cc.u32 %0, %1, " qhi_s ", %0;": "+r"(r[j]): "r"(carry)
         );
     }
 
-    asm volatile ("madc.lo.u32 %0, %1, "qhi_s", %0;": "+r"(r[7]): "r"(carry));
+    asm volatile ("madc.lo.u32 %0, %1, " qhi_s ", %0;": "+r"(r[7]): "r"(carry));
 
     //===================================================================//
     //  Dump result to global memory -- LITTLE ENDIAN

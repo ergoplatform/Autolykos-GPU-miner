@@ -58,8 +58,8 @@ __global__ void BlockMining(
     const uint32_t * bound,
     // data: pk || mes || w || padding || x || sk || ctx
     const uint32_t * data,
-    // pregenerated nonces
-    const uint32_t * non,
+    // nonce base
+    const uint64_t base,
     // precalculated hashes
     const uint32_t * hash,
     // results
@@ -103,7 +103,12 @@ __global__ void BlockMining(
         tid = threadIdx.x + blockDim.x * blockIdx.x
             + l * gridDim.x * blockDim.x;
 
-        const uint8_t * mes = (const uint8_t *)(non + tid * NONCE_SIZE_32);
+        uint32_t non[NONCE_SIZE_32];
+
+        *((uint64_t *)non) = base;
+
+        asm volatile ("add.cc.u32 %0, %0, %1;": "+r"(non[0]): "r"(tid));
+        asm volatile ("addc.u32 %0, %0, 0;": "+r"(non[1]));
 
     //====================================================================//
     //  Hash nonce
@@ -111,7 +116,7 @@ __global__ void BlockMining(
 #pragma unroll
         for (j = 0; ctx->c < BUF_SIZE_8 && j < NONCE_SIZE_8; ++j)
         {
-            ctx->b[ctx->c++] = mes[j];
+            ctx->b[ctx->c++] = ((uint8_t *)non)[NONCE_SIZE_8 - j - 1];
         }
 
 #pragma unroll
@@ -122,7 +127,7 @@ __global__ void BlockMining(
 #pragma unroll
             for ( ; ctx->c < BUF_SIZE_8 && j < NONCE_SIZE_8; ++j)
             {
-                ctx->b[ctx->c++] = mes[j];
+                ctx->b[ctx->c++] = ((uint8_t *)non)[NONCE_SIZE_8 - j - 1];
             }
         }
 
@@ -227,24 +232,26 @@ __global__ void BlockMining(
         d[0] = r[8];
 
     //====================================================================//
-        asm volatile ("mul.lo.u32 %0, %1, "q0_s";": "=r"(med[0]): "r"(*d));
-        asm volatile ("mul.hi.u32 %0, %1, "q0_s";": "=r"(med[1]): "r"(*d));
-        asm volatile ("mul.lo.u32 %0, %1, "q2_s";": "=r"(med[2]): "r"(*d));
-        asm volatile ("mul.hi.u32 %0, %1, "q2_s";": "=r"(med[3]): "r"(*d));
+        asm volatile ("mul.lo.u32 %0, %1, " q0_s ";": "=r"(med[0]): "r"(*d));
+        asm volatile ("mul.hi.u32 %0, %1, " q0_s ";": "=r"(med[1]): "r"(*d));
+        asm volatile ("mul.lo.u32 %0, %1, " q2_s ";": "=r"(med[2]): "r"(*d));
+        asm volatile ("mul.hi.u32 %0, %1, " q2_s ";": "=r"(med[3]): "r"(*d));
 
         asm volatile (
-            "mad.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[1]): "r"(*d)
+            "mad.lo.cc.u32 %0, %1, " q1_s ", %0;": "+r"(med[1]): "r"(*d)
         );
 
         asm volatile (
-            "madc.hi.cc.u32 %0, %1, "q1_s", %0;": "+r"(med[2]): "r"(*d)
+            "madc.hi.cc.u32 %0, %1, " q1_s ", %0;": "+r"(med[2]): "r"(*d)
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(med[3]): "r"(*d)
+            "madc.lo.cc.u32 %0, %1, " q3_s ", %0;": "+r"(med[3]): "r"(*d)
         );
 
-        asm volatile ("madc.hi.u32 %0, %1, "q3_s", 0;": "=r"(med[4]): "r"(*d));
+        asm volatile (
+            "madc.hi.u32 %0, %1, " q3_s ", 0;": "=r"(med[4]): "r"(*d)
+        );
 
     //====================================================================//
         asm volatile ("sub.cc.u32 %0, %0, %1;": "+r"(r[0]): "r"(med[0]));
@@ -273,16 +280,16 @@ __global__ void BlockMining(
         asm volatile ("addc.u32 %0, %0, 0;": "+r"(r[7]));
 
     //====================================================================//
-        asm volatile ("sub.cc.u32 %0, %0, "q0_s";": "+r"(r[0]));
-        asm volatile ("subc.cc.u32 %0, %0, "q1_s";": "+r"(r[1]));
-        asm volatile ("subc.cc.u32 %0, %0, "q2_s";": "+r"(r[2]));
-        asm volatile ("subc.cc.u32 %0, %0, "q3_s";": "+r"(r[3]));
-        asm volatile ("subc.cc.u32 %0, %0, "q4_s";": "+r"(r[4]));
+        asm volatile ("sub.cc.u32 %0, %0, " q0_s ";": "+r"(r[0]));
+        asm volatile ("subc.cc.u32 %0, %0, " q1_s ";": "+r"(r[1]));
+        asm volatile ("subc.cc.u32 %0, %0, " q2_s ";": "+r"(r[2]));
+        asm volatile ("subc.cc.u32 %0, %0, " q3_s ";": "+r"(r[3]));
+        asm volatile ("subc.cc.u32 %0, %0, " q4_s ";": "+r"(r[4]));
 
 #pragma unroll
         for (int i = 5; i < 8; ++i)
         {
-            asm volatile ("subc.cc.u32 %0, %0, "qhi_s";": "+r"(r[i]));
+            asm volatile ("subc.cc.u32 %0, %0, " qhi_s ";": "+r"(r[i]));
         }
 
         asm volatile ("subc.u32 %0, 0, 0;": "=r"(*carry));
@@ -291,35 +298,35 @@ __global__ void BlockMining(
 
     //====================================================================//
         asm volatile (
-            "mad.lo.cc.u32 %0, %1, "q0_s", %0;": "+r"(r[0]): "r"(*carry)
+            "mad.lo.cc.u32 %0, %1, " q0_s ", %0;": "+r"(r[0]): "r"(*carry)
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q1_s", %0;": "+r"(r[1]): "r"(*carry)
+            "madc.lo.cc.u32 %0, %1, " q1_s ", %0;": "+r"(r[1]): "r"(*carry)
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q2_s", %0;": "+r"(r[2]): "r"(*carry)
+            "madc.lo.cc.u32 %0, %1, " q2_s ", %0;": "+r"(r[2]): "r"(*carry)
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q3_s", %0;": "+r"(r[3]): "r"(*carry)
+            "madc.lo.cc.u32 %0, %1, " q3_s ", %0;": "+r"(r[3]): "r"(*carry)
         );
 
         asm volatile (
-            "madc.lo.cc.u32 %0, %1, "q4_s", %0;": "+r"(r[4]): "r"(*carry)
+            "madc.lo.cc.u32 %0, %1, " q4_s ", %0;": "+r"(r[4]): "r"(*carry)
         );
 
 #pragma unroll
         for (int i = 5; i < 7; ++i)
         {
             asm volatile (
-                "madc.lo.cc.u32 %0, %1, "qhi_s", %0;": "+r"(r[i]): "r"(*carry)
+                "madc.lo.cc.u32 %0, %1, " qhi_s ", %0;": "+r"(r[i]): "r"(*carry)
             );
         }
 
         asm volatile (
-            "madc.lo.u32 %0, %1, "qhi_s", %0;": "+r"(r[7]): "r"(*carry)
+            "madc.lo.u32 %0, %1, " qhi_s ", %0;": "+r"(r[7]): "r"(*carry)
         );
 
     //===================================================================//

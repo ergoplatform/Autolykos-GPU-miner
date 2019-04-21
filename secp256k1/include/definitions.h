@@ -12,6 +12,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <time.h>
+#include <atomic>
+#include <mutex>
 
 ////////////////////////////////////////////////////////////////////////////////
 //  PARAMETERS: Autolykos algorithm
@@ -68,10 +70,6 @@
 // BLAKE2b-256 hash buffer size
 #define BUF_SIZE_8        128
 
-
-//url size max
-#define MAX_URL_SIZE 1024
-
 ////////////////////////////////////////////////////////////////////////////////
 //  CONSTANTS: Q definition 64-bits and 32-bits words
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,8 +90,11 @@
 #define Q0                0xBFD25E8CD0364141
 
 ////////////////////////////////////////////////////////////////////////////////
-//  CONSTANTS: Curl http GET request JSMN specifiers
+//  CONSTANTS: Curl http & JSMN specifiers
 ////////////////////////////////////////////////////////////////////////////////
+// URL max size 
+#define MAX_URL_SIZE      1024
+
 // default request capacity
 #define JSON_CAPACITY     256
 
@@ -112,9 +113,6 @@
 // curl JSON position of public key
 #define PK_POS            6
 
-////////////////////////////////////////////////////////////////////////////////
-//  CONSTANTS: Config-file JSMN specifiers
-////////////////////////////////////////////////////////////////////////////////
 // total JSON objects count for config file
 #define CONF_LEN          7
 
@@ -139,6 +137,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //  Structs
 ////////////////////////////////////////////////////////////////////////////////
+typedef unsigned int uint_t;
+
 // autolukos puzzle state
 typedef enum
 {
@@ -155,6 +155,30 @@ struct timestamp_t
     timespec realtime;
     tm * timeinfo;
     char timestamp[30];
+};
+
+// global puzzle info
+struct info_t
+{
+    // Mutex for reading/writing data from info_t safely
+    std::mutex info_mutex;
+
+    // Mutex for curl usage/maybe future websocket
+    // not used now
+    // std::mutex io_mutex;
+
+    // Puzzle data to read
+    uint8_t bound_h[NUM_SIZE_8];
+    uint8_t mes_h[NUM_SIZE_8];
+    uint8_t sk_h[NUM_SIZE_8];
+    uint8_t pk_h[PK_SIZE_8];
+    char skstr[NUM_SIZE_4];
+    char pkstr[PK_SIZE_4 + 1];
+    int keepPrehash;
+    char to[MAX_URL_SIZE];
+
+    // Increment when new block is sent by node
+    std::atomic<uint_t> blockId; 
 };
 
 // json string for curl http requests and config 
@@ -581,7 +605,7 @@ do                                                                             \
 {                                                                              \
     if (!(func))                                                               \
     {                                                                          \
-        fprintf(stderr, "ERROR:  "name" failed at %s: %d\n",__FILE__,__LINE__);\
+        fprintf(stderr, "ERROR:  " name " failed at %s: %d\n",__FILE__,__LINE__);\
         exit(EXIT_FAILURE);                                                    \
     }                                                                          \
 }                                                                              \
@@ -592,7 +616,7 @@ do                                                                             \
 {                                                                              \
     if (!((res) = (func)))                                                     \
     {                                                                          \
-        fprintf(stderr, "ERROR:  "name" failed at %s: %d\n",__FILE__,__LINE__);\
+        fprintf(stderr, "ERROR:  " name " failed at %s: %d\n",__FILE__,__LINE__);\
         exit(EXIT_FAILURE);                                                    \
     }                                                                          \
 }                                                                              \
@@ -603,7 +627,7 @@ do                                                                             \
 {                                                                              \
     if ((func) != (status))                                                    \
     {                                                                          \
-        fprintf(stderr, "ERROR:  "name" failed at %s: %d\n",__FILE__,__LINE__);\
+        fprintf(stderr, "ERROR:  " name " failed at %s: %d\n",__FILE__,__LINE__);\
         exit(EXIT_FAILURE);                                                    \
     }                                                                          \
 }                                                                              \
@@ -614,7 +638,7 @@ do                                                                             \
 {                                                                              \
     if ((res = func) != (status))                                              \
     {                                                                          \
-        fprintf(stderr, "ERROR:  "name" failed at %s: %d\n",__FILE__,__LINE__);\
+        fprintf(stderr, "ERROR:  " name " failed at %s: %d\n",__FILE__,__LINE__);\
         exit(EXIT_FAILURE);                                                    \
     }                                                                          \
 }                                                                              \

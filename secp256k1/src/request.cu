@@ -118,7 +118,7 @@ int TerminationRequestHandler(
     fcntl(STDIN_FILENO, F_SETFL, oldf);
 
     // terminating when any character is stroken
-    if (ch != EOF)
+    if (ch == 'q' || ch == 'Q')
     {
         ungetc(ch, stdin);
 
@@ -322,7 +322,7 @@ int PostPuzzleSolution(
     strcpy(request + pos, "\",\"n\":\"");
     pos += 7;
 
-    BigEndianToHexStr(nonce, NONCE_SIZE_8, request + pos);
+    LittleEndianToHexStr(nonce, NONCE_SIZE_8, request + pos);
     pos += NONCE_SIZE_4;
 
     strcpy(request + pos, "\",\"d\":");
