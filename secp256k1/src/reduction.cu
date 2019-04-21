@@ -18,9 +18,7 @@ namespace cg = cooperative_groups;
 ////////////////////////////////////////////////////////////////////////////////
 //  Find smallest power of two not lesser then given number
 ////////////////////////////////////////////////////////////////////////////////
-uint32_t CeilToPower(
-    uint32_t x
-)
+uint32_t CeilToPower(uint32_t x)
 {
     --x;
 
@@ -36,7 +34,7 @@ uint32_t CeilToPower(
 ////////////////////////////////////////////////////////////////////////////////
 //  Find non zero item in block
 ////////////////////////////////////////////////////////////////////////////////
-template <uint32_t blockSize>
+template<uint32_t blockSize>
 __global__ void BlockNonZero(
     uint32_t * in,
     uint32_t inlen,
@@ -45,7 +43,7 @@ __global__ void BlockNonZero(
 {
     uint32_t ind = 0;
     uint32_t tid = threadIdx.x;
-    __shared__ uint32_t sdata[B_DIM];
+    __shared__ uint32_t sdata[BLOCK_DIM];
 
     cg::thread_block cta = cg::this_thread_block();
 
@@ -67,10 +65,7 @@ __global__ void BlockNonZero(
     {
         cg::coalesced_group active = cg::coalesced_threads();
 
-        if (blockSize >= 64)
-        {
-            ind += !ind * sdata[tid + 32];
-        }
+        if (blockSize >= 64) { ind += !ind * sdata[tid + 32]; }
 
         for (int offset = warpSize >> 1; offset > 0; offset >>= 1) 
         {
@@ -113,18 +108,12 @@ __global__ void BlockNonZero(
 
     cg::sync(cta);
 
-    if (blockSize >= 2 && tid < 1)
-    {
-        ind += !ind * sdata[tid +  1];
-    }
+    if (blockSize >= 2 && tid < 1) { ind += !ind * sdata[tid +  1]; }
 
     cg::sync(cta);
 #endif
 
-    if (tid == 0)
-    {
-        out[blockIdx.x] = ind;
-    }
+    if (!tid) { out[blockIdx.x] = ind; }
 
     return;
 }
@@ -155,19 +144,19 @@ void ReduceNonZero(
             break;
 
         case 8:
-            BlockNonZero< 8><<<gridSize, blockSize>>>(in, inlen, out);
+            BlockNonZero<8><<<gridSize, blockSize>>>(in, inlen, out);
             break;
 
         case 4:
-            BlockNonZero< 4><<<gridSize, blockSize>>>(in, inlen, out);
+            BlockNonZero<4><<<gridSize, blockSize>>>(in, inlen, out);
             break;
 
         case 2:
-            BlockNonZero< 2><<<gridSize, blockSize>>>(in, inlen, out);
+            BlockNonZero<2><<<gridSize, blockSize>>>(in, inlen, out);
             break;
 
         case 1:
-            BlockNonZero< 1><<<gridSize, blockSize>>>(in, inlen, out);
+            BlockNonZero<1><<<gridSize, blockSize>>>(in, inlen, out);
             break;
     }
 
@@ -184,8 +173,8 @@ uint32_t FindNonZero(
 )
 {
     uint32_t res;
-    uint32_t gridSize = 1 + (inlen - 1) / (2 * B_DIM);
-    uint32_t blockSize = B_DIM;
+    uint32_t gridSize = 1 + (inlen - 1) / (2 * BLOCK_DIM);
+    uint32_t blockSize = BLOCK_DIM;
     uint32_t * tmp;
 
     while (inlen > 1)
@@ -194,10 +183,7 @@ uint32_t FindNonZero(
 
         inlen = gridSize;
 
-        if (inlen < 64)
-        {
-            blockSize = CeilToPower((inlen + 1) >> 1);
-        }
+        if (inlen < 64) { blockSize = CeilToPower((inlen + 1) >> 1); }
 
         gridSize = 1 + (inlen - 1) / (2 * blockSize);
 
@@ -207,7 +193,7 @@ uint32_t FindNonZero(
     }
 
     CUDA_CALL(cudaMemcpy(
-        (void *)&res, (void *)data, 4, cudaMemcpyDeviceToHost
+        (void *)&res, (void *)data, INDEX_SIZE_8, cudaMemcpyDeviceToHost
     ));
 
     return res;

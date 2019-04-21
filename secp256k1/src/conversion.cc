@@ -1,4 +1,4 @@
-// conversion.c
+// conversion.cc
 
 /*******************************************************************************
 
@@ -29,14 +29,8 @@ int DecStrToHexStrOf64(
 
     for (int i = inlen - 1, k = 0; i >= 0; --i)
     {
-        if (in[i] >= '0' && in[i] <= '9')
-        {
-            fs[k++] = (uint32_t)(in[i] - '0');
-        }
-        else
-        {
-            CALL(0, ERROR_IO);
-        }
+        if (in[i] >= '0' && in[i] <= '9') { fs[k++] = (uint32_t)(in[i] - '0'); }
+        else { CALL(0, ERROR_IO); }
     }
 
     uint32_t ts[74] = {1};
@@ -62,10 +56,7 @@ int DecStrToHexStrOf64(
             while (tmp >= 16);
         }
 
-        for (int j = 0; j < 64; ++j)
-        {
-            ts[j] *= 10;
-        }
+        for (int j = 0; j < 64; ++j) { ts[j] *= 10; }
 
         for (int j = 0; j < 64; ++j)
         {
@@ -188,10 +179,7 @@ void LittleEndianOf256ToDecStr(
             while (tmp >= 10);
         }
 
-        for (int j = 0; j < 78; ++j)
-        {
-            ts[j] <<= 4;
-        }
+        for (int j = 0; j < 78; ++j) { ts[j] <<= 4; }
 
         for (int j = 0; j < 78; ++j)
         {
@@ -217,14 +205,8 @@ void LittleEndianOf256ToDecStr(
     {
         if (lead)
         {
-            if (!(accs[i]))
-            {
-                continue;
-            }
-            else
-            {
-                lead = 0;
-            }
+            if (!(accs[i])) { continue; }
+            else { lead = 0; }
         }
 
         out[k++] = (char)(accs[i] + '0');
@@ -274,7 +256,6 @@ void BigEndianToHexStr(
     for (int i = 0; i < inlen << 1; ++i)
     {
         dig = (uint8_t)(in[i >> 1] >> (!(i & 1) << 2)) & 0xF;
-
         out[i] = (dig <= 9)? (char)dig + '0': (char)dig + 'A' - 0xA;
     }
 
@@ -283,4 +264,4 @@ void BigEndianToHexStr(
     return;
 }
 
-// conversion.c
+// conversion.cc

@@ -1,4 +1,4 @@
-// cryptography.cu
+// cryptography.cc
 
 /*******************************************************************************
 
@@ -27,7 +27,7 @@ int GenerateSecKey(
     char * skstr
 )
 {
-    context_t ctx;
+    ctx_t ctx;
     uint64_t aux[32];
 
     //====================================================================//
@@ -44,10 +44,7 @@ int GenerateSecKey(
     //====================================================================//
     for (int i = 0; i < len; ++i)
     {
-        if (ctx.c == 128)
-        {
-            HOST_B2B_H(&ctx, aux);
-        }
+        if (ctx.c == 128) { HOST_B2B_H(&ctx, aux); }
 
         ctx.b[ctx.c++] = (uint8_t)(in[i]);
     }
@@ -76,10 +73,7 @@ int GenerateSecKey(
     borrow[1] = ((uint64_t *)sk)[3] < Q3 + borrow[0];
     aux[3] = ((uint64_t *)sk)[3] - Q3 - borrow[0];
 
-    if (!(borrow[1] || borrow[0]))
-    {
-        memcpy(sk, aux, NUM_SIZE_8);
-    }
+    if (!(borrow[1] || borrow[0])) { memcpy(sk, aux, NUM_SIZE_8); }
 
     // convert secret key to hex string
     LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
@@ -229,4 +223,4 @@ int GeneratePublicKey(
     return EXIT_SUCCESS;
 }
 
-// cryptography.cu
+// cryptography.cc

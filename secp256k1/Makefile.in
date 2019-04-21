@@ -1,5 +1,13 @@
-CXX = nvcc
-AR = ar
-COPT = -O3
-LIBNAME = lib.a
+# CUDA architechture
+CUDAARCH = 70
+
+# CUDA maximum register usage per thread
+MAXREG = 179 -Xptxas -v
+
+BLOCKDIM = 16
+
+# compiler standard
+STD = --std=c++11
+
+# side libs paths
 LIBS = -L/usr/local/lib -lcurl -I/usr/local/include -lssl -lcrypto

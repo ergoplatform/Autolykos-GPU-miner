@@ -1,4 +1,4 @@
-// processing.cu
+// processing.cc
 
 /*******************************************************************************
 
@@ -12,7 +12,6 @@
 #include "../include/jsmn.h"
 #include "../include/request.h"
 #include <ctype.h>
-#include <cuda.h>
 #include <curl/curl.h>
 #include <inttypes.h>
 #include <stdint.h>
@@ -25,32 +24,9 @@
 #include <unistd.h>
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Time stamp
-////////////////////////////////////////////////////////////////////////////////
-char * TimeStamp(
-    timestamp_t * stamp
-)
-{
-    // get real time
-    clock_gettime(CLOCK_REALTIME, &(stamp->realtime));
-    // convert seconds to human-readable form
-    stamp->timeinfo = localtime(&((stamp->realtime).tv_sec));
-    // form time stamp
-    strftime(stamp->timestamp, 30, "%a %m/%d/%Y %H:%M:%S:", stamp->timeinfo);
-
-    // calculate milliseconds
-    long int millisec = (stamp->realtime).tv_nsec / 1e6;
-    sprintf(stamp->timestamp + 24, "%03d: ", millisec);
-
-    return stamp->timestamp;
-}
- 
-////////////////////////////////////////////////////////////////////////////////
 //  Find file size
 ////////////////////////////////////////////////////////////////////////////////
-long int FindFileSize(
-    const char * filename
-)
+long int FindFileSize(const char * filename)
 {
     struct stat st;
 
@@ -68,100 +44,70 @@ int ReadConfig(
     char * skstr,
     char * from,
     char * to,
-    int * keep,
-    timestamp_t * stamp
+    int * keep
 )
 {
     FILE * in = fopen(filename, "r");
 
     long int len = FindFileSize(filename); 
-    char config[len + 1];
-    config[len] = '\0'; 
+    json_t config(len, CONF_LEN);
 
-    for (int i = 0; (config[i] = fgetc(in)) != EOF; ++i) {}
+    for (int i = 0; (config.ptr[i] = fgetc(in)) != EOF; ++i) {}
 
     fclose(in);
 
-    jsmntok_t tokens[C_LEN];
     jsmn_parser parser;
-
     jsmn_init(&parser);
-    jsmn_parse(&parser, config, len, tokens, C_LEN);
 
-    for (int i = tokens[KEEP_POS].start; i < tokens[KEEP_POS].end; ++i)
+    jsmn_parse(&parser, config.ptr, config.len, config.toks, CONF_LEN);
+
+    for (
+        int i = config.GetTokenStartPos(KEEP_POS);
+        i < config.GetTokenEndPos(KEEP_POS);
+        ++i
+    )
     {
-        config[i] = toupper(config[i]);
+        config.ptr[i] = toupper(config.ptr[i]);
     }
 
-    --(tokens[SEED_POS].start);
-    config[tokens[SEED_POS].start] = '1';
-    config[tokens[SEED_POS].end] = '\0';
-    config[tokens[NODE_POS].end] = '\0';
-    config[tokens[KEEP_POS].end] = '\0';
+    --(config.toks[SEED_POS].start);
+    *(config.GetTokenStart(SEED_POS)) = '1';
+    *(config.GetTokenEnd(SEED_POS)) = '\0';
+    *(config.GetTokenEnd(NODE_POS)) = '\0';
+    *(config.GetTokenEnd(KEEP_POS)) = '\0';
 
     if (!strncmp(
-        config + tokens[KEEP_POS].start, "TRUE",
-        tokens[KEEP_POS].end - tokens[KEEP_POS].start
+        config.GetTokenStart(KEEP_POS), "TRUE", config.GetTokenLen(KEEP_POS)
     ))
     {
         *keep = 1;
     }
     else if (strncmp(
-        config + tokens[KEEP_POS].start, "FALSE", 
-        tokens[KEEP_POS].end - tokens[KEEP_POS].start
+        config.GetTokenStart(KEEP_POS), "FALSE", config.GetTokenLen(KEEP_POS)
     ))
     {
         fprintf(stderr, "ABORT:  Wrong value \"keepPrehash\"\n");
 
         fprintf(
-            stderr, "%s Miner is now terminated\n"
+            stderr, "Miner is now terminated\n"
             "========================================"
-            "========================================\n",
-            TimeStamp(stamp)
+            "========================================\n"
         );
 
         return EXIT_FAILURE;
     }
 
     GenerateSecKey(
-        config + tokens[SEED_POS].start,
-        tokens[SEED_POS].end - tokens[SEED_POS].start,
-        sk, skstr
+        config.GetTokenStart(SEED_POS), config.GetTokenLen(SEED_POS), sk, skstr
     );
 
-    strcpy(from, config + tokens[NODE_POS].start);
-    strcpy(
-        from + tokens[NODE_POS].end - tokens[NODE_POS].start,
-        "/mining/candidate"
-    );
+    strcpy(from, config.GetTokenStart(NODE_POS));
+    strcpy(from + config.GetTokenLen(NODE_POS), "/mining/candidate");
 
-    strcpy(to, config + tokens[NODE_POS].start);
-    strcpy(
-        to + tokens[NODE_POS].end - tokens[NODE_POS].start, "/mining/solution"
-    );
+    strcpy(to, config.GetTokenStart(NODE_POS));
+    strcpy(to + config.GetTokenLen(NODE_POS), "/mining/solution");
 
     return EXIT_SUCCESS;
-}
-
-/// to do /// Make deprecated, move nonce generation to on-the-fly approach
-////////////////////////////////////////////////////////////////////////////////
-//  Generate consequtive nonces
-////////////////////////////////////////////////////////////////////////////////
-__global__ void GenerateConseqNonces(
-    uint64_t * arr,
-    uint32_t len,
-    uint64_t base
-)
-{
-    uint32_t tid = threadIdx.x + blockDim.x * blockIdx.x;
-
-    uint64_t nonce = base + tid;
-
-    INPLACE_REVERSE_ENDIAN(&nonce);
-
-    if (tid < len) arr[tid] = nonce;
-
-    return;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,11 +119,10 @@ int PrintPuzzleState(
     const uint8_t * sk,
     const uint8_t * w,
     const uint8_t * x,
-    const uint8_t * bound,
-    timestamp_t * stamp
+    const uint8_t * bound
 )
 {
-    printf("%s Obtained candidate block:\n", TimeStamp(stamp)); 
+    printf("Obtained candidate block:\n"); 
     printf(
         "       m = 0x%016lX %016lX %016lX %016lX\n",
         REVERSE_ENDIAN((uint64_t *)mes + 0),
@@ -216,7 +161,7 @@ int PrintPuzzleSolution(
     const uint8_t * sol
 )
 {
-    printf("   nonce = 0x%016lX\n", REVERSE_ENDIAN((uint64_t *)nonce));
+    printf("   nonce = 0x%016lX\n", *((uint64_t *)nonce));
 
     printf(
         "       d = 0x%016lX %016lX %016lX %016lX\n",
@@ -229,4 +174,4 @@ int PrintPuzzleSolution(
     return EXIT_SUCCESS;
 }
 
-// processing.cu
+// processing.cc

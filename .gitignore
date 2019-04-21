@@ -3,3 +3,5 @@
 *lib
 *.out
 *.sh
+*.json
+*.log

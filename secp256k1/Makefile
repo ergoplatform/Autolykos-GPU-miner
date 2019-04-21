@@ -1,40 +1,69 @@
 .SUFFIXES:
-.SUFFIXES: .c .cu .o
+.SUFFIXES: .cc .c .cu .o
 
+# load options
 include Makefile.in
 
-SMS ?= 75 #30 35 37 50 52 53 60 62 61 70
+# set shell
+SHELL := /bin/bash
+
+# stub config content
+CONFIG = '{ \
+			 "seed": "do not disclose the secret seed", \
+			 "node": "http://188.166.89.71:9052", \
+			 "keepPrehash": false \
+		 }'
+
+# compiler 
+CXX = nvcc
+CFLAGS = -c
+CXXFLAGS = -c $(STD)
+COPT = -O3
+
+# find CUDA compute capability
+SMS ?= $(shell nvcc -h | grep "compute" | sed -e "s/['=, \d40\d41]/\n/g" \
+	   | grep compute | sort | uniq | cut -c 9-)
 
 ifeq ($(GENCODE_FLAGS),)
-$(foreach sm,$(SMS),\
-$(eval GENCODE_FLAGS += -gencode arch=compute_$(sm),code=sm_$(sm)))
-
-HIGHEST_SM := $(strip $(lastword $(sort $(SMS))))
+### useful ### $(foreach sm,$(SMS),\
+### useful ### $(eval GENCODE_FLAGS += -gencode arch=compute_$(sm),code=sm_$(sm)))
+HIGHEST_SM = $(strip $(lastword $(SMS)))
 ifneq ($(HIGHEST_SM),)
-GENCODE_FLAGS += -arch=sm_30 \
+GENCODE_FLAGS += -arch=sm_$(CUDAARCH) \
 	-gencode arch=compute_$(HIGHEST_SM),code=compute_$(HIGHEST_SM)
 endif
 endif
 
-CFLAGS = -c
-
+# define assembly
+AR = ar
 SRCDIR = ./src
-LIBPATH = ./lib/$(LIBNAME)
-CUSOURCES = $(filter-out $(SRCDIR)/autolykos.cu, $(wildcard $(SRCDIR)/*.cu))
-CSOURCES = $(wildcard $(SRCDIR)/*.c)
-OBJECTS = $(CUSOURCES:.cu=.o) $(CSOURCES:.c=.o)
+LIBPATH = ./lib/lib.a
 
-TESTEXEC = test.out
+# define sources
+CUSOURCES = $(filter-out $(SRCDIR)/autolykos.cu, $(wildcard $(SRCDIR)/*.cu))
+CPPSOURCES = $(wildcard $(SRCDIR)/*.cc)
+CSOURCES = $(wildcard $(SRCDIR)/*.c)
+
+# define objects
+OBJECTS = $(CUSOURCES:.cu=.o) $(CPPSOURCES:.cc=.o) $(CSOURCES:.c=.o)
+
+# define executable
 AUTOEXEC = auto.out
 
+# compile objects
 %.o: %.cu
-	$(CXX) $(COPT) $(CFLAGS) $(GENCODE_FLAGS) $< -o $@
+	$(CXX) $(COPT) $(CXXFLAGS) $(GENCODE_FLAGS) --maxrregcount $(MAXREG) \
+		-DBLOCK_DIM=$(BLOCKDIM) $< -o $@
+%.o: %.cc
+	$(CXX) $(COPT) $(CXXFLAGS) $< -o $@
 %.o: %.c
 	$(CXX) $(COPT) $(CFLAGS) $< -o $@
-###%jsmn.o: %jsmn.c
-###	$(CXX) $(COPT) $(CFLAGS) $< -o $@
 
 all: clean lib auto
+	@if ! [ -e "config.json" ]; then \
+		echo $(CONFIG) > config.json; \
+		echo "Stub config.json was generated"; \
+	fi
 
 lib: $(OBJECTS)
 	mkdir -p ./lib;
@@ -42,8 +71,8 @@ lib: $(OBJECTS)
 	ranlib $(LIBPATH)
 
 auto:
-	$(CXX) $(SRCDIR)/autolykos.cu $(LIBPATH) $(LIBS) $(COPT) $(GENCODE_FLAGS) \
-	-o $(AUTOEXEC)
+	$(CXX) $(SRCDIR)/autolykos.cu $(LIBPATH) $(LIBS) $(COPT) $(STD) \
+		$(GENCODE_FLAGS) -DBLOCK_DIM=$(BLOCKDIM) -o $(AUTOEXEC)
 
 clean:
 	rm -f $(OBJECTS) $(SRCDIR)/autolykos.o $(LIBPATH) $(TESTEXEC) $(AUTOEXEC)

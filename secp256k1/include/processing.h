@@ -9,15 +9,8 @@
 
 #include "definitions.h"
 
-// time stamp
-char * TimeStamp(
-    timestamp_t * stamp
-);
- 
 // find file size
-long int FindFileSize(
-    const char * filename
-);
+long int FindFileSize(const char * filename);
 
 // read config file
 int ReadConfig(
@@ -26,16 +19,7 @@ int ReadConfig(
     char * skstr,
     char * from,
     char * to,
-    int * keep,
-    timestamp_t * stamp
-);
-
-/// to do /// Make deprecated, move nonce generation to on-the-fly approach
-// generate consequtive nonces
-__global__ void GenerateConseqNonces(
-    uint64_t * arr,
-    uint32_t len,
-    uint64_t base
+    int * keep
 );
 
 // print Autolukos puzzle state variables
@@ -45,8 +29,7 @@ int PrintPuzzleState(
     const uint8_t * sk,
     const uint8_t * w,
     const uint8_t * x,
-    const uint8_t * bound,
-    timestamp_t * stamp
+    const uint8_t * bound
 );
 
 // print Autolukos puzzle solution

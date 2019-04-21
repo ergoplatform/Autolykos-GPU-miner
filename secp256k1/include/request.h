@@ -10,23 +10,16 @@
 #include "definitions.h"
 #include "jsmn.h"
 
-// initialize string_t for curl http GET
-int InitString(
-    string_t * str
-);
-
 // write function for curl http GET
 size_t WriteFunc(
     void * ptr,
     size_t size,
     size_t nmemb,
-    string_t * str
+    json_t * request
 );
 
 // lowercase letters convert to uppercase
-int ToUppercase(
-    char * str
-);
+int ToUppercase(char * str);
 
 // process termination handler
 int TerminationRequestHandler(
@@ -37,8 +30,7 @@ int TerminationRequestHandler(
 int GetLatestBlock(
     const char * from,
     const char * pkstr,
-    string_t * oldreq,
-    jsmntok_t * oldtoks,
+    json_t * oldreq,
     uint8_t * bound,
     uint8_t * mes,
     state_t * state,
