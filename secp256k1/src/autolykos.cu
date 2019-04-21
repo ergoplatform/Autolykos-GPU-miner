@@ -59,7 +59,6 @@ int main(int argc, char ** argv)
 
     info_t info;
     info.blockId = 1;
-    state_t state = STATE_CONTINUE;
 
     if (cudaGetDeviceCount(&deviceCount) != cudaSuccess)
     {
@@ -75,7 +74,6 @@ int main(int argc, char ** argv)
     char * fileName = (argc == 1)? confName: argv[1];
     char from[MAX_URL_SIZE];
     //char to[MAX_URL_SIZE];
-    int diff;
     // int keepPrehash = 0;
     json_t request(0, REQ_LEN);
     
