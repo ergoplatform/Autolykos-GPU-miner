@@ -196,9 +196,7 @@ void MinerThread(int deviceId, info_t * info)
     CUDA_CALL(cudaSetDevice(deviceId));
     sprintf(threadName, "GPU %i miner", deviceId);
     el::Helpers::setThreadName(threadName);    
-    //====================================================================//
-    //  Check GPU memory
-    //====================================================================//
+
 
     //====================================================================//
     //  Host memory allocation
