@@ -195,6 +195,9 @@ void MinerThread(int deviceId, info_t * info)
     cudaSetDevice(deviceId);
     sprintf(threadName, "GPU %i miner", deviceId);
     el::Helpers::setThreadName(threadName);    
+    //====================================================================//
+    //  Check GPU memory
+    //====================================================================//
 
     //====================================================================//
     //  Host memory allocation
@@ -244,6 +247,31 @@ void MinerThread(int deviceId, info_t * info)
     
     info->info_mutex.unlock();
     
+    //====================================================================//
+    //  Check GPU memory
+    //====================================================================//
+    size_t freeMem, totalMem;
+
+    CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
+    
+    if(freeMem < MIN_FREE_MEMORY)
+    {
+        LOG(ERROR) << "Not enough GPU memory for mining, minimum 2.8 GiB needed";
+        return;
+    }
+
+    if(keepPrehash == true && freeMem < MIN_FREE_MEMORY_PREHASH)
+    {
+        LOG(ERROR) << "Not enough memory for keeping prehashes, "
+                   << "setting keepPrehash to false";
+        keepPrehash = 0;
+    }
+    
+
+
+
+
+
     //====================================================================//
     //  Device memory allocation
     //====================================================================//
