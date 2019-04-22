@@ -68,7 +68,8 @@ int main(int argc, char ** argv)
 
     info_t info;
     info.blockId = 1;
-
+    info.keepPrehash = 0;
+    
     if (cudaGetDeviceCount(&deviceCount) != cudaSuccess)
     {
         LOG(ERROR) << "Error checking GPU";
@@ -260,7 +261,7 @@ void MinerThread(int deviceId, info_t * info)
         return;
     }
 
-    if(keepPrehash == true && freeMem < MIN_FREE_MEMORY_PREHASH)
+    if(keepPrehash && freeMem < MIN_FREE_MEMORY_PREHASH)
     {
         LOG(ERROR) << "Not enough memory for keeping prehashes, "
                    << "setting keepPrehash to false";
