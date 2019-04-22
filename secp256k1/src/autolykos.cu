@@ -69,7 +69,7 @@ int main(int argc, char ** argv)
     info_t info;
     info.blockId = 1;
     info.keepPrehash = 0;
-    
+
     if (cudaGetDeviceCount(&deviceCount) != cudaSuccess)
     {
         LOG(ERROR) << "Error checking GPU";
@@ -193,7 +193,7 @@ void MinerThread(int deviceId, info_t * info)
     state_t state = STATE_KEYGEN;
     char threadName[20];
 
-    cudaSetDevice(deviceId);
+    CUDA_CALL(cudaSetDevice(deviceId));
     sprintf(threadName, "GPU %i miner", deviceId);
     el::Helpers::setThreadName(threadName);    
     //====================================================================//
