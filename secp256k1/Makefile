@@ -29,9 +29,9 @@ ifeq ($(GENCODE_FLAGS),)
 ### useful ### $(eval GENCODE_FLAGS += -gencode arch=compute_$(sm),code=sm_$(sm)))
 HIGHEST_SM = $(strip $(lastword $(SMS)))
 ifneq ($(HIGHEST_SM),)
-GENCODE_FLAGS += -arch=sm_$(CUDAARCH) \
+GENCODE_FLAGS += -gencode arch=compute_$(CUDAARCH),code=sm_$(CUDAARCH) \
 	-gencode arch=compute_$(HIGHEST_SM),code=compute_$(HIGHEST_SM) \
-	-gencode arch=compute_35,code=sm_35
+	-gencode arch=compute_35,code=sm_35 # default arch for compatibility
 endif
 endif
 
