@@ -31,7 +31,7 @@ HIGHEST_SM = $(strip $(lastword $(SMS)))
 ifneq ($(HIGHEST_SM),)
 GENCODE_FLAGS += -arch=sm_$(CUDAARCH) \
 	-gencode arch=compute_$(HIGHEST_SM),code=compute_$(HIGHEST_SM) \
-	-gencode arch=compute_35, code=sm_35
+	-gencode arch=compute_35,code=sm_35
 endif
 endif
 
