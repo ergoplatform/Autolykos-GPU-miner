@@ -36,6 +36,12 @@
 ////////////////////////////////////////////////////////////////////////////////
 //  PARAMETERS: Heuristic prehash CUDA kernel parameters
 ////////////////////////////////////////////////////////////////////////////////
+
+// Memory compatibility checks
+#define MIN_FREE_MEMORY 2800000000
+#define MIN_FREE_MEMORY_PREHASH 8000000000
+
+
 // number of hashes per thread
 #define THREAD_LEN         1
 
