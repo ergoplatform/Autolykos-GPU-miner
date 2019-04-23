@@ -23,7 +23,6 @@ __global__ void InitPrehash(
     uint32_t * invalid
 )
 {
-    uint32_t j;
     uint32_t tid = threadIdx.x;
 
     // shared memory
@@ -40,6 +39,8 @@ __global__ void InitPrehash(
 
     if (tid < N_LEN)
     {
+        uint32_t j;
+
         // pk || mes || w
         // 2 * PK_SIZE_8 + NUM_SIZE_8 bytes
         uint32_t * rem = sdata;
@@ -129,9 +130,9 @@ __global__ void InitPrehash(
                 = (ctx->h[j >> 3] >> ((j & 7) << 3)) & 0xFF;
         }
 
-        //===================================================================//
+        //====================================================================//
         //  Dump result to global memory -- BIG ENDIAN
-        //===================================================================//
+        //====================================================================//
         j = ((uint64_t *)ldata)[3] < Q3
             || ((uint64_t *)ldata)[3] == Q3 && (
                 ((uint64_t *)ldata)[2] < Q2
@@ -147,7 +148,7 @@ __global__ void InitPrehash(
 #pragma unroll
         for (int i = 0; i < NUM_SIZE_8; ++i)
         {
-            ((uint8_t *)hashes)[tid * NUM_SIZE_8 + NUM_SIZE_8 - i - 1]
+            ((uint8_t *)hashes)[(tid + 1) * NUM_SIZE_8 - i - 1]
                 = ((uint8_t *)ldata)[i];
         }
     }
@@ -165,7 +166,6 @@ __global__ void UncompleteInitPrehash(
     uctx_t * uctxs
 )
 {
-    uint32_t j;
     uint32_t tid = threadIdx.x;
 
     // shared memory
@@ -182,6 +182,8 @@ __global__ void UncompleteInitPrehash(
 
     if (tid < N_LEN)
     {
+        uint32_t j;
+
         // public key
         // PK_SIZE_8 bytes
         uint32_t * pk = sdata;
@@ -255,15 +257,15 @@ __global__ void UncompleteInitPrehash(
             DEVICE_B2B_H(ctx, aux);
            
 #pragma unroll
-            for ( ; ctx->c < BUF_SIZE_8 && j < PK_SIZE_8; )
+            for ( ; ctx->c < BUF_SIZE_8 && j < PK_SIZE_8; ++j)
             {
-                ctx->b[ctx->c++] = ((const uint8_t *)pk)[j++];
+                ctx->b[ctx->c++] = ((const uint8_t *)pk)[j];
             }
         }
 
-        //===================================================================//
+        //====================================================================//
         //  Dump result to global memory
-        //===================================================================//
+        //====================================================================//
         memcpy(uctxs[tid].h, ctx->h, 8 * sizeof(uint64_t));
         memcpy(uctxs[tid].t, ctx->t, 2 * sizeof(uint64_t));
     }
@@ -362,13 +364,15 @@ __global__ void CompleteInitPrehash(
             ctx->b[ctx->c++] = rem[j];
         }
 
-        while (j < PK_SIZE_8 + NUM_SIZE_8)
+#pragma unroll
+        for ( ; j < PK_SIZE_8 + NUM_SIZE_8; )
         {
             DEVICE_B2B_H(ctx, aux);
            
-            while (ctx->c < BUF_SIZE_8 && j < PK_SIZE_8 + NUM_SIZE_8)
+#pragma unroll
+            for ( ; ctx->c < BUF_SIZE_8 && j < PK_SIZE_8 + NUM_SIZE_8; ++j)
             {
-                ctx->b[ctx->c++] = rem[j++];
+                ctx->b[ctx->c++] = rem[j];
             }
         }
 
@@ -526,7 +530,7 @@ __global__ void FinalPrehash(
         for (int i = 0; i < NUM_SIZE_8; ++i)
         {
              ((uint8_t *)h)[i]
-                 = ((uint8_t *)hashes)[tid * NUM_SIZE_8 + NUM_SIZE_8 - i - 1]; 
+                 = ((uint8_t *)hashes)[(tid + 1) * NUM_SIZE_8 - i - 1]; 
         }
 
         //====================================================================//
@@ -922,11 +926,7 @@ __global__ void FinalPrehashMultSecKey(
         //====================================================================//
         //  Dump result to global memory -- LITTLE ENDIAN
         //====================================================================//
-#pragma unroll
-        for (int i = 0; i < NUM_SIZE_32; ++i)
-        {
-            hashes[tid * NUM_SIZE_32 + i] = r[i];
-        }
+        memcpy(hashes + tid * NUM_SIZE_32, r, NUM_SIZE_8);
     }
 
     return;
@@ -947,7 +947,7 @@ int Prehash(
     uint32_t * invalid
 )
 {
-    uint32_t len = N_LEN; // N_LEN >= THREAD_LEN * LOAD_LEN -- assumption
+    uint32_t len = N_LEN; // N_LEN >= NONCES_PER_ITER -- assumption
 
     uint32_t * ind = invalid;
     uint32_t * comp = invalid + N_LEN;

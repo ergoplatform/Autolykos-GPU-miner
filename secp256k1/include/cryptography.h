@@ -3,7 +3,7 @@
 
 /*******************************************************************************
 
-    CRYPTOGRAPHY -- Key-pair handling with Openssl
+    CRYPTOGRAPHY -- Key-pair handling with OpenSSL
 
 *******************************************************************************/
 
@@ -18,10 +18,7 @@ int GenerateSecKey(
 );
 
 // generate random key pair
-int GenerateKeyPair(
-    uint8_t * sk,
-    uint8_t * pk
-);
+int GenerateKeyPair(uint8_t * sk, uint8_t * pk);
 
 // generate public key from secret key
 int GeneratePublicKey(

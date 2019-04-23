@@ -2,7 +2,7 @@
 
 /*******************************************************************************
 
-    PROCESSING -- puzzle cycle execution support
+    PROCESSING -- Puzzle cycle execution support
 
 *******************************************************************************/
 
@@ -10,7 +10,6 @@
 #include "../include/cryptography.h"
 #include "../include/definitions.h"
 #include "../include/jsmn.h"
-//#include "../include/request.h"
 #include <ctype.h>
 #include <curl/curl.h>
 #include <inttypes.h>
@@ -20,20 +19,15 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <time.h>
-
-#ifndef _WIN32
-#include <unistd.h>
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Find file size
 ////////////////////////////////////////////////////////////////////////////////
-long int FindFileSize(const char * filename)
+long int FindFileSize(const char * fileName)
 {
     struct stat st;
 
-    CALL_STATUS(stat(filename, &st), ERROR_STAT, 0);
+    CALL_STATUS(stat(fileName, &st), ERROR_STAT, 0);
 
     return st.st_size;
 }
@@ -42,7 +36,7 @@ long int FindFileSize(const char * filename)
 //  Read config file
 ////////////////////////////////////////////////////////////////////////////////
 int ReadConfig(
-    const char * filename,
+    const char * fileName,
     uint8_t * sk,
     char * skstr,
     char * from,
@@ -50,9 +44,9 @@ int ReadConfig(
     int * keep
 )
 {
-    FILE * in = fopen(filename, "r");
+    FILE * in = fopen(fileName, "r");
 
-    long int len = FindFileSize(filename); 
+    long int len = FindFileSize(fileName); 
     json_t config(len, CONF_LEN);
 
     for (int i = 0; (config.ptr[i] = fgetc(in)) != EOF; ++i) {}
@@ -68,10 +62,7 @@ int ReadConfig(
         int i = config.GetTokenStartPos(KEEP_POS);
         i < config.GetTokenEndPos(KEEP_POS);
         ++i
-    )
-    {
-        config.ptr[i] = toupper(config.ptr[i]);
-    }
+    ) { config.ptr[i] = toupper(config.ptr[i]); }
 
     --(config.toks[SEED_POS].start);
     *(config.GetTokenStart(SEED_POS)) = '1';

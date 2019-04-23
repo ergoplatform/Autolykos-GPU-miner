@@ -89,27 +89,26 @@ __global__ void BlockNonZero(
 
     if (blockSize >= 16 && tid < 8)
     {
-        sdata[tid] = ind = ind + !ind * sdata[tid +  8];
+        sdata[tid] = ind = ind + !ind * sdata[tid + 8];
     }
 
     cg::sync(cta);
 
     if (blockSize >= 8 && tid < 4)
     {
-        sdata[tid] = ind = ind + !ind * sdata[tid +  4];
+        sdata[tid] = ind = ind + !ind * sdata[tid + 4];
     }
 
     cg::sync(cta);
 
     if (blockSize >= 4 && tid < 2)
     {
-        sdata[tid] = ind = ind + !ind * sdata[tid +  2];
+        sdata[tid] = ind = ind + !ind * sdata[tid + 2];
     }
 
     cg::sync(cta);
 
-    if (blockSize >= 2 && tid < 1) { ind += !ind * sdata[tid +  1]; }
-
+    if (blockSize >= 2 && tid < 1) { ind += !ind * sdata[tid + 1]; }
     cg::sync(cta);
 #endif
 
@@ -173,8 +172,8 @@ uint32_t FindNonZero(
 )
 {
     uint32_t res;
-    uint32_t gridSize = 1 + (inlen - 1) / (2 * BLOCK_DIM);
-    uint32_t blockSize = BLOCK_DIM;
+    uint32_t blockSize = (BLOCK_DIM < 64)? CeilToPower(BLOCK_DIM): 64;
+    uint32_t gridSize = 1 + (inlen - 1) / (blockSize << 1);
     uint32_t * tmp;
 
     while (inlen > 1)
@@ -185,7 +184,7 @@ uint32_t FindNonZero(
 
         if (inlen < 64) { blockSize = CeilToPower((inlen + 1) >> 1); }
 
-        gridSize = 1 + (inlen - 1) / (2 * blockSize);
+        gridSize = 1 + (inlen - 1) / (blockSize << 1);
 
         tmp = data;
         data = aux;

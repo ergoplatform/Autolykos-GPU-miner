@@ -2,7 +2,7 @@
 
 /*******************************************************************************
 
-    CRYPTOGRAPHY -- Key-pair handling with Openssl
+    CRYPTOGRAPHY -- Key-pair handling with OpenSSL
 
 *******************************************************************************/
 
@@ -85,10 +85,7 @@ int GenerateSecKey(
 ////////////////////////////////////////////////////////////////////////////////
 //  Generate random key pair
 ////////////////////////////////////////////////////////////////////////////////
-int GenerateKeyPair(
-    uint8_t * sk,
-    uint8_t * pk
-)
+int GenerateKeyPair(uint8_t * sk, uint8_t * pk)
 {
     EC_KEY * eck = NULL;
     EVP_PKEY * evpk = NULL;

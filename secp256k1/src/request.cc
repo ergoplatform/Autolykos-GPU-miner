@@ -17,17 +17,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifndef _WIN32 
-#include <termios.h>
-#include <unistd.h>
-#endif
-
-#include <mutex>
 #include <atomic>
+#include <mutex>
+
+//#ifndef _WIN32 
+//#include <termios.h>
+//#include <unistd.h>
+//#endif
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Write function for curl http GET
+//  Write function for CURL http GET
 ////////////////////////////////////////////////////////////////////////////////
 size_t WriteFunc(
     void * ptr,
@@ -42,24 +41,15 @@ size_t WriteFunc(
     {
         request->cap = (newlen << 1) + 1;
 
-        //CALL(request->cap <= MAX_JSON_CAPACITY, ERROR_ALLOC);
-        /*
-        FUNCTION_CALL(
-            request->ptr, (char *)realloc(request->ptr, request->cap),
-            ERROR_ALLOC
-        );
-        */
-        if(request->cap > MAX_JSON_CAPACITY)
+        if (request->cap > MAX_JSON_CAPACITY)
         {
             LOG(ERROR) << "request cap > json capacity error in WriteFunc";
         }
 
-        if(! (request->ptr = (char*) realloc(request->ptr, request->cap )))
+        if (!(request->ptr = (char *)realloc(request->ptr, request->cap)))
         {
             LOG(ERROR) << "request ptr realloc error in WriteFunc";
         } 
-
-
     }
 
     memcpy(request->ptr + request->len, ptr, size * nmemb);
@@ -73,9 +63,7 @@ size_t WriteFunc(
 ////////////////////////////////////////////////////////////////////////////////
 //  Lowercase letters convert to uppercase
 ////////////////////////////////////////////////////////////////////////////////
-int ToUppercase(
-    char * str
-)
+int ToUppercase(char * str)
 {
     for (int i = 0; str[i] != '\0'; ++i) { str[i] = toupper(str[i]); }
 
@@ -83,105 +71,52 @@ int ToUppercase(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Process termination handler
+//  CURL log error 
 ////////////////////////////////////////////////////////////////////////////////
-int TerminationRequestHandler(
-    void
-)
-{
-    // maybe we don't need this handler, cause everything will die properly on Ctrl-C
-    // furthermore, on Windows it won't work (unix-specific termios stuff)
-    // and with new additions, it doesn't stop on Ctrl-C, which is pretty bad
-
-
-    #ifndef _WIN32
-    
-    // do nothing when in background
-    if (getpgrp() != tcgetpgrp(STDOUT_FILENO)) { return 0; }
-
-    termios oldt;
-    termios newt;
-    int ch;
-    int oldf;
-
-    tcgetattr(STDIN_FILENO, &oldt);
-
-    newt = oldt;
-    newt.c_lflag &= ~(ICANON | ECHO);
-
-    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-
-    ch = getchar();
-
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    fcntl(STDIN_FILENO, F_SETFL, oldf);
-
-    // terminating when any character is stroken
-    if (ch == 'q' || ch == 'Q')
-    {
-        ungetc(ch, stdin);
-
-        printf("Commencing termination\n");
-        fflush(stdout);
-
-        return 1;
-    }
-    
-    // continue otherwise
-    #endif
-    return 0;
-}
-
-
-//CURL* curl;
-
 void CurlLogError(CURLcode curl_status)
 {
-    if(curl_status != CURLE_OK)
+    if (curl_status != CURLE_OK)
     {
-        LOG(ERROR) << "CURL: " << curl_easy_strerror(curl_status) ;
+        LOG(ERROR) << "CURL: " << curl_easy_strerror(curl_status);
     }
 
+    return;
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
-//  Curl http GET request
+//  CURL http GET request
 ////////////////////////////////////////////////////////////////////////////////
 int GetLatestBlock(
     const char * from,
     json_t * oldreq,
     info_t * info,
-    bool checkPK
+    int checkPubKey
 )
 {
     CURL * curl;
     json_t newreq(0, REQ_LEN);
     jsmn_parser parser;
-    int changed = 0;
+
+    int mesChanged = 0;
     int boundChanged = 0;
-    //====================================================================//
+
+    //========================================================================//
     //  Get latest block
-    //====================================================================//
+    //========================================================================//
     newreq.Reset();
     CURLcode curlError;
     int diff = 0;
 
     curl = curl_easy_init();
     
-    if(!curl)
-    {
-        LOG(ERROR) << "Curl doesn't init in getblock";
-    }
+    if (!curl) { LOG(ERROR) << "Curl doesn't init in getblock"; }
+
     CurlLogError(curl_easy_setopt(curl, CURLOPT_URL, from));
     CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc));
     CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq));
     
-    // set timeout to 10sec so it doesn't hang up waiting for default 5 minutes if url is unreachable/wrong 
-
+    // set timeout to 10 sec so it doesn't hang up
+    // waiting for default 5 minutes if url is unreachable / wrong 
     CurlLogError(curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L));
     CurlLogError(curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L));
     curlError = curl_easy_perform(curl);
@@ -190,25 +125,24 @@ int GetLatestBlock(
     VLOG(1) << "GET request " << newreq.ptr;
     
     // if curl returns error on request, don't change or check anything 
-
-    if(!curlError)
+    if (!curlError)
     {
         ToUppercase(newreq.ptr);
         jsmn_init(&parser);
         jsmn_parse(&parser, newreq.ptr, newreq.len, newreq.toks, REQ_LEN);
+
         // no need to check node public key every time, i think
-        if(checkPK)
+        if (checkPubKey)
         {   
             if (strncmp(info->pkstr, newreq.GetTokenStart(PK_POS), PK_SIZE_4))
             {
-                
-                LOG(ERROR) << "Generated and received public keys do not match\n";
-                
+                LOG(ERROR)
+                    << "Generated and received public keys do not match\n";
                 
                 fprintf(
-                 stderr, "ABORT:  Public key derived from your secret key:\n"
-                 "        0x%.2s",
-                 info->pkstr
+                    stderr, "ABORT:  Public key derived from your secret key:\n"
+                    "        0x%.2s",
+                    info->pkstr
                 );
 
                 for (int i = 2; i < PK_SIZE_4; i += 16)
@@ -217,7 +151,8 @@ int GetLatestBlock(
                 }
             
                 fprintf(
-                    stderr, "\n""        is not equal to the expected public key:\n"
+                    stderr,
+                    "\n""        is not equal to the expected public key:\n"
                     "        0x%.2s", newreq.GetTokenStart(PK_POS)
                 );
 
@@ -233,10 +168,9 @@ int GetLatestBlock(
         }
  
         //====================================================================//
-        //  Substitute message and change state in case message changed
+        //  Substitute message and change state when message changed
         //====================================================================//
-        
-        changed = strncmp(
+        mesChanged = strncmp(
             oldreq->GetTokenStart(MES_POS), newreq.GetTokenStart(MES_POS),
             newreq.GetTokenLen(MES_POS)
         );
@@ -249,58 +183,50 @@ int GetLatestBlock(
         );
 
         //check if we need to change ANYTHING, only then lock info mutex
-        
-        if( changed 
-            || boundChanged
-            || !(oldreq->len)
+        if (
+            mesChanged || boundChanged || !(oldreq->len)
             || len != oldreq->GetTokenLen(BOUND_POS)
-          )
+        )
         {
-            
             info->info_mutex.lock();
             
-            //====================================================================//
-            //  Substitute message and change state in case message changed
-            //====================================================================//
-            
-            
-            
-            if (!(oldreq->len) || changed)
+            //================================================================//
+            //  Substitute message and change state when message changed
+            //================================================================//
+            if (!(oldreq->len) || mesChanged)
             {
                  HexStrToBigEndian(
-                 newreq.GetTokenStart(MES_POS), newreq.GetTokenLen(MES_POS),
-                 info->mes_h, NUM_SIZE_8
+                     newreq.GetTokenStart(MES_POS), newreq.GetTokenLen(MES_POS),
+                     info->mes, NUM_SIZE_8
                  );
             }
 
-
-            //====================================================================//
+            //================================================================//
             //  Substitute bound in case it changed
-            //====================================================================//
+            //================================================================//
             if (
-                 !(oldreq->len)
-                || len != oldreq->GetTokenLen(BOUND_POS)
+                 !(oldreq->len) || len != oldreq->GetTokenLen(BOUND_POS)
                 || boundChanged
-                )
+            )
             {
                 char buf[NUM_SIZE_4 + 1];
 
                 DecStrToHexStrOf64(newreq.GetTokenStart(BOUND_POS), len, buf);
-                HexStrToLittleEndian(buf, NUM_SIZE_4, info->bound_h, NUM_SIZE_8);
+                HexStrToLittleEndian(buf, NUM_SIZE_4, info->bound, NUM_SIZE_8);
 
                 diff = 1;
             }
             
             info->info_mutex.unlock();
-        
             
-            if(changed || diff)
+            if (mesChanged || diff)
             {
                 // signaling uint
                 ++(info->blockId);
                 LOG(INFO) << "Got new block in main thread";
             }
         }
+
         //====================================================================//
         //  Substitute old block with newly read
         //====================================================================//
@@ -315,7 +241,7 @@ int GetLatestBlock(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Curl http POST request
+//  CURL http POST request
 ////////////////////////////////////////////////////////////////////////////////
 int PostPuzzleSolution(
     const char * to,
@@ -330,9 +256,9 @@ int PostPuzzleSolution(
 
     char request[JSON_CAPACITY];
 
-    //====================================================================//
+    //========================================================================//
     //  Form message to post
-    //====================================================================//
+    //========================================================================//
     strcpy(request + pos, "{\"pk\":\"");
     pos += 7;
 
@@ -359,17 +285,19 @@ int PostPuzzleSolution(
 
     strcpy(request + pos, "e0}\0");
 
-
     VLOG(1) << "POST request " << request;
-    //====================================================================//
+
+    //========================================================================//
     //  POST request
-    //====================================================================//
+    //========================================================================//
     CURL * curl;
     curl = curl_easy_init();
-    if(!curl)
+
+    if (!curl)
     {
         LOG(ERROR) << "Curl doesn't initialize correctly in posting sol";
     }
+
     json_t respond(0, REQ_LEN);
     curl_slist * headers = NULL;
     curl_slist * tmp;
@@ -386,15 +314,17 @@ int PostPuzzleSolution(
     CurlLogError(curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L));    
     CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc));
     CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEDATA, &respond));
+
     int retries = 0;
+
     do
     {
         curlError = curl_easy_perform(curl);
         ++retries;
     }
     while (retries < MAX_POST_RETRIES && curlError != CURLE_OK);
-    CurlLogError(curlError);
 
+    CurlLogError(curlError);
 
     curl_easy_cleanup(curl);
     curl_slist_free_all(headers);
