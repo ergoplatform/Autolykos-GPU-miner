@@ -10,9 +10,10 @@
 #include "definitions.h"
 #include "jsmn.h"
 #include <curl/curl.h>
-#include <mutex>
 #include <atomic>
-// write function for curl http GET
+#include <mutex>
+
+// write function for CURL http GET
 size_t WriteFunc(
     void * ptr,
     size_t size,
@@ -23,20 +24,18 @@ size_t WriteFunc(
 // lowercase letters convert to uppercase
 int ToUppercase(char * str);
 
-// process termination handler
-int TerminationRequestHandler(
-    void
-);
+// CURL log error 
+void CurlLogError(CURLcode curl_status);
 
-// curl http GET request
+// CURL http GET request
 int GetLatestBlock(
     const char * from,
     json_t * oldreq,
     info_t * info,
-    bool checkPK
+    int checkPubKey
 );
 
-// curl http POST request
+// CURL http POST request
 int PostPuzzleSolution(
     const char * to,
     const char * pkstr,
@@ -44,8 +43,5 @@ int PostPuzzleSolution(
     const uint8_t * nonce,
     const uint8_t * d
 );
-
-void CurlLogError(CURLcode curl_status);
-
 
 #endif // REQUEST_H

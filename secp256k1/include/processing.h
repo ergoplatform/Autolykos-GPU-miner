@@ -3,18 +3,18 @@
 
 /*******************************************************************************
 
-    PROCESSING -- puzzle cycle execution support
+    PROCESSING -- Puzzle cycle execution support
 
 *******************************************************************************/
 
 #include "definitions.h"
 
 // find file size
-long int FindFileSize(const char * filename);
+long int FindFileSize(const char * fileName);
 
 // read config file
 int ReadConfig(
-    const char * filename,
+    const char * fileName,
     uint8_t * sk,
     char * skstr,
     char * from,

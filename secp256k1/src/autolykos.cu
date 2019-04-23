@@ -17,28 +17,28 @@
 #include "../include/processing.h"
 #include "../include/reduction.h"
 #include "../include/request.h"
-#include <atomic>
-#include <chrono>
 #include <ctype.h>
 #include <cuda.h>
 #include <curl/curl.h>
 #include <inttypes.h>
 #include <iostream>
-#include <mutex>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <atomic>
+#include <chrono>
+#include <mutex>
 #include <thread>
 #include <vector>
 
 #ifdef _WIN32
 #include <io.h>
-#define R_OK    4       
-#define W_OK    2       
-#define F_OK    0       
+#define R_OK 4       
+#define W_OK 2       
+#define F_OK 0       
 #define access _access
 #else
 #include <unistd.h>
@@ -83,12 +83,10 @@ int main(int argc, char ** argv)
     char confName[14] = "./config.json";
     char * fileName = (argc == 1)? confName: argv[1];
     char from[MAX_URL_SIZE];
-    int diff;
     
     json_t request(0, REQ_LEN);
     
     LOG(INFO) << "Using configuration file " << fileName;
-
 
     // check access to config file
     if (access(fileName, F_OK) == -1)
@@ -99,7 +97,7 @@ int main(int argc, char ** argv)
 
     // read config from file
     status = ReadConfig(
-        fileName, info.sk_h, info.skstr, from, info.to, &info.keepPrehash
+        fileName, info.sk, info.skstr, from, info.to, &info.keepPrehash
     );
 
     if (status == EXIT_FAILURE)
@@ -112,30 +110,29 @@ int main(int argc, char ** argv)
     LOG(INFO) << "Solution posting URL " << info.to;
 
     // generate public key from secret key
-    GeneratePublicKey(info.skstr, info.pkstr, info.pk_h);
+    GeneratePublicKey(info.skstr, info.pkstr, info.pk);
     
     char logstr[1000];
 
     sprintf(logstr,
         "Generated public key:\n"
         "   pk = 0x%02lX %016lX %016lX %016lX %016lX",
-        ((uint8_t *)info.pk_h)[0],
-        REVERSE_ENDIAN((uint64_t *)(info.pk_h + 1) + 0),
-        REVERSE_ENDIAN((uint64_t *)(info.pk_h + 1) + 1),
-        REVERSE_ENDIAN((uint64_t *)(info.pk_h + 1) + 2),
-        REVERSE_ENDIAN((uint64_t *)(info.pk_h + 1) + 3)
+        info.pk[0],
+        REVERSE_ENDIAN((uint64_t *)(info.pk + 1) + 0),
+        REVERSE_ENDIAN((uint64_t *)(info.pk + 1) + 1),
+        REVERSE_ENDIAN((uint64_t *)(info.pk + 1) + 2),
+        REVERSE_ENDIAN((uint64_t *)(info.pk + 1) + 3)
     );
 
     LOG(INFO) << logstr;
 
-    status = GetLatestBlock(
-        from, &request, &info, true
-    );
-    if(status != EXIT_SUCCESS)
-    {
-        LOG(INFO) << "First block getting request failed, maybe wrong node address?";
-    }
+    status = GetLatestBlock(from, &request, &info, true);
 
+    if (status != EXIT_SUCCESS)
+    {
+        LOG(INFO) << "First block getting request failed,"
+            << " maybe wrong node address?";
+    }
 
     std::vector<std::thread> miners(deviceCount);
 
@@ -144,9 +141,9 @@ int main(int argc, char ** argv)
         miners[i] = std::thread(MinerThread, i, &info);
     }
 
-    //====================================================================//
+    //========================================================================//
     //  Main cycle
-    //====================================================================//
+    //========================================================================//
     // bomb node with HTTP with 10ms intervals, if new block came 
     // signal miners with blockId
     uint_t curlcnt = 0;
@@ -155,14 +152,13 @@ int main(int argc, char ** argv)
     // using namespace std::chrono;
     milliseconds ms = milliseconds::zero(); 
 
-    while(!TerminationRequestHandler())
+    while (1)
     {
         milliseconds start = duration_cast<milliseconds>(
             system_clock::now().time_since_epoch()
         );
         
-        status = GetLatestBlock(
-            from, &request, &info, false);
+        status = GetLatestBlock(from, &request, &info, 0);
         
         if (status != EXIT_SUCCESS) { LOG(INFO) << "Getting block error"; }
 
@@ -197,10 +193,9 @@ void MinerThread(int deviceId, info_t * info)
     sprintf(threadName, "GPU %i miner", deviceId);
     el::Helpers::setThreadName(threadName);    
 
-
-    //====================================================================//
+    //========================================================================//
     //  Host memory allocation
-    //====================================================================//
+    //========================================================================//
     // curl http request
     json_t request(0, REQ_LEN);
 
@@ -221,7 +216,6 @@ void MinerThread(int deviceId, info_t * info)
     // cryptography variables
     char skstr[NUM_SIZE_4];
     char pkstr[PK_SIZE_4 + 1];
-    //char from[MAX_URL_SIZE];
     char to[MAX_URL_SIZE];
     int keepPrehash = 0;
 
@@ -229,15 +223,15 @@ void MinerThread(int deviceId, info_t * info)
     uint_t blockId = 0;
     milliseconds start; 
     
-    //====================================================================//
+    //========================================================================//
     //  Copy from global to thread local data
-    //====================================================================//
+    //========================================================================//
     info->info_mutex.lock();
 
-    memcpy(sk_h, info->sk_h, NUM_SIZE_8);
-    memcpy(mes_h, info->mes_h, NUM_SIZE_8);
-    memcpy(bound_h, info->bound_h, NUM_SIZE_8);
-    memcpy(pk_h, info->pk_h, PK_SIZE_8);
+    memcpy(sk_h, info->sk, NUM_SIZE_8);
+    memcpy(mes_h, info->mes, NUM_SIZE_8);
+    memcpy(bound_h, info->bound, NUM_SIZE_8);
+    memcpy(pk_h, info->pk, PK_SIZE_8);
     memcpy(pkstr, info->pkstr, (PK_SIZE_4 + 1) * sizeof(char));
     memcpy(skstr, info->skstr, NUM_SIZE_4 * sizeof(char));
     memcpy(to, info->to, MAX_URL_SIZE * sizeof(char));
@@ -246,65 +240,56 @@ void MinerThread(int deviceId, info_t * info)
     
     info->info_mutex.unlock();
     
-    //====================================================================//
+    //========================================================================//
     //  Check GPU memory
-    //====================================================================//
+    //========================================================================//
     size_t freeMem, totalMem;
 
-    CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
+    CUDA_CALL(cudaMemGetInfo(&freeMem, &totalMem));
     
-    if(freeMem < MIN_FREE_MEMORY)
+    if (freeMem < MIN_FREE_MEMORY)
     {
-        LOG(ERROR) << "Not enough GPU memory for mining, minimum 2.8 GiB needed";
+        LOG(ERROR) << "Not enough GPU memory for mining,"
+            << " minimum 2.8 GiB needed";
         return;
     }
 
-    if(keepPrehash && freeMem < MIN_FREE_MEMORY_PREHASH)
+    if (keepPrehash && freeMem < MIN_FREE_MEMORY_PREHASH)
     {
         LOG(ERROR) << "Not enough memory for keeping prehashes, "
                    << "setting keepPrehash to false";
         keepPrehash = 0;
     }
-    
 
-
-
-
-
-    //====================================================================//
+    //========================================================================//
     //  Device memory allocation
-    //====================================================================//
+    //========================================================================//
     LOG(INFO) << "GPU " << deviceId << " allocating memory";
 
     // boundary for puzzle
     // ~0 MiB
     uint32_t * bound_d;
-    CUDA_CALL(cudaMalloc((void **)&bound_d, NUM_SIZE_8));
+    CUDA_CALL(cudaMalloc((void **)&bound_d, NUM_SIZE_8 + DATA_SIZE_8));
 
     // data: pk || mes || w || padding || x || sk || ctx
     // (2 * PK_SIZE_8 + 2 + 3 * NUM_SIZE_8 + 212 + 4) bytes // ~0 MiB
-    uint32_t * data_d;
-    CUDA_CALL(cudaMalloc((void **)&data_d, DATA_SIZE_8));
+    uint32_t * data_d = bound_d + NUM_SIZE_32;
 
     // precalculated hashes
     // N_LEN * NUM_SIZE_8 bytes // 2 GiB
     uint32_t * hashes_d;
     CUDA_CALL(cudaMalloc((void **)&hashes_d, (uint32_t)N_LEN * NUM_SIZE_8));
 
-    // indices of unfinalized hashes
-    // (THREAD_LEN * N_LEN * 2 + 1) * INDEX_SIZE_8 bytes // ~512 MiB
-    uint32_t * indices_d;
-    CUDA_CALL(cudaMalloc(
-        (void **)&indices_d, (THREAD_LEN * N_LEN * 2 + 1) * INDEX_SIZE_8
-    ));
-
+    // WORKSPACE_SIZE_8 bytes // Depends on defines, now ~512 MiB
     // potential solutions of puzzle
-    // THREAD_LEN * LOAD_LEN * NUM_SIZE_8 bytes // 128 MiB
     uint32_t * res_d;
-    CUDA_CALL(cudaMalloc((void **)&res_d, THREAD_LEN * LOAD_LEN * NUM_SIZE_8));
+    CUDA_CALL(cudaMalloc((void **)&res_d, WORKSPACE_SIZE_8));
+
+    // indices of unfinalized hashes
+    uint32_t * indices_d = res_d + NONCES_PER_ITER * NUM_SIZE_32;
 
     // unfinalized hash contexts
-    // N_LEN * 80 bytes // 5 GiB
+    // if keepPrehash == true // N_LEN * 80 bytes // 5 GiB
     uctx_t * uctxs_d;
 
     if (keepPrehash)
@@ -314,9 +299,9 @@ void MinerThread(int deviceId, info_t * info)
         ));
     }
 
-    //====================================================================//
+    //========================================================================//
     //  Key-pair transfer form host to device
-    //====================================================================//
+    //========================================================================//
     // copy public key
     CUDA_CALL(cudaMemcpy(
         (void *)data_d, (void *)pk_h, PK_SIZE_8, cudaMemcpyHostToDevice
@@ -328,10 +313,9 @@ void MinerThread(int deviceId, info_t * info)
         NUM_SIZE_8, cudaMemcpyHostToDevice
     ));
 
-    //====================================================================//
+    //========================================================================//
     //  Autolykos puzzle cycle
-    //====================================================================//
-    //int diff = 0;
+    //========================================================================//
     uint32_t ind = 0;
     uint64_t base = 0;
 
@@ -362,7 +346,7 @@ void MinerThread(int deviceId, info_t * info)
                 ) - start;
 
             LOG(INFO) << "GPU " << deviceId << " hashrate "
-                << (double)LOAD_LEN * NCycles
+                << (double)NONCES_PER_ITER * NCycles
                 / ((double)1000 * timediff.count()) << " MH/s";
 
             start = duration_cast<milliseconds>(
@@ -386,12 +370,11 @@ void MinerThread(int deviceId, info_t * info)
             // read new message and bound to thread-local mem
             info->info_mutex.lock();
 
-            memcpy(mes_h, info->mes_h, NUM_SIZE_8);
-            memcpy(bound_h, info->bound_h, NUM_SIZE_8);
+            memcpy(mes_h, info->mes, NUM_SIZE_8);
+            memcpy(bound_h, info->bound, NUM_SIZE_8);
 
             info->info_mutex.unlock();
 
-            state = STATE_REHASH;
             LOG(INFO) << "GPU " << deviceId << " read new block data";
             blockId = controlId;
             
@@ -425,7 +408,7 @@ void MinerThread(int deviceId, info_t * info)
             ));
 
             VLOG(1) << "Starting prehashing with new block data";
-            Prehash(keepPrehash, data_d, uctxs_d, hashes_d, indices_d);
+            Prehash(keepPrehash, data_d, uctxs_d, hashes_d, res_d);
  
             state = STATE_CONTINUE;
         }
@@ -453,7 +436,7 @@ void MinerThread(int deviceId, info_t * info)
         VLOG(1) << "Starting main BlockMining procedure";
 
         // calculate solution candidates
-        BlockMining<<<1 + (LOAD_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
+        BlockMining<<<1 + (THREADS_PER_ITER - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             bound_d, data_d, base, hashes_d, res_d, indices_d
         );
 
@@ -464,7 +447,7 @@ void MinerThread(int deviceId, info_t * info)
 
         // try to find solution
         ind = FindNonZero(
-            indices_d, indices_d + THREAD_LEN * LOAD_LEN, THREAD_LEN * LOAD_LEN
+            indices_d, indices_d + NONCES_PER_ITER, NONCES_PER_ITER
         );
 
         // solution found
@@ -485,9 +468,9 @@ void MinerThread(int deviceId, info_t * info)
             state = STATE_KEYGEN;
         }
 
-        base += THREAD_LEN * LOAD_LEN;
+        base += NONCES_PER_ITER;
     }
-    while(1); // !TerminationRequestHandler()); 
+    while (1);
 
     return;
 }

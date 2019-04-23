@@ -63,7 +63,6 @@ __global__ void BlockMining(
     uint32_t * valid
 )
 {
-    uint32_t j;
     uint32_t tid = threadIdx.x;
 
     // shared memory
@@ -94,21 +93,26 @@ __global__ void BlockMining(
     ctx_t * ctx = (ctx_t *)(ldata + 64);
 
 #pragma unroll
-    for (int t = 0; t < THREAD_LEN; ++t) 
+    for (int t = 0; t < NONCES_PER_THREAD; ++t) 
     {
         *ctx = *((ctx_t *)(sdata + NUM_SIZE_32));
 
         tid = threadIdx.x + blockDim.x * blockIdx.x
             + t * gridDim.x * blockDim.x;
 
-        if (tid < LOAD_LEN)
+        if (tid < NONCES_PER_ITER)
         {
+            uint32_t j;
             uint32_t non[NONCE_SIZE_32];
 
-            *((uint64_t *)non) = base;
+            asm volatile (
+                "add.cc.u32 %0, %1, %2;":
+                "=r"(non[0]): "r"(((uint32_t *)&base)[0]), "r"(tid)
+            );
 
-            asm volatile ("add.cc.u32 %0, %0, %1;": "+r"(non[0]): "r"(tid));
-            asm volatile ("addc.u32 %0, %0, 0;": "+r"(non[1]));
+            asm volatile (
+                "addc.u32 %0, %1, 0;": "=r"(non[1]): "r"(((uint32_t *)&base)[1])
+            );
 
             //================================================================//
             //  Hash nonce
@@ -361,12 +365,7 @@ __global__ void BlockMining(
                 );
 
             valid[tid] = (1 - !j) * (tid + 1);
-
-#pragma unroll
-            for (int i = 0; i < NUM_SIZE_32; ++i)
-            {
-                res[tid * NUM_SIZE_32 + i] = r[i];
-            }
+            memcpy(res + tid * NUM_SIZE_32, r, NUM_SIZE_8);
         }
 
         __syncthreads();

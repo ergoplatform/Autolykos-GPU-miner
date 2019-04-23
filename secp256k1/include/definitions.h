@@ -24,54 +24,38 @@
 // prehash continue position 
 #define CONTINUE_POS       36
 
-// number of indices
+// k: number of indices
 #define K_LEN              32
 
-// number of precalculated hashes
+// N: number of precalculated hashes
 #define N_LEN              0x4000000 // 2^26
-
-// mod 2^26 mask
-#define N_MASK             (N_LEN - 1)
 
 ////////////////////////////////////////////////////////////////////////////////
 //  PARAMETERS: Heuristic prehash CUDA kernel parameters
 ////////////////////////////////////////////////////////////////////////////////
+// number of nonces per thread
+#define NONCES_PER_THREAD  1
 
+// total number of nonces per iteration
+#define NONCES_PER_ITER    0x200000 // 2^22
+
+////////////////////////////////////////////////////////////////////////////////
 // Memory compatibility checks
+// should probably be now more correctly set
 #define MIN_FREE_MEMORY 2800000000
 #define MIN_FREE_MEMORY_PREHASH 8000000000
-
-
-// number of hashes per thread
-#define THREAD_LEN         1
-
-// total number of hash loads (threads) per iteration
-#define LOAD_LEN           (0x400000 / THREAD_LEN) // 2^22
 
 ////////////////////////////////////////////////////////////////////////////////
 //  CONSTANTS: Autolykos algorithm
 ////////////////////////////////////////////////////////////////////////////////
-// secret keys and hashes size
+// secret key and hash size
 #define NUM_SIZE_8         32
-#define NUM_SIZE_4         (NUM_SIZE_8 << 1)
-#define NUM_SIZE_32        (NUM_SIZE_8 >> 2)
-#define NUM_SIZE_64        (NUM_SIZE_8 >> 3)
-#define NUM_SIZE_32_BLOCK  (1 + (NUM_SIZE_32 - 1) / BLOCK_DIM)
-#define NUM_SIZE_8_BLOCK   (NUM_SIZE_32_BLOCK << 2)
-#define ROUND_NUM_SIZE_32  (NUM_SIZE_32_BLOCK * BLOCK_DIM)
 
-// public keys size
+// public key size
 #define PK_SIZE_8          33
-#define PK_SIZE_4          (PK_SIZE_8 << 1)
-#define PK_SIZE_32_BLOCK   (1 + NUM_SIZE_32 / BLOCK_DIM)
-#define PK_SIZE_8_BLOCK    (PK_SIZE_32_BLOCK << 2)
-#define ROUND_PK_SIZE_32   (PK_SIZE_32_BLOCK * BLOCK_DIM)
-#define COUPLED_PK_SIZE_32 (((PK_SIZE_8 << 1) + 3) >> 2)
 
 // nonce size
 #define NONCE_SIZE_8       8
-#define NONCE_SIZE_4       (NONCE_SIZE_8 << 1)
-#define NONCE_SIZE_32      (NONCE_SIZE_8 >> 2)
 
 // index size
 #define INDEX_SIZE_8       4
@@ -79,36 +63,8 @@
 // BLAKE2b-256 hash buffer size
 #define BUF_SIZE_8         128
 
-struct ctx_t;
-
-// puzzle data size
-#define DATA_SIZE_8                                                            \
-(                                                                              \
-    (1 + (2 * PK_SIZE_8 + 2 + 3 * NUM_SIZE_8 + sizeof(ctx_t) - 1) / BLOCK_DIM) \
-    * BLOCK_DIM                                                                \
-)
-
-// mes || w sizes
-#define NP_SIZE_32_BLOCK   (1 + (NUM_SIZE_32 << 1) / BLOCK_DIM)
-#define NP_SIZE_8_BLOCK    (NP_SIZE_32_BLOCK << 2)
-#define ROUND_NP_SIZE_32   (NP_SIZE_32_BLOCK * BLOCK_DIM)
-
-// pk || mew || w sizes
-#define PNP_SIZE_32_BLOCK                                                      \
-(1 + (COUPLED_PK_SIZE_32 + NUM_SIZE_32 - 1) / BLOCK_DIM)
-
-#define PNP_SIZE_8_BLOCK   (PNP_SIZE_32_BLOCK << 2)
-#define ROUND_PNP_SIZE_32  (PNP_SIZE_32_BLOCK * BLOCK_DIM)
-
-// x || ctx sizes
-#define NC_SIZE_32_BLOCK                                                       \
-(1 + (NUM_SIZE_32 + sizeof(ctx_t) - 1) / BLOCK_DIM)
-
-#define NC_SIZE_8_BLOCK    (NC_SIZE_32_BLOCK << 2)
-#define ROUND_NC_SIZE_32   (NC_SIZE_32_BLOCK * BLOCK_DIM)
-
 ////////////////////////////////////////////////////////////////////////////////
-//  CONSTANTS: Q definition 64-bits and 32-bits words
+//  CONSTANTS: Q definition 32-bits and 64-bits words
 ////////////////////////////////////////////////////////////////////////////////
 // Q definition for CUDA ptx pseudo-assembler commands
 // 32 bits
@@ -119,8 +75,7 @@ struct ctx_t;
 #define q1_s               "0xBFD25E8C"
 #define q0_s               "0xD0364141"
 
-// Autolykos valid range
-// Q itself is multiplier-of-Q floor of 2^256
+// Valid range: Q itself is multiplier-of-Q floor of 2^256
 // 64 bits
 #define Q3                 0xFFFFFFFFFFFFFFFF
 #define Q2                 0xFFFFFFFFFFFFFFFE
@@ -130,14 +85,15 @@ struct ctx_t;
 ////////////////////////////////////////////////////////////////////////////////
 //  CONSTANTS: Curl http & JSMN specifiers
 ////////////////////////////////////////////////////////////////////////////////
-
-// CURL number of solution POST retries if failed
-
-#define MAX_POST_RETRIES 5
+// CURL number of retries to POST solution if failed
+#define MAX_POST_RETRIES   5
 
 // URL max size 
 #define MAX_URL_SIZE       1024
 
+//============================================================================//
+//  CURL requests
+//============================================================================//
 // default request capacity
 #define JSON_CAPACITY      256
 
@@ -147,15 +103,18 @@ struct ctx_t;
 // total JSON objects count
 #define REQ_LEN            7
 
-// curl JSON position of message
+// JSON position of message
 #define MES_POS            2
 
-// curl JSON position of bound
+// JSON position of bound
 #define BOUND_POS          4
 
-// curl JSON position of public key
+// JSON position of public key
 #define PK_POS             6
 
+//============================================================================//
+//  Configuration file 
+//============================================================================//
 // total JSON objects count for config file
 #define CONF_LEN           7
 
@@ -169,13 +128,89 @@ struct ctx_t;
 #define KEEP_POS           6
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Error messages
+//  Error messages 
 ////////////////////////////////////////////////////////////////////////////////
 #define ERROR_STAT         "stat"
 #define ERROR_ALLOC        "Host memory allocation"
 #define ERROR_IO           "I/O"
 #define ERROR_CURL         "Curl"
 #define ERROR_OPENSSL      "OpenSSL"
+
+////////////////////////////////////////////////////////////////////////////////
+//  Derived parameters
+////////////////////////////////////////////////////////////////////////////////
+// secret key and hash size
+#define NUM_SIZE_4         (NUM_SIZE_8 << 1)
+#define NUM_SIZE_32        (NUM_SIZE_8 >> 2)
+#define NUM_SIZE_64        (NUM_SIZE_8 >> 3)
+#define NUM_SIZE_32_BLOCK  (1 + (NUM_SIZE_32 - 1) / BLOCK_DIM)
+#define NUM_SIZE_8_BLOCK   (NUM_SIZE_32_BLOCK << 2)
+#define ROUND_NUM_SIZE_32  (NUM_SIZE_32_BLOCK * BLOCK_DIM)
+
+// public key sizes
+#define PK_SIZE_4          (PK_SIZE_8 << 1)
+#define PK_SIZE_32_BLOCK   (1 + NUM_SIZE_32 / BLOCK_DIM)
+#define PK_SIZE_8_BLOCK    (PK_SIZE_32_BLOCK << 2)
+#define ROUND_PK_SIZE_32   (PK_SIZE_32_BLOCK * BLOCK_DIM)
+#define COUPLED_PK_SIZE_32 (((PK_SIZE_8 << 1) + 3) >> 2)
+
+// nonce sizes
+#define NONCE_SIZE_4       (NONCE_SIZE_8 << 1)
+#define NONCE_SIZE_32      (NONCE_SIZE_8 >> 2)
+
+//============================================================================//
+//  Puzzle state
+//============================================================================//
+struct ctx_t;
+
+// puzzle data size
+#define DATA_SIZE_8                                                            \
+(                                                                              \
+    (1 + (2 * PK_SIZE_8 + 2 + 3 * NUM_SIZE_8 + sizeof(ctx_t) - 1) / BLOCK_DIM) \
+    * BLOCK_DIM                                                                \
+)
+
+// necessary workspace size
+#define WORKSPACE_SIZE_8                                                       \
+(                                                                              \
+    (                                                                          \
+        (uint32_t)((N_LEN << 1) + 1) * INDEX_SIZE_8                            \
+        > NONCES_PER_ITER * (NUM_SIZE_8  + (INDEX_SIZE_8 << 1)) + INDEX_SIZE_8 \
+    )?                                                                         \
+    (uint32_t)((N_LEN << 1) + 1) * INDEX_SIZE_8:                               \
+    NONCES_PER_ITER * (NUM_SIZE_8  + (INDEX_SIZE_8 << 1)) + INDEX_SIZE_8       \
+)
+
+//============================================================================//
+//  GPU shared memory
+//============================================================================//
+// (mes || w) sizes
+#define NP_SIZE_32_BLOCK   (1 + (NUM_SIZE_32 << 1) / BLOCK_DIM)
+#define NP_SIZE_8_BLOCK    (NP_SIZE_32_BLOCK << 2)
+#define ROUND_NP_SIZE_32   (NP_SIZE_32_BLOCK * BLOCK_DIM)
+
+// (pk || mes || w) sizes
+#define PNP_SIZE_32_BLOCK                                                      \
+(1 + (COUPLED_PK_SIZE_32 + NUM_SIZE_32 - 1) / BLOCK_DIM)
+
+#define PNP_SIZE_8_BLOCK   (PNP_SIZE_32_BLOCK << 2)
+#define ROUND_PNP_SIZE_32  (PNP_SIZE_32_BLOCK * BLOCK_DIM)
+
+// (x || ctx) sizes
+#define NC_SIZE_32_BLOCK                                                       \
+(1 + (NUM_SIZE_32 + sizeof(ctx_t) - 1) / BLOCK_DIM)
+
+#define NC_SIZE_8_BLOCK    (NC_SIZE_32_BLOCK << 2)
+#define ROUND_NC_SIZE_32   (NC_SIZE_32_BLOCK * BLOCK_DIM)
+
+//============================================================================//
+//  Heuristic CUDA parameters
+//============================================================================//
+// mod 2^26 mask
+#define N_MASK             (N_LEN - 1)
+
+// number of threads per iteration
+#define THREADS_PER_ITER   (NONCES_PER_ITER / NONCES_PER_THREAD)
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Structs
@@ -203,10 +238,10 @@ struct info_t
     // std::mutex io_mutex;
 
     // Puzzle data to read
-    uint8_t bound_h[NUM_SIZE_8];
-    uint8_t mes_h[NUM_SIZE_8];
-    uint8_t sk_h[NUM_SIZE_8];
-    uint8_t pk_h[PK_SIZE_8];
+    uint8_t bound[NUM_SIZE_8];
+    uint8_t mes[NUM_SIZE_8];
+    uint8_t sk[NUM_SIZE_8];
+    uint8_t pk[PK_SIZE_8];
     char skstr[NUM_SIZE_4];
     char pkstr[PK_SIZE_4 + 1];
     int keepPrehash;
@@ -216,7 +251,7 @@ struct info_t
     std::atomic<uint_t> blockId; 
 };
 
-// json string for curl http requests and config 
+// json string for CURL http requests and config 
 struct json_t
 {
     size_t cap;

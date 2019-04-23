@@ -7,6 +7,12 @@ include Makefile.in
 # set shell
 SHELL := /bin/bash
 
+# compiler standard
+STD = --std=c++11
+
+# side libs paths
+LIBS = -L/usr/local/lib -lcurl -I/usr/local/include -lssl -lcrypto
+
 # stub config content
 CONFIG = '{ \
 			 "seed": "do not disclose the secret seed", \
@@ -14,7 +20,7 @@ CONFIG = '{ \
 			 "keepPrehash": false \
 		 }'
 
-# compiler 
+# compiler settings
 CXX = nvcc
 CFLAGS = -c
 CXXFLAGS = -c $(STD)
@@ -38,10 +44,11 @@ endif
 ### code=compute_xx - PTX generation, PTX for compute_30 is compatible 
 ### with higher arches, but binary is not
 
-# define assembly
+# lib
 AR = ar
-SRCDIR = ./src
 LIBPATH = ./lib/lib.a
+
+SRCDIR = ./src
 
 # define sources
 CUSOURCES = $(filter-out $(SRCDIR)/autolykos.cu, $(wildcard $(SRCDIR)/*.cu))
@@ -63,21 +70,25 @@ AUTOEXEC = auto.out
 %.o: %.c
 	$(CXX) $(COPT) $(CFLAGS) $< -o $@
 
+# default
 all: clean lib auto
 	@if ! [ -e "config.json" ]; then \
 		echo $(CONFIG) > config.json; \
 		echo "Stub config.json was generated"; \
 	fi
 
+# lib
 lib: $(OBJECTS)
 	mkdir -p ./lib;
 	$(AR) rc $(LIBPATH) $(OBJECTS)
 	ranlib $(LIBPATH)
 
+# executable
 auto:
 	$(CXX) $(SRCDIR)/autolykos.cu $(LIBPATH) $(LIBS) $(COPT) $(STD) \
 		$(GENCODE_FLAGS) -DBLOCK_DIM=$(BLOCKDIM) -o $(AUTOEXEC)
 
+#
 clean:
 	rm -f $(OBJECTS) $(SRCDIR)/autolykos.o $(LIBPATH) $(TESTEXEC) $(AUTOEXEC)
 
