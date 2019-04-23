@@ -35,10 +35,14 @@ ifeq ($(GENCODE_FLAGS),)
 ### useful ### $(eval GENCODE_FLAGS += -gencode arch=compute_$(sm),code=sm_$(sm)))
 HIGHEST_SM = $(strip $(lastword $(SMS)))
 ifneq ($(HIGHEST_SM),)
-GENCODE_FLAGS += -arch=sm_$(CUDAARCH) \
-	-gencode arch=compute_$(HIGHEST_SM),code=compute_$(HIGHEST_SM)
+GENCODE_FLAGS += -gencode arch=compute_$(CUDAARCH),code=sm_$(CUDAARCH) \
+	-gencode arch=compute_$(HIGHEST_SM),code=compute_$(HIGHEST_SM) \
+	-gencode arch=compute_30,code=compute_30  #default arch for compatibility
 endif
 endif
+### useful - code=sm_xx means cuda binary generation for xx arch, 
+### code=compute_xx - PTX generation, PTX for compute_30 is compatible 
+### with higher arches, but binary is not
 
 # lib
 AR = ar
