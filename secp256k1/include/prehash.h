@@ -77,7 +77,7 @@ __global__ void UncompleteInitPrehash(
     uctx_t * uctxs
 );
 
-// completed first iteration of hashes precalculation
+// complete first iteration of hashes precalculation
 __global__ void CompleteInitPrehash(
     // data: pk || mes || w || padding || x || sk
     const uint32_t * data,

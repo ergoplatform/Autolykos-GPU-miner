@@ -37,10 +37,11 @@ HIGHEST_SM = $(strip $(lastword $(SMS)))
 ifneq ($(HIGHEST_SM),)
 GENCODE_FLAGS += -gencode arch=compute_$(CUDAARCH),code=sm_$(CUDAARCH) \
 	-gencode arch=compute_$(HIGHEST_SM),code=compute_$(HIGHEST_SM) \
-	-gencode arch=compute_30,code=compute_30  #default arch for compatibility
+	-gencode arch=compute_30,code=compute_30  # default arch for compatibility
 endif
 endif
-### useful - code=sm_xx means cuda binary generation for xx arch, 
+
+### NOTE: code=sm_xx means cuda binary generation for xx arch, 
 ### code=compute_xx - PTX generation, PTX for compute_30 is compatible 
 ### with higher arches, but binary is not
 
@@ -51,20 +52,22 @@ LIBPATH = ./lib/lib.a
 SRCDIR = ./src
 
 # define sources
-CUSOURCES = $(filter-out $(SRCDIR)/autolykos.cu, $(wildcard $(SRCDIR)/*.cu))
+CUSOURCES = $(filter-out $(SRCDIR)/test.cu $(SRCDIR)/autolykos.cu, \
+			$(wildcard $(SRCDIR)/*.cu))
 CPPSOURCES = $(wildcard $(SRCDIR)/*.cc)
 CSOURCES = $(wildcard $(SRCDIR)/*.c)
 
 # define objects
 OBJECTS = $(CUSOURCES:.cu=.o) $(CPPSOURCES:.cc=.o) $(CSOURCES:.c=.o)
 
-# define executable
+# define executables
 AUTOEXEC = auto.out
+TESTEXEC = test.out
 
 # compile objects
 %.o: %.cu
 	$(CXX) $(COPT) $(CXXFLAGS) $(GENCODE_FLAGS) --maxrregcount $(MAXREG) \
-		-DBLOCK_DIM=$(BLOCKDIM) $< -o $@
+		-DBLOCK_DIM=$(BLOCKDIM) -DNONCES_PER_ITER=$(WORKSPACE) $< -o $@
 %.o: %.cc
 	$(CXX) $(COPT) $(CXXFLAGS) $< -o $@
 %.o: %.c
@@ -83,13 +86,21 @@ lib: $(OBJECTS)
 	$(AR) rc $(LIBPATH) $(OBJECTS)
 	ranlib $(LIBPATH)
 
-# executable
+# miner executable
 auto:
 	$(CXX) $(SRCDIR)/autolykos.cu $(LIBPATH) $(LIBS) $(COPT) $(STD) \
-		$(GENCODE_FLAGS) -DBLOCK_DIM=$(BLOCKDIM) -o $(AUTOEXEC)
+		$(GENCODE_FLAGS) -DBLOCK_DIM=$(BLOCKDIM) \
+		-DNONCES_PER_ITER=$(WORKSPACE) -o $(AUTOEXEC)
 
-#
+# test executable
+test: clean lib
+	$(CXX) $(SRCDIR)/test.cu $(LIBPATH) $(LIBS) $(COPT) $(STD) \
+		$(GENCODE_FLAGS) -DBLOCK_DIM=$(BLOCKDIM) \
+		-DNONCES_PER_ITER=$(WORKSPACE) -o $(TESTEXEC)
+
+# kill them all
 clean:
-	rm -f $(OBJECTS) $(SRCDIR)/autolykos.o $(LIBPATH) $(TESTEXEC) $(AUTOEXEC)
+	rm -f $(OBJECTS) $(SRCDIR)/autolykos.o $(SRCDIR)/test.o $(LIBPATH) \
+		$(TESTEXEC) $(AUTOEXEC)
 
 .PHONY: all clean auto lib

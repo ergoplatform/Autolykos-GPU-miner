@@ -274,7 +274,7 @@ __global__ void UncompleteInitPrehash(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Completed first iteration of hashes precalculation
+//  Complete first iteration of hashes precalculation
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void CompleteInitPrehash(
     // data: pk || mes || w || padding || x || sk
@@ -947,7 +947,7 @@ int Prehash(
     uint32_t * invalid
 )
 {
-    uint32_t len = N_LEN; // N_LEN >= NONCES_PER_ITER -- assumption
+    uint32_t len = N_LEN;
 
     uint32_t * ind = invalid;
     uint32_t * comp = invalid + N_LEN;
