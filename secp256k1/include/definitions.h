@@ -115,8 +115,9 @@
 //============================================================================//
 //  Configuration file 
 //============================================================================//
-// total JSON objects count for config file
-#define CONF_LEN           7
+// max JSON objects count for config file,
+// increased, to have more options if we need them
+#define CONF_LEN           21
 
 // config JSON position of secret key
 #define SEED_POS           2
@@ -273,6 +274,15 @@ struct json_t
 
     char * GetTokenStart(const int pos) { return ptr + toks[pos].start; }
     char * GetTokenEnd(const int pos) { return ptr + toks[pos].end; }
+
+    //token name check
+    int jsoneq(const int pos, const char *s) {
+        if (toks[pos].type == JSMN_STRING && (int)strlen(s) == toks[pos].end - toks[pos].start &&
+        strncmp(ptr + toks[pos].start, s, toks[pos].end - toks[pos].start) == 0) {
+        return 0;
+        }
+    return -1;
+    }
 };
 
 // BLAKE2b-256 hash state context

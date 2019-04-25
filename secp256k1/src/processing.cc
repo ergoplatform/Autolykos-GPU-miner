@@ -5,7 +5,7 @@
     PROCESSING -- Puzzle cycle execution support
 
 *******************************************************************************/
-
+#include "../include/easylogging++.h"
 #include "../include/conversion.h"
 #include "../include/cryptography.h"
 #include "../include/definitions.h"
@@ -19,6 +19,11 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Find file size
@@ -34,7 +39,9 @@ long int FindFileSize(const char * fileName)
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Read config file
+//  Understands single-level json strings ( {"a":"b", "c":"d", ...})
 ////////////////////////////////////////////////////////////////////////////////
+
 int ReadConfig(
     const char * fileName,
     uint8_t * sk,
@@ -49,59 +56,81 @@ int ReadConfig(
     long int len = FindFileSize(fileName); 
     json_t config(len, CONF_LEN);
 
-    for (int i = 0; (config.ptr[i] = fgetc(in)) != EOF; ++i) {}
+    fread(config.ptr, sizeof(char), len, in);
 
     fclose(in);
-
+    
     jsmn_parser parser;
     jsmn_init(&parser);
+    VLOG(1) << "config string "<< config.ptr;
+    
+    int numtoks = jsmn_parse(&parser, config.ptr, strlen(config.ptr), config.toks, CONF_LEN);    
 
-    jsmn_parse(&parser, config.ptr, config.len, config.toks, CONF_LEN);
-
-    for (
-        int i = config.GetTokenStartPos(KEEP_POS);
-        i < config.GetTokenEndPos(KEEP_POS);
-        ++i
-    ) { config.ptr[i] = toupper(config.ptr[i]); }
-
-    --(config.toks[SEED_POS].start);
-    *(config.GetTokenStart(SEED_POS)) = '1';
-    *(config.GetTokenEnd(SEED_POS)) = '\0';
-    *(config.GetTokenEnd(NODE_POS)) = '\0';
-    *(config.GetTokenEnd(KEEP_POS)) = '\0';
-
-    if (!strncmp(
-        config.GetTokenStart(KEEP_POS), "TRUE", config.GetTokenLen(KEEP_POS)
-    ))
+    if(numtoks < 0)
     {
-        *keep = 1;
+        LOG(ERROR) << numtoks << " jsmn config parsing error";
+        return EXIT_FAILURE;
     }
-    else if (strncmp(
-        config.GetTokenStart(KEEP_POS), "FALSE", config.GetTokenLen(KEEP_POS)
-    ))
+    
+    bool readNode = false;
+    bool readSeed = false;
+
+    for(int i = 1; i < numtoks; i++)
     {
-        fprintf(stderr, "ABORT:  Wrong value \"keepPrehash\"\n");
+        if(config.jsoneq(i, "node") == 0)
+        {
+            strncpy(from,
+                config.GetTokenStart(i+1),
+                config.GetTokenLen(i+1)
+            );
+            strcat(from, "/mining/candidate");
+            strncpy(to,
+                config.GetTokenStart(i+1),
+                config.GetTokenLen(i+1)
+            );
+            strcat(to, "/mining/solution");
+            VLOG(1) << "from url " << from  << " to url " << to;
+            readNode = true;
+            ++i;
+        }
+        else if(config.jsoneq(i,"keepPrehash") == 0)
+        {
+            if(strncmp(config.GetTokenStart(i+1), "true" , 4 ) == 0)
+            {
+                *keep = 1;
+                VLOG(1) << "Setting keepprehash to 1";
+            }
+            else
+            {
+                *keep = 0;
+            }
+            ++i;
 
-        fprintf(
-            stderr, "Miner is now terminated\n"
-            "========================================"
-            "========================================\n"
-        );
+        }
+        else if(config.jsoneq(i, "seed") == 0)
+        {
+            GenerateSecKey(
+                config.GetTokenStart(i+1), 
+                config.GetTokenLen(i+1),
+                sk,
+                skstr
+            );
+            readSeed = true;
+            ++i;
+        }
 
+    }
+    
+    if(readSeed && readNode)
+    {
+        return EXIT_SUCCESS;
+    }
+    else
+    {
+        LOG(ERROR) << "Node or seed were not specified, bad config";
         return EXIT_FAILURE;
     }
 
-    GenerateSecKey(
-        config.GetTokenStart(SEED_POS), config.GetTokenLen(SEED_POS), sk, skstr
-    );
-
-    strcpy(from, config.GetTokenStart(NODE_POS));
-    strcpy(from + config.GetTokenLen(NODE_POS), "/mining/candidate");
-
-    strcpy(to, config.GetTokenStart(NODE_POS));
-    strcpy(to + config.GetTokenLen(NODE_POS), "/mining/solution");
-
-    return EXIT_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
