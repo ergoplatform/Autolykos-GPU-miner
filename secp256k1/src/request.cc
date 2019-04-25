@@ -115,10 +115,10 @@ int GetLatestBlock(
     CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc));
     CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq));
     
-    // set timeout to 60 sec so it doesn't hang up
+    // set timeout to 30 sec so it doesn't hang up
     // waiting for default 5 minutes if url is unreachable / wrong 
     CurlLogError(curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L));
-    CurlLogError(curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L));
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L));
     curlError = curl_easy_perform(curl);
     CurlLogError(curlError);
     curl_easy_cleanup(curl);
@@ -314,7 +314,7 @@ int PostPuzzleSolution(
     CurlLogError(curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers));;
     CurlLogError(curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request));
     
-    // set timeout to 10 sec for sending solution
+    // set timeout to 30 sec for sending solution
     CurlLogError(curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L));
     CurlLogError(curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L));    
     CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc));
