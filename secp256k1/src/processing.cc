@@ -72,29 +72,28 @@ int ReadConfig(
         return EXIT_FAILURE;
     }
     
-    bool readNode = false;
-    bool readSeed = false;
+    int readNode = 0;
+    int readSeed = 0;
 
     for(int i = 1; i < numtoks; i++)
     {
         if(config.jsoneq(i, "node") == 0)
         {
             from[0] = '\0';
+            to[0] = '\0';
             strncat(from,
                 config.GetTokenStart(i+1),
                 config.GetTokenLen(i+1)
             );
-            VLOG(1) << "nodeaddr from " << std::string(from);
             strcat(from, "/mining/candidate");
-            to[0] = '\0';
+            
             strncat(to,
                 config.GetTokenStart(i+1),
                 config.GetTokenLen(i+1)
             );
-            VLOG(1) << "nodeaddr to " << std::string(to);
             strcat(to, "/mining/solution");
             VLOG(1) << "from url " << from  << " to url " << to;
-            readNode = true;
+            readNode = 1;
             ++i;
         }
         else if(config.jsoneq(i,"keepPrehash") == 0)
@@ -113,6 +112,7 @@ int ReadConfig(
         }
         else if(config.jsoneq(i, "seed") == 0)
         {
+            // maybe need to make it little bit prettier, without changing string itself
             --(config.toks[i+1].start);
             *(config.GetTokenStart(i+1)) = '1';
             GenerateSecKey(
@@ -121,13 +121,13 @@ int ReadConfig(
                 sk,
                 skstr
             );
-            readSeed = true;
+            readSeed = 1;
             ++i;
         }
 
     }
     
-    if(readSeed && readNode)
+    if(readSeed & readNode)
     {
         return EXIT_SUCCESS;
     }
