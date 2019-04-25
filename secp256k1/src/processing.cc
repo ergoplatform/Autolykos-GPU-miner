@@ -109,6 +109,8 @@ int ReadConfig(
         }
         else if(config.jsoneq(i, "seed") == 0)
         {
+            --(config.toks[i+1].start);
+            *(config.GetTokenStart(i+1)) = '1';
             GenerateSecKey(
                 config.GetTokenStart(i+1), 
                 config.GetTokenLen(i+1),
