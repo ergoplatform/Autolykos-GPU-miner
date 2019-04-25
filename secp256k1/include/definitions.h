@@ -42,8 +42,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Memory compatibility checks
 // should probably be now more correctly set
-#define MIN_FREE_MEMORY 2800000000
-#define MIN_FREE_MEMORY_PREHASH 8000000000
+#define MIN_FREE_MEMORY 2690000000
+#define MIN_FREE_MEMORY_PREHASH 7850000000
 
 ////////////////////////////////////////////////////////////////////////////////
 //  CONSTANTS: Autolykos algorithm
