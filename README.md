@@ -24,6 +24,14 @@ If `make` completed successfully there will appear an executable
 `autolykos/secp256k1/auto.out` and (if not already present)
 a config file `autolykos/secp256k1/config.json` with stub contents.
 
+## Test (Linux)
+
+1. Change directory to `autolykos/secp256k1`
+2. Run `make clean lib test`
+
+If `make` completed successfully there will appear a test executable
+`autolykos/secp256k1/test.out`.
+
 ## Install (Windows 64-bit)
 
 1. Install compatible pair of MS Visual Studio C++ toolchain and CUDA toolkit [compatibility table for latest CUDA toolkit](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/)

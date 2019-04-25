@@ -37,7 +37,10 @@
 #define NONCES_PER_THREAD  1
 
 // total number of nonces per iteration
-#define NONCES_PER_ITER    0x200000 // 2^22
+// #define NONCES_PER_ITER    0x200000 // 2^22
+//
+// kernel block size
+// #define BLOCK_DIM          64
 
 ////////////////////////////////////////////////////////////////////////////////
 // Memory compatibility checks
@@ -83,7 +86,7 @@
 #define Q0                 0xBFD25E8CD0364141
 
 ////////////////////////////////////////////////////////////////////////////////
-//  CONSTANTS: Curl http & JSMN specifiers
+//  CONSTANTS: CURL http & JSMN specifiers
 ////////////////////////////////////////////////////////////////////////////////
 // CURL number of retries to POST solution if failed
 #define MAX_POST_RETRIES   5
