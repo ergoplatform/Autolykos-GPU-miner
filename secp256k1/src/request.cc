@@ -134,6 +134,7 @@ int GetLatestBlock(
         if(jsmn_result < 0)
         {
             LOG(ERROR) << "Couldn't parse block data";
+            LOG(ERROR) << "Block data: " << newreq.ptr;
             return EXIT_FAILURE;
         }
         // no need to check node public key every time, i think
