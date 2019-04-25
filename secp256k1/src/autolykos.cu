@@ -48,148 +48,6 @@ INITIALIZE_EASYLOGGINGPP
 
 using namespace std::chrono;
 
-void MinerThread(int deviceId, info_t * info);
-
-////////////////////////////////////////////////////////////////////////////////
-//  Main
-////////////////////////////////////////////////////////////////////////////////
-int main(int argc, char ** argv)
-{
-    //========================================================================//
-    //  Setup log
-    //========================================================================//
-    START_EASYLOGGINGPP(argc, argv);
-
-    el::Loggers::reconfigureAllLoggers(
-        el::ConfigurationType::Format, "%datetime %level [%thread] %msg"
-    );
-
-    el::Helpers::setThreadName("main thread");
-
-    char logstr[1000];
-
-    //========================================================================//
-    //  Check GPU availability
-    //========================================================================//
-    int deviceCount;
-    int status = EXIT_SUCCESS;
-
-    if (cudaGetDeviceCount(&deviceCount) != cudaSuccess)
-    {
-        LOG(ERROR) << "Error checking GPU";
-        return EXIT_FAILURE;
-    }
-
-    LOG(INFO) << "Using " << deviceCount << " GPU devices";
-
-    //========================================================================//
-    //  Read configuration file
-    //========================================================================//
-    char confName[14] = "./config.json";
-    char * fileName = (argc == 1)? confName: argv[1];
-    char from[MAX_URL_SIZE];
-    info_t info;
-
-    info.blockId = 1;
-    info.keepPrehash = 0;
-    
-    LOG(INFO) << "Using configuration file " << fileName;
-
-    // check access to config file
-    if (access(fileName, F_OK) == -1)
-    {
-        LOG(ERROR) << "Config file " << fileName << " not found";
-        return EXIT_FAILURE;
-    }
-
-    // read configuration from file
-    status = ReadConfig(
-        fileName, info.sk, info.skstr, from, info.to, &info.keepPrehash
-    );
-
-    if (status == EXIT_FAILURE)
-    {
-        LOG(ERROR) << "Wrong config file format";
-        return EXIT_FAILURE;
-    }
-
-    LOG(INFO) << "Block getting URL:\n   " << from;
-    LOG(INFO) << "Solution posting URL:\n   " << info.to;
-
-    // generate public key from secret key
-    GeneratePublicKey(info.skstr, info.pkstr, info.pk);
-
-    PrintPublicKey(info.pkstr, logstr);
-    LOG(INFO) << "Generated public key:\n   " << logstr;
-
-    //========================================================================//
-    //  Setup CURL
-    //========================================================================//
-    // CURL http request
-    json_t request(0, REQ_LEN);
-
-    // CURL init
-    PERSISTENT_CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), CURLE_OK);
-    
-    // get first block 
-    status = GetLatestBlock(from, &request, &info, 1);
-
-    if (status != EXIT_SUCCESS)
-    {
-        LOG(INFO) << "First block getting request failed,"
-            << " maybe wrong node address?";
-    }
-
-    //========================================================================//
-    //  Fork miner threads
-    //========================================================================//
-    std::vector<std::thread> miners(deviceCount);
-
-    for (int i = 0; i < deviceCount; ++i)
-    {
-        miners[i] = std::thread(MinerThread, i, &info);
-    }
-
-    //========================================================================//
-    //  Main thread get-block cycle
-    //========================================================================//
-    uint_t curlcnt = 0;
-    const uint_t curltimes = 2000;
-
-    milliseconds ms = milliseconds::zero(); 
-
-    // bomb node with HTTP with 10ms intervals, if new block came 
-    // signal miners with blockId
-    while (1)
-    {
-        milliseconds start = duration_cast<milliseconds>(
-            system_clock::now().time_since_epoch()
-        );
-        
-        // get latest block
-        status = GetLatestBlock(from, &request, &info, 0);
-        
-        if (status != EXIT_SUCCESS) { LOG(INFO) << "Getting block error"; }
-
-        ms += duration_cast<milliseconds>(
-            system_clock::now().time_since_epoch()
-        ) - start;
-
-        ++curlcnt;
-
-        if (!(curlcnt % curltimes))
-        {
-            LOG(INFO) << "Average curling time "
-                << ms.count() / (double)curltimes << " ms";
-            ms = milliseconds::zero();
-        }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(8));
-    }    
-
-    return EXIT_SUCCESS;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //  Miner thread cycle
 ////////////////////////////////////////////////////////////////////////////////
@@ -262,6 +120,7 @@ void MinerThread(int deviceId, info_t * info)
     {
         LOG(ERROR) << "Not enough GPU memory for mining,"
             << " minimum 2.8 GiB needed";
+
         return;
     }
 
@@ -269,6 +128,7 @@ void MinerThread(int deviceId, info_t * info)
     {
         LOG(ERROR) << "Not enough memory for keeping prehashes, "
                    << "setting keepPrehash to false";
+
         keepPrehash = 0;
     }
 
@@ -483,6 +343,146 @@ void MinerThread(int deviceId, info_t * info)
     while (1);
 
     return;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//  Main
+////////////////////////////////////////////////////////////////////////////////
+int main(int argc, char ** argv)
+{
+    //========================================================================//
+    //  Setup log
+    //========================================================================//
+    START_EASYLOGGINGPP(argc, argv);
+
+    el::Loggers::reconfigureAllLoggers(
+        el::ConfigurationType::Format, "%datetime %level [%thread] %msg"
+    );
+
+    el::Helpers::setThreadName("main thread");
+
+    char logstr[1000];
+
+    //========================================================================//
+    //  Check GPU availability
+    //========================================================================//
+    int deviceCount;
+    int status = EXIT_SUCCESS;
+
+    if (cudaGetDeviceCount(&deviceCount) != cudaSuccess)
+    {
+        LOG(ERROR) << "Error checking GPU";
+        return EXIT_FAILURE;
+    }
+
+    LOG(INFO) << "Using " << deviceCount << " GPU devices";
+
+    //========================================================================//
+    //  Read configuration file
+    //========================================================================//
+    char confName[14] = "./config.json";
+    char * fileName = (argc == 1)? confName: argv[1];
+    char from[MAX_URL_SIZE];
+    info_t info;
+
+    info.blockId = 1;
+    info.keepPrehash = 0;
+    
+    LOG(INFO) << "Using configuration file " << fileName;
+
+    // check access to config file
+    if (access(fileName, F_OK) == -1)
+    {
+        LOG(ERROR) << "Config file " << fileName << " not found";
+        return EXIT_FAILURE;
+    }
+
+    // read configuration from file
+    status = ReadConfig(
+        fileName, info.sk, info.skstr, from, info.to, &info.keepPrehash
+    );
+
+    if (status == EXIT_FAILURE)
+    {
+        LOG(ERROR) << "Wrong config file format";
+        return EXIT_FAILURE;
+    }
+
+    LOG(INFO) << "Block getting URL:\n   " << from;
+    LOG(INFO) << "Solution posting URL:\n   " << info.to;
+
+    // generate public key from secret key
+    GeneratePublicKey(info.skstr, info.pkstr, info.pk);
+
+    PrintPublicKey(info.pkstr, logstr);
+    LOG(INFO) << "Generated public key:\n   " << logstr;
+
+    //========================================================================//
+    //  Setup CURL
+    //========================================================================//
+    // CURL http request
+    json_t request(0, REQ_LEN);
+
+    // CURL init
+    PERSISTENT_CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), CURLE_OK);
+    
+    // get first block 
+    status = GetLatestBlock(from, &request, &info, 1);
+
+    if (status != EXIT_SUCCESS)
+    {
+        LOG(INFO) << "First block getting request failed,"
+            << " maybe wrong node address?";
+    }
+
+    //========================================================================//
+    //  Fork miner threads
+    //========================================================================//
+    std::vector<std::thread> miners(deviceCount);
+
+    for (int i = 0; i < deviceCount; ++i)
+    {
+        miners[i] = std::thread(MinerThread, i, &info);
+    }
+
+    //========================================================================//
+    //  Main thread get-block cycle
+    //========================================================================//
+    uint_t curlcnt = 0;
+    const uint_t curltimes = 2000;
+
+    milliseconds ms = milliseconds::zero(); 
+
+    // bomb node with HTTP with 10ms intervals, if new block came 
+    // signal miners with blockId
+    while (1)
+    {
+        milliseconds start = duration_cast<milliseconds>(
+            system_clock::now().time_since_epoch()
+        );
+        
+        // get latest block
+        status = GetLatestBlock(from, &request, &info, 0);
+        
+        if (status != EXIT_SUCCESS) { LOG(INFO) << "Getting block error"; }
+
+        ms += duration_cast<milliseconds>(
+            system_clock::now().time_since_epoch()
+        ) - start;
+
+        ++curlcnt;
+
+        if (!(curlcnt % curltimes))
+        {
+            LOG(INFO) << "Average curling time "
+                << ms.count() / (double)curltimes << " ms";
+            ms = milliseconds::zero();
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    }    
+
+    return EXIT_SUCCESS;
 }
 
 // autolykos.cu

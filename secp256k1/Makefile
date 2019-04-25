@@ -93,7 +93,7 @@ auto:
 		-DNONCES_PER_ITER=$(WORKSPACE) -o $(AUTOEXEC)
 
 # test executable
-test: clean lib
+test: 
 	$(CXX) $(SRCDIR)/test.cu $(LIBPATH) $(LIBS) $(COPT) $(STD) \
 		$(GENCODE_FLAGS) -DBLOCK_DIM=$(BLOCKDIM) \
 		-DNONCES_PER_ITER=$(WORKSPACE) -o $(TESTEXEC)
