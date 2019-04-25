@@ -80,14 +80,14 @@ int ReadConfig(
         if(config.jsoneq(i, "node") == 0)
         {
             from[0] = '\0';
-            strncpy(from,
+            strncat(from,
                 config.GetTokenStart(i+1),
                 config.GetTokenLen(i+1)
             );
             VLOG(1) << "nodeaddr from " << std::string(from);
             strcat(from, "/mining/candidate");
             to[0] = '\0';
-            strncpy(to,
+            strncat(to,
                 config.GetTokenStart(i+1),
                 config.GetTokenLen(i+1)
             );
