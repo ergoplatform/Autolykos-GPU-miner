@@ -83,11 +83,13 @@ int ReadConfig(
                 config.GetTokenStart(i+1),
                 config.GetTokenLen(i+1)
             );
+            VLOG(1) << "nodeaddr from " << from;
             strcat(from, "/mining/candidate");
             strncpy(to,
                 config.GetTokenStart(i+1),
                 config.GetTokenLen(i+1)
             );
+            VLOG(1) << "nodeaddr to " << to;
             strcat(to, "/mining/solution");
             VLOG(1) << "from url " << from  << " to url " << to;
             readNode = true;
