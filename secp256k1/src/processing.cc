@@ -105,44 +105,28 @@ int ReadConfig(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//  Print Autolukos puzzle state variables
+//  Print public key
 ////////////////////////////////////////////////////////////////////////////////
-int PrintPuzzleState(
-    const uint8_t * mes,
-    const uint8_t * pk,
-    const uint8_t * sk,
-    const uint8_t * w,
-    const uint8_t * x,
-    const uint8_t * bound
-)
+int PrintPublicKey(const char * pkstr, char * str)
 {
-    printf("Obtained candidate block:\n"); 
-    printf(
-        "       m = 0x%016lX %016lX %016lX %016lX\n",
-        REVERSE_ENDIAN((uint64_t *)mes + 0),
-        REVERSE_ENDIAN((uint64_t *)mes + 1),
-        REVERSE_ENDIAN((uint64_t *)mes + 2),
-        REVERSE_ENDIAN((uint64_t *)mes + 3)
+    sprintf(
+        str, "   pk = 0x%.2s %.16s %.16s %.16s %.16s",
+        pkstr, pkstr + 2, pkstr + 18, pkstr + 34, pkstr + 50
     );
 
-    printf("                              Obtained target:\n"); 
-    printf(
-        "       b = 0x%016lX %016lX %016lX %016lX\n",
-        ((uint64_t *)bound)[3], ((uint64_t *)bound)[2],
-        ((uint64_t *)bound)[1], ((uint64_t *)bound)[0]
-    );
+    return EXIT_SUCCESS;
+}
 
-    printf("                              Generated one-time public key:\n"); 
-    printf(
-        "    w = 0x%02lX %016lX %016lX %016lX %016lX\n",
-        ((uint8_t *)w)[0],
-        REVERSE_ENDIAN((uint64_t *)(w + 1) + 0),
-        REVERSE_ENDIAN((uint64_t *)(w + 1) + 1),
-        REVERSE_ENDIAN((uint64_t *)(w + 1) + 2),
-        REVERSE_ENDIAN((uint64_t *)(w + 1) + 3)
+int PrintPublicKey(const uint8_t * pk, char * str)
+{
+    sprintf(
+        str, "   pk = 0x%02lX %016lX %016lX %016lX %016lX",
+        pk[0],
+        REVERSE_ENDIAN((uint64_t *)(pk + 1) + 0),
+        REVERSE_ENDIAN((uint64_t *)(pk + 1) + 1),
+        REVERSE_ENDIAN((uint64_t *)(pk + 1) + 2),
+        REVERSE_ENDIAN((uint64_t *)(pk + 1) + 3)
     );
-
-    fflush(stdout);
 
     return EXIT_SUCCESS;
 }
@@ -152,18 +136,17 @@ int PrintPuzzleState(
 ////////////////////////////////////////////////////////////////////////////////
 int PrintPuzzleSolution(
     const uint8_t * nonce,
-    const uint8_t * sol
+    const uint8_t * sol,
+    char * str
 )
 {
-    printf("   nonce = 0x%016lX\n", *((uint64_t *)nonce));
-
-    printf(
-        "       d = 0x%016lX %016lX %016lX %016lX\n",
+    sprintf(
+        str, "   nonce = 0x%016lX\n"
+        "       d = 0x%016lX %016lX %016lX %016lX",
+        *((uint64_t *)nonce),
         ((uint64_t *)sol)[3], ((uint64_t *)sol)[2],
         ((uint64_t *)sol)[1], ((uint64_t *)sol)[0]
     );
-
-    fflush(stdout);
 
     return EXIT_SUCCESS;
 }

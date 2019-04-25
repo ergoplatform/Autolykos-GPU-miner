@@ -48,155 +48,24 @@ INITIALIZE_EASYLOGGINGPP
 
 using namespace std::chrono;
 
-void MinerThread(int deviceId, info_t * info);
-
-////////////////////////////////////////////////////////////////////////////////
-//  Main
-////////////////////////////////////////////////////////////////////////////////
-int main(int argc, char ** argv)
-{
-    START_EASYLOGGINGPP(argc, argv);
-
-    el::Loggers::reconfigureAllLoggers(
-        el::ConfigurationType::Format, "%datetime %level [%thread] %msg"
-    );
-
-    el::Helpers::setThreadName("main thread");
-
-    int deviceCount;
-    int status = EXIT_SUCCESS;
-
-    info_t info;
-    info.blockId = 1;
-    info.keepPrehash = 0;
-
-    if (cudaGetDeviceCount(&deviceCount) != cudaSuccess)
-    {
-        LOG(ERROR) << "Error checking GPU";
-        return EXIT_FAILURE;
-    }
-
-    LOG(INFO) << "Using " << deviceCount << " GPU devices";
-
-    PERSISTENT_CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), CURLE_OK);
-
-    char confName[14] = "./config.json";
-    char * fileName = (argc == 1)? confName: argv[1];
-    char from[MAX_URL_SIZE];
-    
-    json_t request(0, REQ_LEN);
-    
-    LOG(INFO) << "Using configuration file " << fileName;
-
-    // check access to config file
-    if (access(fileName, F_OK) == -1)
-    {
-        LOG(ERROR) << "Config file " << fileName << " not found";
-        return EXIT_FAILURE;
-    }
-
-    // read config from file
-    status = ReadConfig(
-        fileName, info.sk, info.skstr, from, info.to, &info.keepPrehash
-    );
-
-    if (status == EXIT_FAILURE)
-    {
-        LOG(ERROR) << "Wrong config file format";
-        return EXIT_FAILURE;
-    }
-
-    LOG(INFO) << "Block getting URL " << from;
-    LOG(INFO) << "Solution posting URL " << info.to;
-
-    // generate public key from secret key
-    GeneratePublicKey(info.skstr, info.pkstr, info.pk);
-    
-    char logstr[1000];
-
-    sprintf(logstr,
-        "Generated public key:\n"
-        "   pk = 0x%02lX %016lX %016lX %016lX %016lX",
-        info.pk[0],
-        REVERSE_ENDIAN((uint64_t *)(info.pk + 1) + 0),
-        REVERSE_ENDIAN((uint64_t *)(info.pk + 1) + 1),
-        REVERSE_ENDIAN((uint64_t *)(info.pk + 1) + 2),
-        REVERSE_ENDIAN((uint64_t *)(info.pk + 1) + 3)
-    );
-
-    LOG(INFO) << logstr;
-
-    status = GetLatestBlock(from, &request, &info, true);
-
-    if (status != EXIT_SUCCESS)
-    {
-        LOG(INFO) << "First block getting request failed,"
-            << " maybe wrong node address?";
-    }
-
-    std::vector<std::thread> miners(deviceCount);
-
-    for (int i = 0; i < deviceCount; ++i)
-    {
-        miners[i] = std::thread(MinerThread, i, &info);
-    }
-
-    //========================================================================//
-    //  Main cycle
-    //========================================================================//
-    // bomb node with HTTP with 10ms intervals, if new block came 
-    // signal miners with blockId
-    uint_t curlcnt = 0;
-    const uint_t curltimes = 2000;
-
-    // using namespace std::chrono;
-    milliseconds ms = milliseconds::zero(); 
-
-    while (1)
-    {
-        milliseconds start = duration_cast<milliseconds>(
-            system_clock::now().time_since_epoch()
-        );
-        
-        status = GetLatestBlock(from, &request, &info, 0);
-        
-        if (status != EXIT_SUCCESS) { LOG(INFO) << "Getting block error"; }
-
-        ms += duration_cast<milliseconds>(
-            system_clock::now().time_since_epoch()
-        ) - start;
-
-        ++curlcnt;
-
-        if (!(curlcnt % curltimes))
-        {
-            LOG(INFO) << "Average curling time "
-                << ms.count() / (double)curltimes << " ms";
-            ms = milliseconds::zero();
-        }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(8));
-    }    
-
-    return EXIT_SUCCESS;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //  Miner thread cycle
 ////////////////////////////////////////////////////////////////////////////////
 void MinerThread(int deviceId, info_t * info)
 {
-    state_t state = STATE_KEYGEN;
-    char threadName[20];
-
     CUDA_CALL(cudaSetDevice(deviceId));
+
+    char threadName[20];
     sprintf(threadName, "GPU %i miner", deviceId);
     el::Helpers::setThreadName(threadName);    
+
+    state_t state = STATE_KEYGEN;
+    char logstr[1000];
 
     //========================================================================//
     //  Host memory allocation
     //========================================================================//
-    // curl http request
+    // CURL http request
     json_t request(0, REQ_LEN);
 
     // hash context
@@ -213,7 +82,6 @@ void MinerThread(int deviceId, info_t * info)
     uint8_t res_h[NUM_SIZE_8];
     uint8_t nonce[NONCE_SIZE_8];
 
-    // cryptography variables
     char skstr[NUM_SIZE_4];
     char pkstr[PK_SIZE_4 + 1];
     char to[MAX_URL_SIZE];
@@ -243,7 +111,8 @@ void MinerThread(int deviceId, info_t * info)
     //========================================================================//
     //  Check GPU memory
     //========================================================================//
-    size_t freeMem, totalMem;
+    size_t freeMem;
+    size_t totalMem;
 
     CUDA_CALL(cudaMemGetInfo(&freeMem, &totalMem));
     
@@ -251,6 +120,7 @@ void MinerThread(int deviceId, info_t * info)
     {
         LOG(ERROR) << "Not enough GPU memory for mining,"
             << " minimum 2.8 GiB needed";
+
         return;
     }
 
@@ -258,6 +128,7 @@ void MinerThread(int deviceId, info_t * info)
     {
         LOG(ERROR) << "Not enough memory for keeping prehashes, "
                    << "setting keepPrehash to false";
+
         keepPrehash = 0;
     }
 
@@ -267,12 +138,10 @@ void MinerThread(int deviceId, info_t * info)
     LOG(INFO) << "GPU " << deviceId << " allocating memory";
 
     // boundary for puzzle
-    // ~0 MiB
     uint32_t * bound_d;
+    // (2 * PK_SIZE_8 + 2 + 4 * NUM_SIZE_8 + 212 + 4) bytes // ~0 MiB
     CUDA_CALL(cudaMalloc((void **)&bound_d, NUM_SIZE_8 + DATA_SIZE_8));
-
     // data: pk || mes || w || padding || x || sk || ctx
-    // (2 * PK_SIZE_8 + 2 + 3 * NUM_SIZE_8 + 212 + 4) bytes // ~0 MiB
     uint32_t * data_d = bound_d + NUM_SIZE_32;
 
     // precalculated hashes
@@ -280,17 +149,16 @@ void MinerThread(int deviceId, info_t * info)
     uint32_t * hashes_d;
     CUDA_CALL(cudaMalloc((void **)&hashes_d, (uint32_t)N_LEN * NUM_SIZE_8));
 
-    // WORKSPACE_SIZE_8 bytes // Depends on defines, now ~512 MiB
+    // WORKSPACE_SIZE_8 bytes // depends on macros, now ~512 MiB
     // potential solutions of puzzle
     uint32_t * res_d;
     CUDA_CALL(cudaMalloc((void **)&res_d, WORKSPACE_SIZE_8));
-
     // indices of unfinalized hashes
     uint32_t * indices_d = res_d + NONCES_PER_ITER * NUM_SIZE_32;
 
     // unfinalized hash contexts
     // if keepPrehash == true // N_LEN * 80 bytes // 5 GiB
-    uctx_t * uctxs_d;
+    uctx_t * uctxs_d = NULL;
 
     if (keepPrehash)
     {
@@ -319,6 +187,7 @@ void MinerThread(int deviceId, info_t * info)
     uint32_t ind = 0;
     uint64_t base = 0;
 
+    // set unfinalized hash contexts if necessary
     if (keepPrehash)
     {
         LOG(INFO) << "Preparing unfinalized hashes on GPU " << deviceId;
@@ -460,10 +329,11 @@ void MinerThread(int deviceId, info_t * info)
 
             *((uint64_t *)nonce) = base + ind - 1;
 
-            PrintPuzzleSolution(nonce, res_h);
+            PrintPuzzleSolution(nonce, res_h, logstr);
             PostPuzzleSolution(to, pkstr, w_h, nonce, res_h);
 
-            LOG(INFO) << "GPU " << deviceId << " found and posted a solution";
+            LOG(INFO) << "GPU " << deviceId
+                << " found and posted a solution:\n" << logstr;
     
             state = STATE_KEYGEN;
         }
@@ -473,6 +343,146 @@ void MinerThread(int deviceId, info_t * info)
     while (1);
 
     return;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//  Main
+////////////////////////////////////////////////////////////////////////////////
+int main(int argc, char ** argv)
+{
+    //========================================================================//
+    //  Setup log
+    //========================================================================//
+    START_EASYLOGGINGPP(argc, argv);
+
+    el::Loggers::reconfigureAllLoggers(
+        el::ConfigurationType::Format, "%datetime %level [%thread] %msg"
+    );
+
+    el::Helpers::setThreadName("main thread");
+
+    char logstr[1000];
+
+    //========================================================================//
+    //  Check GPU availability
+    //========================================================================//
+    int deviceCount;
+    int status = EXIT_SUCCESS;
+
+    if (cudaGetDeviceCount(&deviceCount) != cudaSuccess)
+    {
+        LOG(ERROR) << "Error checking GPU";
+        return EXIT_FAILURE;
+    }
+
+    LOG(INFO) << "Using " << deviceCount << " GPU devices";
+
+    //========================================================================//
+    //  Read configuration file
+    //========================================================================//
+    char confName[14] = "./config.json";
+    char * fileName = (argc == 1)? confName: argv[1];
+    char from[MAX_URL_SIZE];
+    info_t info;
+
+    info.blockId = 1;
+    info.keepPrehash = 0;
+    
+    LOG(INFO) << "Using configuration file " << fileName;
+
+    // check access to config file
+    if (access(fileName, F_OK) == -1)
+    {
+        LOG(ERROR) << "Config file " << fileName << " not found";
+        return EXIT_FAILURE;
+    }
+
+    // read configuration from file
+    status = ReadConfig(
+        fileName, info.sk, info.skstr, from, info.to, &info.keepPrehash
+    );
+
+    if (status == EXIT_FAILURE)
+    {
+        LOG(ERROR) << "Wrong config file format";
+        return EXIT_FAILURE;
+    }
+
+    LOG(INFO) << "Block getting URL:\n   " << from;
+    LOG(INFO) << "Solution posting URL:\n   " << info.to;
+
+    // generate public key from secret key
+    GeneratePublicKey(info.skstr, info.pkstr, info.pk);
+
+    PrintPublicKey(info.pkstr, logstr);
+    LOG(INFO) << "Generated public key:\n   " << logstr;
+
+    //========================================================================//
+    //  Setup CURL
+    //========================================================================//
+    // CURL http request
+    json_t request(0, REQ_LEN);
+
+    // CURL init
+    PERSISTENT_CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), CURLE_OK);
+    
+    // get first block 
+    status = GetLatestBlock(from, &request, &info, 1);
+
+    if (status != EXIT_SUCCESS)
+    {
+        LOG(INFO) << "First block getting request failed,"
+            << " maybe wrong node address?";
+    }
+
+    //========================================================================//
+    //  Fork miner threads
+    //========================================================================//
+    std::vector<std::thread> miners(deviceCount);
+
+    for (int i = 0; i < deviceCount; ++i)
+    {
+        miners[i] = std::thread(MinerThread, i, &info);
+    }
+
+    //========================================================================//
+    //  Main thread get-block cycle
+    //========================================================================//
+    uint_t curlcnt = 0;
+    const uint_t curltimes = 2000;
+
+    milliseconds ms = milliseconds::zero(); 
+
+    // bomb node with HTTP with 10ms intervals, if new block came 
+    // signal miners with blockId
+    while (1)
+    {
+        milliseconds start = duration_cast<milliseconds>(
+            system_clock::now().time_since_epoch()
+        );
+        
+        // get latest block
+        status = GetLatestBlock(from, &request, &info, 0);
+        
+        if (status != EXIT_SUCCESS) { LOG(INFO) << "Getting block error"; }
+
+        ms += duration_cast<milliseconds>(
+            system_clock::now().time_since_epoch()
+        ) - start;
+
+        ++curlcnt;
+
+        if (!(curlcnt % curltimes))
+        {
+            LOG(INFO) << "Average curling time "
+                << ms.count() / (double)curltimes << " ms";
+            ms = milliseconds::zero();
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    }    
+
+    return EXIT_SUCCESS;
 }
 
 // autolykos.cu
