@@ -19,7 +19,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
+#include <string>
 
 
 
@@ -83,13 +83,13 @@ int ReadConfig(
                 config.GetTokenStart(i+1),
                 config.GetTokenLen(i+1)
             );
-            VLOG(1) << "nodeaddr from " << from;
+            VLOG(1) << "nodeaddr from " << std::string(from);
             strcat(from, "/mining/candidate");
             strncpy(to,
                 config.GetTokenStart(i+1),
                 config.GetTokenLen(i+1)
             );
-            VLOG(1) << "nodeaddr to " << to;
+            VLOG(1) << "nodeaddr to " << std::string(to);
             strcat(to, "/mining/solution");
             VLOG(1) << "from url " << from  << " to url " << to;
             readNode = true;
