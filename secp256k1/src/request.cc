@@ -115,10 +115,10 @@ int GetLatestBlock(
     CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc));
     CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEDATA, &newreq));
     
-    // set timeout to 10 sec so it doesn't hang up
+    // set timeout to 60 sec so it doesn't hang up
     // waiting for default 5 minutes if url is unreachable / wrong 
     CurlLogError(curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L));
-    CurlLogError(curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L));
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L));
     curlError = curl_easy_perform(curl);
     CurlLogError(curlError);
     curl_easy_cleanup(curl);
@@ -129,8 +129,13 @@ int GetLatestBlock(
     {
         ToUppercase(newreq.ptr);
         jsmn_init(&parser);
-        jsmn_parse(&parser, newreq.ptr, newreq.len, newreq.toks, REQ_LEN);
-
+        
+        int jsmn_result = jsmn_parse(&parser, newreq.ptr, newreq.len, newreq.toks, REQ_LEN);
+        if(jsmn_result < 0)
+        {
+            LOG(ERROR) << "Couldn't parse block data";
+            return EXIT_FAILURE;
+        }
         // no need to check node public key every time, i think
         if (checkPubKey)
         {   
@@ -310,8 +315,8 @@ int PostPuzzleSolution(
     CurlLogError(curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request));
     
     // set timeout to 10 sec for sending solution
-    CurlLogError(curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L));
-    CurlLogError(curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L));    
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L));
+    CurlLogError(curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L));    
     CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc));
     CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEDATA, &respond));
 
