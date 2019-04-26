@@ -73,12 +73,15 @@ TESTEXEC = test.out
 %.o: %.c
 	$(CXX) $(COPT) $(CFLAGS) $< -o $@
 
-# default
-all: clean lib auto
+# default (miner executable)
+all: clean lib autoexec
 	@if ! [ -e "config.json" ]; then \
 		echo $(CONFIG) > config.json; \
 		echo "Stub config.json was generated"; \
 	fi
+
+# test executable
+test: clean lib testexec 
 
 # lib
 lib: $(OBJECTS)
@@ -86,14 +89,14 @@ lib: $(OBJECTS)
 	$(AR) rc $(LIBPATH) $(OBJECTS)
 	ranlib $(LIBPATH)
 
-# miner executable
-auto:
+# miner executable if lib made
+autoexec:
 	$(CXX) $(SRCDIR)/autolykos.cu $(LIBPATH) $(LIBS) $(COPT) $(STD) \
 		$(GENCODE_FLAGS) -DBLOCK_DIM=$(BLOCKDIM) \
 		-DNONCES_PER_ITER=$(WORKSPACE) -o $(AUTOEXEC)
 
-# test executable
-test: 
+# test executable if lib made
+testexec: 
 	$(CXX) $(SRCDIR)/test.cu $(LIBPATH) $(LIBS) $(COPT) $(STD) \
 		$(GENCODE_FLAGS) -DBLOCK_DIM=$(BLOCKDIM) \
 		-DNONCES_PER_ITER=$(WORKSPACE) -o $(TESTEXEC)
@@ -103,4 +106,4 @@ clean:
 	rm -f $(OBJECTS) $(SRCDIR)/autolykos.o $(SRCDIR)/test.o $(LIBPATH) \
 		$(TESTEXEC) $(AUTOEXEC)
 
-.PHONY: all auto clean lib test 
+.PHONY: all autoexec clean lib test testexec

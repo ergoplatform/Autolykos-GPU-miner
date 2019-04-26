@@ -208,9 +208,9 @@ int TestSolutions(
     const uint8_t * w
 )
 {
+    LOG(INFO) << "Solutions test started";
     LOG(INFO) << "Set keepPrehash = "
         << ((info->keepPrehash)? "true": "false");
-    LOG(INFO) << "Solutions test started";
 
     //========================================================================//
     //  Host memory allocation
@@ -349,6 +349,7 @@ int TestSolutions(
     if (info->keepPrehash) { CUDA_CALL(cudaFree(uctxs_d)); }
 
     LOG(INFO) << "Solutions test passed\n";
+
     return EXIT_SUCCESS;
 }
 
@@ -523,10 +524,10 @@ int TestPerformance(
 
     if (info->keepPrehash) { CUDA_CALL(cudaFree(uctxs_d)); }
 
-    LOG(INFO) << "Performance test completed";
     LOG(INFO) << "Found " << sum << " solutions";
     LOG(INFO) << "Hashrate: " << (double)NONCES_PER_ITER * iter
-        / ((double)1000 * ms.count()) << " MH/s\n";
+        / ((double)1000 * ms.count()) << " MH/s";
+    LOG(INFO) << "Performance test completed\n";
 
     return EXIT_SUCCESS;
 }
@@ -640,7 +641,7 @@ int main(int argc, char ** argv)
     info.keepPrehash = (freeMem >= MIN_FREE_MEMORY_PREHASH)? 1: 0;
     TestPerformance(&info, x, w);
 
-    LOG(INFO) << "All tests have been successfully completed";
+    LOG(INFO) << "Test suite executable is now terminated";
 
     return EXIT_SUCCESS;
 }

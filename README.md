@@ -28,7 +28,7 @@ a config file `autolykos/secp256k1/config.json` with stub contents.
 ## Test (Linux)
 
 1. Change directory to `autolykos/secp256k1`
-2. Run `make clean lib test`
+2. Run `make test`
 
 If `make` completed successfully there will appear a test executable
 `autolykos/secp256k1/test.out`.
