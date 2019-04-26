@@ -268,7 +268,7 @@ int TestSolutions(
 
     // copy one time public key
     CUDA_CALL(cudaMemcpy(
-        ((uint8_t *)data_d + PK_SIZE_8 + NUM_SIZE_8), w, PK_SIZE_8,
+        (uint8_t *)data_d + PK_SIZE_8 + NUM_SIZE_8, w, PK_SIZE_8,
         cudaMemcpyHostToDevice
     ));
 
@@ -505,7 +505,7 @@ int TestPerformance(
             bound_d, data_d, base, hashes_d, res_d, indices_d
         );
 
-        sum = FindSum(indices_d, indices_d + NONCES_PER_ITER, NONCES_PER_ITER);
+        sum += FindSum(indices_d, indices_d + NONCES_PER_ITER, NONCES_PER_ITER);
 
         base += NONCES_PER_ITER;
 
