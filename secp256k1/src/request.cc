@@ -20,11 +20,6 @@
 #include <atomic>
 #include <mutex>
 
-//#ifndef _WIN32 
-//#include <termios.h>
-//#include <unistd.h>
-//#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 //  Write function for CURL http GET
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,13 +125,17 @@ int GetLatestBlock(
         ToUppercase(newreq.ptr);
         jsmn_init(&parser);
         
-        int jsmn_result = jsmn_parse(&parser, newreq.ptr, newreq.len, newreq.toks, REQ_LEN);
-        if(jsmn_result < 0)
+        int jsmn_result = jsmn_parse(
+            &parser, newreq.ptr, newreq.len, newreq.toks, REQ_LEN
+        );
+
+        if (jsmn_result < 0)
         {
             LOG(ERROR) << "Couldn't parse block data";
             LOG(ERROR) << "Block data: " << newreq.ptr;
             return EXIT_FAILURE;
         }
+
         // no need to check node public key every time, i think
         if (checkPubKey)
         {   

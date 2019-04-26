@@ -8,12 +8,13 @@
 
 #include "../include/conversion.h"
 #include "../include/definitions.h"
-#include <stdio.h>
+#include "../include/easylogging++.h"
+#include <inttypes.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <inttypes.h>
-#include "../include/easylogging++.h"
+
 ////////////////////////////////////////////////////////////////////////////////
 //  Convert string of decimal digits to string of 64 hexadecimal digits
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,8 +38,10 @@ int DecStrToHexStrOf64(
         if (in[i] >= '0' && in[i] <= '9') { fs[k++] = (uint32_t)(in[i] - '0'); }
         else { 
             char errbuf[1024];
+
             errbuf[0] = '\0';
             strncat(errbuf, in, inlen);
+
             LOG(ERROR) << "DecStrToHexStrOf64 failed on string " << errbuf;
             CALL(0, ERROR_IO); 
         }
@@ -114,11 +117,8 @@ void HexStrToBigEndian(
     for (int i = (outlen << 1) - inlen; i < (outlen << 1); ++i)
     {
         out[i >> 1]
-            |= ((
-                (in[i] >= 'A')?
-                in[i] - 'A' + 0xA: 
-                in[i] - '0' 
-            ) & 0xF) << ((!(i & 1)) << 2);
+            |= (((in[i] >= 'A')?  in[i] - 'A' + 0xA: in[i] - '0') & 0xF)
+            << ((!(i & 1)) << 2);
     }
 
     return;
