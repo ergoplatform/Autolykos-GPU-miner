@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
-
+#include "../include/easylogging++.h"
 ////////////////////////////////////////////////////////////////////////////////
 //  Convert string of decimal digits to string of 64 hexadecimal digits
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,7 +35,13 @@ int DecStrToHexStrOf64(
     for (int i = inlen - 1, k = 0; i >= 0; --i)
     {
         if (in[i] >= '0' && in[i] <= '9') { fs[k++] = (uint32_t)(in[i] - '0'); }
-        else { CALL(0, ERROR_IO); }
+        else { 
+            char errbuf[1024];
+            errbuf[0] = '\0';
+            strncat(errbuf, in, inlen);
+            LOG(ERROR) << "DecStrToHexStrOf64 failed on string " << errbuf;
+            CALL(0, ERROR_IO); 
+        }
     }
 
     uint32_t ts[74] = {1};
