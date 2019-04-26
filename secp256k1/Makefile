@@ -103,4 +103,4 @@ clean:
 	rm -f $(OBJECTS) $(SRCDIR)/autolykos.o $(SRCDIR)/test.o $(LIBPATH) \
 		$(TESTEXEC) $(AUTOEXEC)
 
-.PHONY: all clean auto lib
+.PHONY: all auto clean lib test 
