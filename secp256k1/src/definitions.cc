@@ -60,4 +60,18 @@ json_t::~json_t(void)
     return;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+//  Token name check
+////////////////////////////////////////////////////////////////////////////////
+int json_t::jsoneq(const int pos, const char * str)
+{
+    if (
+        toks[pos].type == JSMN_STRING
+        && (int)strlen(str) == GetTokenLen(pos)
+        && !strncmp(GetTokenStart(pos), str, GetTokenLen(pos))
+    ) { return 0; }
+
+    return -1;
+}
+
 // definitions.cc

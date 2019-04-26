@@ -6,8 +6,6 @@
 
 *******************************************************************************/
 
-#include "../include/compaction.h"
-#include "../include/conversion.h"
 #include "../include/cryptography.h"
 #include "../include/definitions.h"
 #include "../include/easylogging++.h"
@@ -140,19 +138,19 @@ void MinerThread(int deviceId, info_t * info)
     // boundary for puzzle
     uint32_t * bound_d;
     // (2 * PK_SIZE_8 + 2 + 4 * NUM_SIZE_8 + 212 + 4) bytes // ~0 MiB
-    CUDA_CALL(cudaMalloc((void **)&bound_d, NUM_SIZE_8 + DATA_SIZE_8));
+    CUDA_CALL(cudaMalloc(&bound_d, NUM_SIZE_8 + DATA_SIZE_8));
     // data: pk || mes || w || padding || x || sk || ctx
     uint32_t * data_d = bound_d + NUM_SIZE_32;
 
     // precalculated hashes
     // N_LEN * NUM_SIZE_8 bytes // 2 GiB
     uint32_t * hashes_d;
-    CUDA_CALL(cudaMalloc((void **)&hashes_d, (uint32_t)N_LEN * NUM_SIZE_8));
+    CUDA_CALL(cudaMalloc(&hashes_d, (uint32_t)N_LEN * NUM_SIZE_8));
 
     // WORKSPACE_SIZE_8 bytes // depends on macros, now ~512 MiB
     // potential solutions of puzzle
     uint32_t * res_d;
-    CUDA_CALL(cudaMalloc((void **)&res_d, WORKSPACE_SIZE_8));
+    CUDA_CALL(cudaMalloc(&res_d, WORKSPACE_SIZE_8));
     // indices of unfinalized hashes
     uint32_t * indices_d = res_d + NONCES_PER_ITER * NUM_SIZE_32;
 
@@ -162,9 +160,7 @@ void MinerThread(int deviceId, info_t * info)
 
     if (keepPrehash)
     {
-        CUDA_CALL(cudaMalloc(
-            (void **)&uctxs_d, (uint32_t)N_LEN * sizeof(uctx_t)
-        ));
+        CUDA_CALL(cudaMalloc(&uctxs_d, (uint32_t)N_LEN * sizeof(uctx_t)));
     }
 
     //========================================================================//
@@ -172,13 +168,13 @@ void MinerThread(int deviceId, info_t * info)
     //========================================================================//
     // copy public key
     CUDA_CALL(cudaMemcpy(
-        (void *)data_d, (void *)pk_h, PK_SIZE_8, cudaMemcpyHostToDevice
+        data_d, pk_h, PK_SIZE_8, cudaMemcpyHostToDevice
     ));
 
     // copy secret key
     CUDA_CALL(cudaMemcpy(
-        (void *)(data_d + COUPLED_PK_SIZE_32 + 2 * NUM_SIZE_32), (void *)sk_h,
-        NUM_SIZE_8, cudaMemcpyHostToDevice
+        data_d + COUPLED_PK_SIZE_32 + 2 * NUM_SIZE_32, sk_h, NUM_SIZE_8,
+        cudaMemcpyHostToDevice
     ));
 
     //========================================================================//
@@ -254,26 +250,25 @@ void MinerThread(int deviceId, info_t * info)
 
             // copy boundary
             CUDA_CALL(cudaMemcpy(
-                (void *)bound_d, (void *)bound_h, NUM_SIZE_8,
-                cudaMemcpyHostToDevice
+                bound_d, bound_h, NUM_SIZE_8, cudaMemcpyHostToDevice
             ));
 
             // copy message
             CUDA_CALL(cudaMemcpy(
-                (void *)((uint8_t *)data_d + PK_SIZE_8), (void *)mes_h,
-                NUM_SIZE_8, cudaMemcpyHostToDevice
+                ((uint8_t *)data_d + PK_SIZE_8), mes_h, NUM_SIZE_8,
+                cudaMemcpyHostToDevice
             ));
 
             // copy one time secret key
             CUDA_CALL(cudaMemcpy(
-                (void *)(data_d + COUPLED_PK_SIZE_32 + NUM_SIZE_32),
-                (void *)x_h, NUM_SIZE_8, cudaMemcpyHostToDevice
+                (data_d + COUPLED_PK_SIZE_32 + NUM_SIZE_32),
+                x_h, NUM_SIZE_8, cudaMemcpyHostToDevice
             ));
 
             // copy one time public key
             CUDA_CALL(cudaMemcpy(
-                (void *)((uint8_t *)data_d + PK_SIZE_8 + NUM_SIZE_8),
-                (void *)w_h, PK_SIZE_8, cudaMemcpyHostToDevice
+                ((uint8_t *)data_d + PK_SIZE_8 + NUM_SIZE_8),
+                w_h, PK_SIZE_8, cudaMemcpyHostToDevice
             ));
 
             VLOG(1) << "Starting prehashing with new block data";
@@ -295,8 +290,8 @@ void MinerThread(int deviceId, info_t * info)
 
         // copy context
         CUDA_CALL(cudaMemcpy(
-            (void *)(data_d + COUPLED_PK_SIZE_32 + 3 * NUM_SIZE_32),
-            (void *)&ctx_h, sizeof(ctx_t), cudaMemcpyHostToDevice
+            data_d + COUPLED_PK_SIZE_32 + 3 * NUM_SIZE_32, &ctx_h,
+            sizeof(ctx_t), cudaMemcpyHostToDevice
         ));
 
         // restart iteration if new block was found
@@ -323,7 +318,7 @@ void MinerThread(int deviceId, info_t * info)
         if (ind)
         {
             CUDA_CALL(cudaMemcpy(
-                (void *)res_h, (void *)(res_d + ((ind - 1) << 3)), NUM_SIZE_8,
+                res_h, (res_d + ((ind - 1) << 3)), NUM_SIZE_8,
                 cudaMemcpyDeviceToHost
             ));
 
@@ -432,7 +427,7 @@ int main(int argc, char ** argv)
     if (status != EXIT_SUCCESS)
     {
         LOG(INFO) << "First block getting request failed,"
-            << " maybe wrong node address?";
+            << " possibly node address is wrong";
     }
 
     //========================================================================//

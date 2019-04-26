@@ -45,7 +45,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Memory compatibility checks
 // should probably be now more correctly set
-#define MIN_FREE_MEMORY 2690000000
+#define MIN_FREE_MEMORY    2690000000
 #define MIN_FREE_MEMORY_PREHASH 7850000000
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -279,13 +279,7 @@ struct json_t
     char * GetTokenEnd(const int pos) { return ptr + toks[pos].end; }
 
     //token name check
-    int jsoneq(const int pos, const char *s) {
-        if (toks[pos].type == JSMN_STRING && (int)strlen(s) == toks[pos].end - toks[pos].start &&
-        strncmp(ptr + toks[pos].start, s, toks[pos].end - toks[pos].start) == 0) {
-        return 0;
-        }
-    return -1;
-    }
+    int jsoneq(const int pos, const char * str);
 };
 
 // BLAKE2b-256 hash state context

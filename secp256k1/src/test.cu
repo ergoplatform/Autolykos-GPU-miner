@@ -208,7 +208,7 @@ int TestSolutions(
     const uint8_t * w
 )
 {
-    LOG(INFO) << "Set keepPrehash == "
+    LOG(INFO) << "Set keepPrehash = "
         << ((info->keepPrehash)? "true": "false");
     LOG(INFO) << "Solutions test started";
 
@@ -268,7 +268,7 @@ int TestSolutions(
 
     // copy one time public key
     CUDA_CALL(cudaMemcpy(
-        ((uint8_t *)data_d + PK_SIZE_8 + NUM_SIZE_8), w, PK_SIZE_8,
+        (uint8_t *)data_d + PK_SIZE_8 + NUM_SIZE_8, w, PK_SIZE_8,
         cudaMemcpyHostToDevice
     ));
 
@@ -361,8 +361,6 @@ int TestPerformance(
     const uint8_t * w
 )
 {
-    LOG(INFO) << "Set keepPrehash == "
-        << ((info->keepPrehash)? "true": "false");
     LOG(INFO) << "Performance test started";
 
     //========================================================================//
@@ -443,27 +441,43 @@ int TestPerformance(
     uint64_t base = 0;
 
     ch::milliseconds ms = ch::milliseconds::zero(); 
+
+    LOG(INFO) << "Set keepPrehash = false";
+
     ch::milliseconds start = ch::duration_cast<ch::milliseconds>(
         ch::system_clock::now().time_since_epoch()
     );
 
-    if (info->keepPrehash)
-    {
-        UncompleteInitPrehash<<<1 + (N_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
-            data_d, uctxs_d
-        );
-    }
+    Prehash(0, data_d, NULL, hashes_d, res_d);
 
-    Prehash(info->keepPrehash, data_d, uctxs_d, hashes_d, res_d);
-    CUDA_CALL(cudaDeviceSynchronize());
-
-    ms += ch::duration_cast<ch::milliseconds>(
+    ms = ch::duration_cast<ch::milliseconds>(
         ch::system_clock::now().time_since_epoch()
     ) - start;
 
     LOG(INFO) << "Prehash time: " << ms.count() << " ms";
-    LOG(INFO) << "BlockMining now for 1 munute";
-    ms = ch::milliseconds::zero();
+
+    if (info->keepPrehash)
+    {
+        LOG(INFO) << "Set keepPrehash = true";
+
+        UncompleteInitPrehash<<<1 + (N_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
+            data_d, uctxs_d
+        );
+
+        start = ch::duration_cast<ch::milliseconds>(
+            ch::system_clock::now().time_since_epoch()
+        );
+
+        Prehash(1, data_d, uctxs_d, hashes_d, res_d);
+
+        ms = ch::duration_cast<ch::milliseconds>(
+            ch::system_clock::now().time_since_epoch()
+        ) - start;
+
+        LOG(INFO) << "Prehash time: " << ms.count() << " ms";
+    }
+
+    CUDA_CALL(cudaDeviceSynchronize());
 
     // calculate unfinalized hash of message
     InitMining(&ctx_h, (uint32_t *)info->mes, NUM_SIZE_8);
@@ -474,20 +488,24 @@ int TestPerformance(
         cudaMemcpyHostToDevice
     ));
 
+    LOG(INFO) << "BlockMining now for 1 minute";
+    ms = ch::milliseconds::zero();
+
     uint32_t sum = 0;
+    int iter = 0;
 
     start = ch::duration_cast<ch::milliseconds>(
         ch::system_clock::now().time_since_epoch()
     );
 
-    while (ms.count() < 60000)
+    for ( ; ms.count() < 60000; ++iter)
     {
         // calculate solution candidates
         BlockMining<<<1 + (THREADS_PER_ITER - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             bound_d, data_d, base, hashes_d, res_d, indices_d
         );
 
-        sum = FindSum(indices_d, indices_d + NONCES_PER_ITER, NONCES_PER_ITER);
+        sum += FindSum(indices_d, indices_d + NONCES_PER_ITER, NONCES_PER_ITER);
 
         base += NONCES_PER_ITER;
 
@@ -506,7 +524,10 @@ int TestPerformance(
     if (info->keepPrehash) { CUDA_CALL(cudaFree(uctxs_d)); }
 
     LOG(INFO) << "Performance test completed";
-    LOG(INFO) << "Found " << sum << " solutions\n";
+    LOG(INFO) << "Found " << sum << " solutions";
+    LOG(INFO) << "Hashrate: " << (double)NONCES_PER_ITER * iter
+        / ((double)1000 * ms.count()) << " MH/s\n";
+
     return EXIT_SUCCESS;
 }
 
@@ -616,14 +637,8 @@ int main(int argc, char ** argv)
     //========================================================================//
     //  Run performance tests
     //========================================================================//
-    info.keepPrehash = 0;
+    info.keepPrehash = (freeMem >= MIN_FREE_MEMORY_PREHASH)? 1: 0;
     TestPerformance(&info, x, w);
-
-    if (freeMem >= MIN_FREE_MEMORY_PREHASH)
-    {
-        info.keepPrehash = 1;
-        TestPerformance(&info, x, w);
-    }
 
     LOG(INFO) << "All tests have been successfully completed";
 

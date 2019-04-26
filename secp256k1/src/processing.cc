@@ -21,10 +21,6 @@
 #include <sys/types.h>
 #include <string>
 
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //  Find file size
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,9 +35,8 @@ long int FindFileSize(const char * fileName)
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Read config file
-//  Understands single-level json strings ( {"a":"b", "c":"d", ...})
 ////////////////////////////////////////////////////////////////////////////////
-
+// understands single-level json strings ({"a":"b", "c":"d", ...})
 int ReadConfig(
     const char * fileName,
     uint8_t * sk,
@@ -62,11 +57,14 @@ int ReadConfig(
     
     jsmn_parser parser;
     jsmn_init(&parser);
-    VLOG(1) << "config string "<< config.ptr;
-    
-    int numtoks = jsmn_parse(&parser, config.ptr, strlen(config.ptr), config.toks, CONF_LEN);    
 
-    if(numtoks < 0)
+    VLOG(1) << "config string " << config.ptr;
+    
+    int numtoks = jsmn_parse(
+        &parser, config.ptr, strlen(config.ptr), config.toks, CONF_LEN
+    );
+
+    if (numtoks < 0)
     {
         LOG(ERROR) << numtoks << " jsmn config parsing error";
         return EXIT_FAILURE;
@@ -75,68 +73,61 @@ int ReadConfig(
     int readNode = 0;
     int readSeed = 0;
 
-    for(int i = 1; i < numtoks; i++)
+    for (int i = 1; i < numtoks; ++i)
     {
-        if(config.jsoneq(i, "node") == 0)
+        if (!(config.jsoneq(i, "node")))
         {
             from[0] = '\0';
             to[0] = '\0';
-            strncat(from,
-                config.GetTokenStart(i+1),
-                config.GetTokenLen(i+1)
+
+            strncat(
+                from, config.GetTokenStart(i + 1), config.GetTokenLen(i + 1)
             );
             strcat(from, "/mining/candidate");
             
-            strncat(to,
-                config.GetTokenStart(i+1),
-                config.GetTokenLen(i+1)
-            );
+            strncat(to, config.GetTokenStart(i + 1), config.GetTokenLen(i + 1));
             strcat(to, "/mining/solution");
+
             VLOG(1) << "from url " << from  << " to url " << to;
+
             readNode = 1;
             ++i;
         }
-        else if(config.jsoneq(i,"keepPrehash") == 0)
+        else if (!(config.jsoneq(i,"keepPrehash")))
         {
-            if(strncmp(config.GetTokenStart(i+1), "true" , 4 ) == 0)
+            if (!strncmp(config.GetTokenStart(i + 1), "true", 4))
             {
                 *keep = 1;
-                VLOG(1) << "Setting keepprehash to 1";
-            }
-            else
-            {
-                *keep = 0;
-            }
-            ++i;
 
+                VLOG(1) << "Setting keepPrehash to 1";
+            }
+            else { *keep = 0; }
+
+            ++i;
         }
-        else if(config.jsoneq(i, "seed") == 0)
+        else if (!(config.jsoneq(i, "seed")))
         {
-            // maybe need to make it little bit prettier, without changing string itself
-            --(config.toks[i+1].start);
-            *(config.GetTokenStart(i+1)) = '1';
+            // maybe need to make it little bit prettier,
+            // without changing string itself
+            --(config.toks[i + 1].start);
+            *(config.GetTokenStart(i + 1)) = '1';
+
             GenerateSecKey(
-                config.GetTokenStart(i+1), 
-                config.GetTokenLen(i+1),
-                sk,
+                config.GetTokenStart(i + 1), config.GetTokenLen(i + 1), sk,
                 skstr
             );
+
             readSeed = 1;
             ++i;
         }
-
     }
     
-    if(readSeed & readNode)
-    {
-        return EXIT_SUCCESS;
-    }
+    if (readSeed & readNode) { return EXIT_SUCCESS; }
     else
     {
         LOG(ERROR) << "Node or seed were not specified, bad config";
         return EXIT_FAILURE;
     }
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
