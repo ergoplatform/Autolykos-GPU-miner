@@ -5,12 +5,13 @@
 
 To compile you need the following:
 
-1. CUDA Toolkit: [installation guide](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
-2. libcurl library: to install run
+1. CUDA Toolkit: see [installation guide](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
+2. CUDA Driver compatible with installed Toolkit: see [compatibility table](https://docs.nvidia.com/deploy/cuda-compatibility/index.html#binary-compatibility__table-toolkit-driver)
+3. libcurl library: to install run
 ```
 $ apt install libcurl4-openssl-dev
 ```
-3. OpenSSL 1.0.2 library: to install run
+4. OpenSSL 1.0.2 library: to install run
 ```
 $ apt install libssl-dev
 ```
@@ -66,8 +67,8 @@ To choose CUDA devices change and use `runner.sh` or directly change environment
 `{ "seed" : "seedstring", "node" : "https://127.0.0.1", "keepPrehash" : false }`
 
 The mode of execution with `keepPrehash` option:
-1. `true` -- enable total unfinalized prehashes array (5GB) reusage. ( Should only be used if your CUDA devices have >= 8GB memory)
-2. `false` -- prehash recalculation for each block. (For CUDA devices with >= 3GB memory)
+1. `true` -- enable total unfinalized prehashes array (5GiB) reusage. ( Should only be used if your CUDA devices have >= 8GiB memory)
+2. `false` -- prehash recalculation for each block. (For CUDA devices with >= 3GiB memory)
 
 To change CUDA devices available to the miner change environment variable `CUDA_VISIBLE_DEVICES` , for example ` set CUDA_VISIBLE_DEVICES="0,1" `
 
