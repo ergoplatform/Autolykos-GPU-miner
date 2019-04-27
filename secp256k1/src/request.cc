@@ -175,23 +175,38 @@ int GetLatestBlock(
         //====================================================================//
         //  Substitute message and change state when message changed
         //====================================================================//
-        mesChanged = strncmp(
-            oldreq->GetTokenStart(MES_POS), newreq.GetTokenStart(MES_POS),
-            newreq.GetTokenLen(MES_POS)
-        );
+        int mesLen = newreq.GetTokenLen(MES_POS);
+        int boundLen = newreq.GetTokenLen(BOUND_POS);       
         
-        int len = newreq.GetTokenLen(BOUND_POS);
+        if( oldreq->len )
+        {
+            if(mesLen != oldreq->GetTokenLen(MES_POS))
+            {
+                mesChanged = 1;
+            }
+            else
+            {
+                mesChanged = strncmp(
+                    oldreq->GetTokenStart(MES_POS), newreq.GetTokenStart(MES_POS),
+                    mesLen
+                );
+            }
 
-        boundChanged = strncmp(
-            oldreq->GetTokenStart(BOUND_POS), newreq.GetTokenStart(BOUND_POS),
-            len
-        );
+            if(boundLen != oldreq->GetTokenLen(BOUND_POS))
+            {
+                boundChanged = 1;
+            }
+            else
+            {
+                boundChanged = strncmp(
+                    oldreq->GetTokenStart(BOUND_POS), newreq.GetTokenStart(BOUND_POS),
+                    boundLen
+                );
+            }
 
+        }
         //check if we need to change ANYTHING, only then lock info mutex
-        if (
-            mesChanged || boundChanged || !(oldreq->len)
-            || len != oldreq->GetTokenLen(BOUND_POS)
-        )
+        if ( mesChanged || boundChanged || !(oldreq->len))
         {
             info->info_mutex.lock();
             
@@ -209,27 +224,21 @@ int GetLatestBlock(
             //================================================================//
             //  Substitute bound in case it changed
             //================================================================//
-            if (
-                 !(oldreq->len) || len != oldreq->GetTokenLen(BOUND_POS)
-                || boundChanged
-            )
+            if ( !(oldreq->len) || boundChanged )
             {
                 char buf[NUM_SIZE_4 + 1];
 
-                DecStrToHexStrOf64(newreq.GetTokenStart(BOUND_POS), len, buf);
+                DecStrToHexStrOf64(newreq.GetTokenStart(BOUND_POS), newreq.GetTokenLen(BOUND_POS), buf);
                 HexStrToLittleEndian(buf, NUM_SIZE_4, info->bound, NUM_SIZE_8);
-
-                diff = 1;
             }
             
             info->info_mutex.unlock();
             
-            if (mesChanged || diff)
-            {
-                // signaling uint
-                ++(info->blockId);
-                LOG(INFO) << "Got new block in main thread";
-            }
+            
+            // signaling uint
+            ++(info->blockId);
+            LOG(INFO) << "Got new block in main thread";
+            
         }
 
         //====================================================================//
