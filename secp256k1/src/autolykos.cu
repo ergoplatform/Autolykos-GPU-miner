@@ -388,7 +388,7 @@ int main(int argc, char ** argv)
     // check access to config file
     if (access(fileName, F_OK) == -1)
     {
-        LOG(ERROR) << "Config file " << fileName << " not found";
+        LOG(ERROR) << "Configuration file " << fileName << " is not found";
         return EXIT_FAILURE;
     }
 
@@ -397,11 +397,7 @@ int main(int argc, char ** argv)
         fileName, info.sk, info.skstr, from, info.to, &info.keepPrehash
     );
 
-    if (status == EXIT_FAILURE)
-    {
-        LOG(ERROR) << "Wrong config file format";
-        return EXIT_FAILURE;
-    }
+    if (status == EXIT_FAILURE) { return EXIT_FAILURE; }
 
     LOG(INFO) << "Block getting URL:\n   " << from;
     LOG(INFO) << "Solution posting URL:\n   " << info.to;
@@ -426,8 +422,10 @@ int main(int argc, char ** argv)
 
     if (status != EXIT_SUCCESS)
     {
-        LOG(INFO) << "First block getting request failed,"
+        LOG(ERROR) << "First block getting request failed,"
             << " possibly node address is wrong";
+
+        return EXIT_FAILURE;
     }
 
     //========================================================================//

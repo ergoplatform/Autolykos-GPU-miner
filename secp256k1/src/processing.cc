@@ -40,7 +40,7 @@ int ReadConfig(
 
     if (!file.is_open())
     {
-        LOG(ERROR) << "Requested config file is not found";
+        LOG(ERROR) << "Failure during opening configuration file";
         return EXIT_FAILURE;
     }
 
@@ -63,66 +63,69 @@ int ReadConfig(
 
     if (numtoks < 0)
     {
-        LOG(ERROR) << numtoks << " jsmn config parsing error";
+        LOG(ERROR) << "Jsmn failed to recognise configuration option";
         return EXIT_FAILURE;
     }
     
-    int readNode = 0;
-    int readSeed = 0;
+    uint8_t readNode = 0;
+    uint8_t readSeed = 0;
 
-    for (int i = 1; i < numtoks; ++i)
+    // default keepPrehash = false
+    *keep = 0;
+
+    for (int t = 1; t < numtoks; t += 2)
     {
-        if (!(config.jsoneq(i, "node")))
+        if (config.jsoneq(t, "node"))
         {
             from[0] = '\0';
             to[0] = '\0';
 
             strncat(
-                from, config.GetTokenStart(i + 1), config.GetTokenLen(i + 1)
+                from, config.GetTokenStart(t + 1), config.GetTokenLen(t + 1)
             );
+
             strcat(from, "/mining/candidate");
             
-            strncat(to, config.GetTokenStart(i + 1), config.GetTokenLen(i + 1));
+            strncat(to, config.GetTokenStart(t + 1), config.GetTokenLen(t + 1));
             strcat(to, "/mining/solution");
 
             VLOG(1) << "from url " << from  << " to url " << to;
 
             readNode = 1;
-            ++i;
         }
-        else if (!(config.jsoneq(i, "keepPrehash")))
+        else if (config.jsoneq(t, "keepPrehash"))
         {
-            if (!strncmp(config.GetTokenStart(i + 1), "true", 4))
+            if (!strncmp(config.GetTokenStart(t + 1), "true", 4))
             {
                 *keep = 1;
 
                 VLOG(1) << "Setting keepPrehash to 1";
             }
-            else { *keep = 0; }
-
-            ++i;
         }
-        else if (!(config.jsoneq(i, "seed")))
+        else if (config.jsoneq(t, "seed"))
         {
             // maybe need to make it little bit prettier,
             // without changing string itself
-            --(config.toks[i + 1].start);
-            *(config.GetTokenStart(i + 1)) = '1';
+            --(config.toks[t + 1].start);
+            *(config.GetTokenStart(t + 1)) = '1';
 
             GenerateSecKey(
-                config.GetTokenStart(i + 1), config.GetTokenLen(i + 1), sk,
+                config.GetTokenStart(t + 1), config.GetTokenLen(t + 1), sk,
                 skstr
             );
 
             readSeed = 1;
-            ++i;
+        }
+        else
+        {
+            VLOG(1) << "At least one configuration option is not recognised";
         }
     }
-    
+
     if (readSeed & readNode) { return EXIT_SUCCESS; }
     else
     {
-        LOG(ERROR) << "Node or seed were not specified, bad config";
+        LOG(ERROR) << "Incomplete config: node or seed are not specified";
         return EXIT_FAILURE;
     }
 }

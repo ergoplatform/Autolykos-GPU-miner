@@ -278,7 +278,7 @@ struct json_t
     char * GetTokenStart(const int pos) { return ptr + toks[pos].start; }
     char * GetTokenEnd(const int pos) { return ptr + toks[pos].end; }
 
-    //token name check
+    // token name check
     int jsoneq(const int pos, const char * str);
 };
 

@@ -69,9 +69,9 @@ int json_t::jsoneq(const int pos, const char * str)
         toks[pos].type == JSMN_STRING
         && (int)strlen(str) == GetTokenLen(pos)
         && !strncmp(GetTokenStart(pos), str, GetTokenLen(pos))
-    ) { return 0; }
+    ) { return 1; }
 
-    return -1;
+    return 0;
 }
 
 // definitions.cc

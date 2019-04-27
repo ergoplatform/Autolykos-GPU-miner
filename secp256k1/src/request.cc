@@ -5,11 +5,13 @@
     REQUEST -- Http requests handling
 
 *******************************************************************************/
-#include "../include/easylogging++.h"
-#include "../include/request.h"
+
 #include "../include/conversion.h"
 #include "../include/definitions.h"
+#include "../include/easylogging++.h"
 #include "../include/jsmn.h"
+#include "../include/processing.h"
+#include "../include/request.h"
 #include <ctype.h>
 #include <curl/curl.h>
 #include <fcntl.h>
@@ -38,12 +40,12 @@ size_t WriteFunc(
 
         if (request->cap > MAX_JSON_CAPACITY)
         {
-            LOG(ERROR) << "request cap > json capacity error in WriteFunc";
+            LOG(ERROR) << "Request capacity exceeds json capacity in WriteFunc";
         }
 
         if (!(request->ptr = (char *)realloc(request->ptr, request->cap)))
         {
-            LOG(ERROR) << "request ptr realloc error in WriteFunc";
+            LOG(ERROR) << "Request pointer realloc failed in WriteFunc";
         } 
     }
 
@@ -98,13 +100,12 @@ int GetLatestBlock(
     //========================================================================//
     //  Get latest block
     //========================================================================//
-    newreq.Reset();
     CURLcode curlError;
     int diff = 0;
 
     curl = curl_easy_init();
     
-    if (!curl) { LOG(ERROR) << "Curl doesn't init in getblock"; }
+    if (!curl) { LOG(ERROR) << "CURL initialization failed in GetLatestBlock"; }
 
     CurlLogError(curl_easy_setopt(curl, CURLOPT_URL, from));
     CurlLogError(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFunc));
@@ -117,9 +118,10 @@ int GetLatestBlock(
     curlError = curl_easy_perform(curl);
     CurlLogError(curlError);
     curl_easy_cleanup(curl);
+
     VLOG(1) << "GET request " << newreq.ptr;
     
-    // if curl returns error on request, don't change or check anything 
+    // if curl returns error on request, do not change or check anything 
     if (!curlError)
     {
         ToUppercase(newreq.ptr);
@@ -131,45 +133,29 @@ int GetLatestBlock(
 
         if (jsmn_result < 0)
         {
-            LOG(ERROR) << "Couldn't parse block data";
+            LOG(ERROR) << "Jsmn failed to parse latest block";
             LOG(ERROR) << "Block data: " << newreq.ptr;
 
             return EXIT_FAILURE;
         }
 
-        // no need to check node public key every time, i think
+        // no need to check node public key every time
         if (checkPubKey)
         {   
             if (strncmp(info->pkstr, newreq.GetTokenStart(PK_POS), PK_SIZE_4))
             {
+                char logstr[1000];
+
                 LOG(ERROR)
-                    << "Generated and received public keys do not match\n";
+                    << "Generated and received public keys do not match";
                 
-                fprintf(
-                    stderr, "ABORT:  Public key derived from your secret key:\n"
-                    "        0x%.2s",
-                    info->pkstr
-                );
-
-                for (int i = 2; i < PK_SIZE_4; i += 16)
-                {
-                    fprintf(stderr, " %.16s", info->pkstr + i);
-                }
+                PrintPublicKey(info->pkstr, logstr);
+                LOG(ERROR) << "Generated public key:\n   " << logstr;
             
-                fprintf(
-                    stderr,
-                    "\n        is not equal to the expected public key:\n"
-                    "        0x%.2s", newreq.GetTokenStart(PK_POS)
-                );
+                PrintPublicKey(newreq.GetTokenStart(PK_POS), logstr);
+                LOG(ERROR) << "Received public key:\n   " << logstr;
 
-                for (int i = 2; i < PK_SIZE_4; i += 16)
-                {
-                    fprintf(stderr, " %.16s", newreq.GetTokenStart(PK_POS) + i);
-                }
-
-                fprintf(stderr, "\n");
-                
-                return EXIT_FAILURE;
+                exit(EXIT_FAILURE);
             }
         }
  
@@ -191,7 +177,9 @@ int GetLatestBlock(
                 );
             }
 
-            if(boundLen != oldreq->GetTokenLen(BOUND_POS)) { boundChanged = 1; }
+            if (
+                boundLen != oldreq->GetTokenLen(BOUND_POS)
+            ) { boundChanged = 1; }
             else
             {
                 boundChanged = strncmp(
@@ -201,7 +189,8 @@ int GetLatestBlock(
                 );
             }
         }
-        //check if we need to change ANYTHING, only then lock info mutex
+
+        // check if we need to change anything, only then lock info mutex
         if (mesChanged || boundChanged || !(oldreq->len))
         {
             info->info_mutex.lock();
@@ -220,7 +209,7 @@ int GetLatestBlock(
             //================================================================//
             //  Substitute bound in case it changed
             //================================================================//
-            if (!(oldreq->len) || boundChanged )
+            if (!(oldreq->len) || boundChanged)
             {
                 char buf[NUM_SIZE_4 + 1];
 
@@ -308,7 +297,7 @@ int PostPuzzleSolution(
 
     if (!curl)
     {
-        LOG(ERROR) << "Curl doesn't initialize correctly in posting solution";
+        LOG(ERROR) << "CURL initialization failed in PostPuzzleSolution";
     }
 
     json_t respond(0, REQ_LEN);
