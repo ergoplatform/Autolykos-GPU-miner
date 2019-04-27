@@ -49,9 +49,12 @@ int ReadConfig(
     FILE * in = fopen(fileName, "r");
 
     long int len = FindFileSize(fileName); 
-    json_t config(len, CONF_LEN);
-
-    fread(config.ptr, sizeof(char), len, in);
+    VLOG(1) << "Config file length " << len;
+    
+    json_t config(len+1, CONF_LEN);
+    fgets(config.ptr, len+1, in);
+    //fread(config.ptr, sizeof(char), len, in);
+    //config.ptr[len] = '\0';
 
     fclose(in);
     
