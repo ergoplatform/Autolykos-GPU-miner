@@ -9,9 +9,6 @@
 
 #include "definitions.h"
 
-// find file size
-long int FindFileSize(const char * fileName);
-
 // read config file
 int ReadConfig(
     const char * fileName,

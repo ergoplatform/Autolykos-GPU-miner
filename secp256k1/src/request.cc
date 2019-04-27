@@ -133,6 +133,7 @@ int GetLatestBlock(
         {
             LOG(ERROR) << "Couldn't parse block data";
             LOG(ERROR) << "Block data: " << newreq.ptr;
+
             return EXIT_FAILURE;
         }
 
@@ -157,7 +158,7 @@ int GetLatestBlock(
             
                 fprintf(
                     stderr,
-                    "\n""        is not equal to the expected public key:\n"
+                    "\n        is not equal to the expected public key:\n"
                     "        0x%.2s", newreq.GetTokenStart(PK_POS)
                 );
 
@@ -178,35 +179,30 @@ int GetLatestBlock(
         int mesLen = newreq.GetTokenLen(MES_POS);
         int boundLen = newreq.GetTokenLen(BOUND_POS);       
         
-        if( oldreq->len )
+        if (oldreq->len)
         {
-            if(mesLen != oldreq->GetTokenLen(MES_POS))
-            {
-                mesChanged = 1;
-            }
+            if (mesLen != oldreq->GetTokenLen(MES_POS)) { mesChanged = 1; }
             else
             {
                 mesChanged = strncmp(
-                    oldreq->GetTokenStart(MES_POS), newreq.GetTokenStart(MES_POS),
+                    oldreq->GetTokenStart(MES_POS),
+                    newreq.GetTokenStart(MES_POS),
                     mesLen
                 );
             }
 
-            if(boundLen != oldreq->GetTokenLen(BOUND_POS))
-            {
-                boundChanged = 1;
-            }
+            if(boundLen != oldreq->GetTokenLen(BOUND_POS)) { boundChanged = 1; }
             else
             {
                 boundChanged = strncmp(
-                    oldreq->GetTokenStart(BOUND_POS), newreq.GetTokenStart(BOUND_POS),
+                    oldreq->GetTokenStart(BOUND_POS),
+                    newreq.GetTokenStart(BOUND_POS),
                     boundLen
                 );
             }
-
         }
         //check if we need to change ANYTHING, only then lock info mutex
-        if ( mesChanged || boundChanged || !(oldreq->len))
+        if (mesChanged || boundChanged || !(oldreq->len))
         {
             info->info_mutex.lock();
             
@@ -224,21 +220,24 @@ int GetLatestBlock(
             //================================================================//
             //  Substitute bound in case it changed
             //================================================================//
-            if ( !(oldreq->len) || boundChanged )
+            if (!(oldreq->len) || boundChanged )
             {
                 char buf[NUM_SIZE_4 + 1];
 
-                DecStrToHexStrOf64(newreq.GetTokenStart(BOUND_POS), newreq.GetTokenLen(BOUND_POS), buf);
+                DecStrToHexStrOf64(
+                    newreq.GetTokenStart(BOUND_POS),
+                    newreq.GetTokenLen(BOUND_POS),
+                    buf
+                );
+
                 HexStrToLittleEndian(buf, NUM_SIZE_4, info->bound, NUM_SIZE_8);
             }
             
             info->info_mutex.unlock();
             
-            
             // signaling uint
             ++(info->blockId);
             LOG(INFO) << "Got new block in main thread";
-            
         }
 
         //====================================================================//
@@ -309,7 +308,7 @@ int PostPuzzleSolution(
 
     if (!curl)
     {
-        LOG(ERROR) << "Curl doesn't initialize correctly in posting sol";
+        LOG(ERROR) << "Curl doesn't initialize correctly in posting solution";
     }
 
     json_t respond(0, REQ_LEN);

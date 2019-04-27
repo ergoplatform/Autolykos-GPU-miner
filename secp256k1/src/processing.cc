@@ -17,21 +17,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <sys/types.h>
+#include <fstream>
 #include <string>
-
-////////////////////////////////////////////////////////////////////////////////
-//  Find file size
-////////////////////////////////////////////////////////////////////////////////
-long int FindFileSize(const char * fileName)
-{
-    struct stat st;
-
-    CALL_STATUS(stat(fileName, &st), ERROR_STAT, 0);
-
-    return st.st_size;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Read config file
@@ -46,17 +34,23 @@ int ReadConfig(
     int * keep
 )
 {
-    FILE * in = fopen(fileName, "r");
+    std::ifstream file(
+        fileName, std::ios::in | std::ios::binary | std::ios::ate
+    );
 
-    long int len = FindFileSize(fileName); 
-    VLOG(1) << "Config file length " << len;
-    
-    json_t config(len+1, CONF_LEN);
-    fgets(config.ptr, len+1, in);
-    //fread(config.ptr, sizeof(char), len, in);
-    //config.ptr[len] = '\0';
+    if (!file.is_open())
+    {
+        LOG(ERROR) << "Requested config file is not found";
+        return EXIT_FAILURE;
+    }
 
-    fclose(in);
+    file.seekg(0, std::ios::end);
+    long int len = file.tellg();
+    json_t config(len + 1, CONF_LEN);
+
+    file.seekg(0, std::ios::beg);
+    file.read(config.ptr, len);
+    file.close();
     
     jsmn_parser parser;
     jsmn_init(&parser);
@@ -96,7 +90,7 @@ int ReadConfig(
             readNode = 1;
             ++i;
         }
-        else if (!(config.jsoneq(i,"keepPrehash")))
+        else if (!(config.jsoneq(i, "keepPrehash")))
         {
             if (!strncmp(config.GetTokenStart(i + 1), "true", 4))
             {
