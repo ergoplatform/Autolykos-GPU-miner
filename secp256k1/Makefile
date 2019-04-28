@@ -22,8 +22,8 @@ CONFIG = '{ \
 
 # compiler settings
 CXX = nvcc
-CFLAGS = -c
-CXXFLAGS = -c $(STD)
+CFLAGS = -c --compiler-options -Wall
+CXXFLAGS = -c $(STD) --compiler-options -Wall
 COPT = -O3
 
 # find CUDA compute capability

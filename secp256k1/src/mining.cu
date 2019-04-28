@@ -35,7 +35,7 @@ void InitMining(
     //========================================================================//
     //  Hash message
     //========================================================================//
-    for (int j = 0; j < meslen; ++j)
+    for (uint_t j = 0; j < meslen; ++j)
     {
         if (ctx->c == BUF_SIZE_8) { HOST_B2B_H(ctx, aux); }
 
@@ -68,11 +68,15 @@ __global__ void BlockMining(
     // shared memory
     __shared__ uint32_t sdata[ROUND_NC_SIZE_32];
 
-    memcpy(
-        sdata + NC_SIZE_32_BLOCK * tid,
-        data + NC_SIZE_32_BLOCK * tid + NUM_SIZE_32 * 2 + COUPLED_PK_SIZE_32,
-        NC_SIZE_8_BLOCK
-    );
+#pragma unroll
+    for (int i = 0; i < NC_SIZE_32_BLOCK; ++i)
+    {
+        sdata[NC_SIZE_32_BLOCK * tid + i]
+            = data[
+                NC_SIZE_32_BLOCK * tid + NUM_SIZE_32 * 2
+                + COUPLED_PK_SIZE_32 + i
+            ];
+    }
 
     __syncthreads();
 
@@ -365,7 +369,12 @@ __global__ void BlockMining(
                 );
 
             valid[tid] = (1 - !j) * (tid + 1);
-            memcpy(res + tid * NUM_SIZE_32, r, NUM_SIZE_8);
+
+#pragma unroll
+            for (int i = 0; i < NUM_SIZE_32; ++i)
+            {
+                res[tid * NUM_SIZE_32 + i] = r[i];
+            }
         }
 
         __syncthreads();

@@ -101,10 +101,8 @@ int GetLatestBlock(
     //  Get latest block
     //========================================================================//
     CURLcode curlError;
-    int diff = 0;
 
     curl = curl_easy_init();
-    
     if (!curl) { LOG(ERROR) << "CURL initialization failed in GetLatestBlock"; }
 
     CurlLogError(curl_easy_setopt(curl, CURLOPT_URL, from));
@@ -177,9 +175,10 @@ int GetLatestBlock(
                 );
             }
 
-            if (
-                boundLen != oldreq->GetTokenLen(BOUND_POS)
-            ) { boundChanged = 1; }
+            if (boundLen != oldreq->GetTokenLen(BOUND_POS))
+            {
+                boundChanged = 1;
+            }
             else
             {
                 boundChanged = strncmp(
