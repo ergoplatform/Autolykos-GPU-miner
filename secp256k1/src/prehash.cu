@@ -28,10 +28,11 @@ __global__ void InitPrehash(
     // shared memory
     __shared__ uint32_t sdata[ROUND_PNP_SIZE_32];
 
-    memcpy(
-        sdata + PNP_SIZE_32_BLOCK * tid, data + PNP_SIZE_32_BLOCK * tid,
-        PNP_SIZE_8_BLOCK
-    );
+#pragma unroll
+    for (int i = 0; i < PNP_SIZE_32_BLOCK; ++i)
+    {
+        sdata[PNP_SIZE_32_BLOCK * tid + i] = data[PNP_SIZE_32_BLOCK * tid + i];
+    }
 
     __syncthreads();
 
@@ -171,10 +172,11 @@ __global__ void UncompleteInitPrehash(
     // shared memory
     __shared__ uint32_t sdata[ROUND_PK_SIZE_32];
 
-    memcpy(
-        sdata + PK_SIZE_32_BLOCK * tid, data + PK_SIZE_32_BLOCK * tid,
-        PK_SIZE_8_BLOCK
-    );
+#pragma unroll
+    for (int i = 0; i < PK_SIZE_32_BLOCK; ++i)
+    {
+        sdata[PK_SIZE_32_BLOCK * tid + i] = data[PK_SIZE_32_BLOCK * tid + i];
+    }
 
     __syncthreads();
 
@@ -266,8 +268,17 @@ __global__ void UncompleteInitPrehash(
         //====================================================================//
         //  Dump result to global memory
         //====================================================================//
-        memcpy(uctxs[tid].h, ctx->h, 8 * sizeof(uint64_t));
-        memcpy(uctxs[tid].t, ctx->t, 2 * sizeof(uint64_t));
+#pragma unroll
+        for (int i = 0; i < 16; ++i)
+        {
+            ((uint32_t *)uctxs[tid].h)[i] = ((uint32_t *)ctx->h)[i];
+        }
+
+#pragma unroll
+        for (int i = 0; i < 4; ++i)
+        {
+            ((uint32_t *)uctxs[tid].t)[i] = ((uint32_t *)ctx->t)[i];
+        }
     }
 
     return;
@@ -293,11 +304,12 @@ __global__ void CompleteInitPrehash(
     // shared memory
     __shared__ uint32_t sdata[ROUND_NP_SIZE_32];
 
-    memcpy(
-        sdata + NP_SIZE_32_BLOCK * tid,
-        data + NP_SIZE_32_BLOCK * tid + NUM_SIZE_32,
-        NP_SIZE_8_BLOCK
-    );
+#pragma unroll
+    for (int i = 0; i < NP_SIZE_32_BLOCK; ++i)
+    {
+        sdata[NP_SIZE_32_BLOCK * tid + i]
+            = data[NP_SIZE_32_BLOCK * tid + NUM_SIZE_32 + i];
+    }
 
     __syncthreads();
 
@@ -349,11 +361,28 @@ __global__ void CompleteInitPrehash(
                 ) & 0xFF;
         }
 
-        memcpy(ctx->b + ctx->c, (uint8_t *)data, PK_SIZE_8); 
+#pragma unroll
+        for (int i = 0; i < NUM_SIZE_32; ++i)
+        {
+            ((uint32_t *)(ctx->b + ctx->c))[i] = ((uint32_t *)data)[i]; 
+        }
+        
+        // last byte of public key
+        ctx->b[ctx->c + NUM_SIZE_8] = ((uint8_t *)data)[NUM_SIZE_8];
+
         ctx->c += PK_SIZE_8;
 
-        memcpy(ctx->h, uctxs[tid].h, 8 * sizeof(uint64_t));
-        memcpy(ctx->t, uctxs[tid].t, 2 * sizeof(uint64_t));
+#pragma unroll
+        for (int i = 0; i < 16; ++i)
+        {
+            ((uint32_t *)ctx->h)[i] = ((uint32_t *)uctxs[tid].h)[i];
+        }
+
+#pragma unroll
+        for (int i = 0; i < 4; ++i)
+        {
+            ((uint32_t *)ctx->t)[i] = ((uint32_t *)uctxs[tid].t)[i];
+        }
 
         //====================================================================//
         //  Hash public key, message & one-time public key
@@ -612,11 +641,14 @@ __global__ void FinalPrehashMultSecKey(
     // shared memory
     __shared__ uint32_t sdata[ROUND_NUM_SIZE_32];
 
-    memcpy(
-        sdata + NUM_SIZE_32_BLOCK * tid,
-        data + NUM_SIZE_32_BLOCK * tid + NUM_SIZE_32 + COUPLED_PK_SIZE_32,
-        NUM_SIZE_8_BLOCK
-    );
+#pragma unroll
+    for (int i = 0; i < NUM_SIZE_32_BLOCK; ++i)
+    {
+        sdata[NUM_SIZE_32_BLOCK * tid + i]
+            = data[
+                NUM_SIZE_32_BLOCK * tid + NUM_SIZE_32 + COUPLED_PK_SIZE_32 + i
+            ];
+    }
 
     __syncthreads();
 
@@ -926,7 +958,11 @@ __global__ void FinalPrehashMultSecKey(
         //====================================================================//
         //  Dump result to global memory -- LITTLE ENDIAN
         //====================================================================//
-        memcpy(hashes + tid * NUM_SIZE_32, r, NUM_SIZE_8);
+#pragma unroll
+        for (int i = 0; i < NUM_SIZE_32; ++i)
+        {
+            hashes[tid * NUM_SIZE_32 + i] = r[i];
+        }
     }
 
     return;

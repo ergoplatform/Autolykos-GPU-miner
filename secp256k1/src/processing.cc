@@ -146,7 +146,7 @@ int PrintPublicKey(const char * pkstr, char * str)
 int PrintPublicKey(const uint8_t * pk, char * str)
 {
     sprintf(
-        str, "   pk = 0x%02lX %016lX %016lX %016lX %016lX",
+        str, "   pk = 0x%02X %016lX %016lX %016lX %016lX",
         pk[0],
         REVERSE_ENDIAN((uint64_t *)(pk + 1) + 0),
         REVERSE_ENDIAN((uint64_t *)(pk + 1) + 1),

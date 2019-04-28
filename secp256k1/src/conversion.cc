@@ -36,7 +36,8 @@ int DecStrToHexStrOf64(
     for (int i = inlen - 1, k = 0; i >= 0; --i)
     {
         if (in[i] >= '0' && in[i] <= '9') { fs[k++] = (uint32_t)(in[i] - '0'); }
-        else { 
+        else
+        { 
             char errbuf[1024];
 
             errbuf[0] = '\0';
@@ -50,7 +51,7 @@ int DecStrToHexStrOf64(
     uint32_t ts[74] = {1};
     uint32_t accs[74] = {0};
 
-    for (int i = 0; i < inlen; ++i)
+    for (uint_t i = 0; i < inlen; ++i)
     {
         for (int j = 0; j < 64; ++j)
         {
@@ -114,7 +115,7 @@ void HexStrToBigEndian(
 {
     memset(out, 0, outlen);
 
-    for (int i = (outlen << 1) - inlen; i < (outlen << 1); ++i)
+    for (uint_t i = (outlen << 1) - inlen; i < (outlen << 1); ++i)
     {
         out[i >> 1]
             |= (((in[i] >= 'A')?  in[i] - 'A' + 0xA: in[i] - '0') & 0xF)
@@ -136,7 +137,7 @@ void HexStrToLittleEndian(
 {
     memset(out, 0, outlen);
 
-    for (int i = 0; i < inlen; ++i)
+    for (uint_t i = 0; i < inlen; ++i)
     {
         out[i >> 1]
             |= ((
@@ -264,7 +265,7 @@ void BigEndianToHexStr(
 {
     uint8_t dig;
 
-    for (int i = 0; i < inlen << 1; ++i)
+    for (uint_t i = 0; i < inlen << 1; ++i)
     {
         dig = (uint8_t)(in[i >> 1] >> (!(i & 1) << 2)) & 0xF;
         out[i] = (dig <= 9)? (char)dig + '0': (char)dig + 'A' - 0xA;
