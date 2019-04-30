@@ -469,6 +469,7 @@ int main(int argc, char ** argv)
         {
             LOG(INFO) << "Average curling time "
                 << ms.count() / (double)curltimes << " ms";
+            LOG(INFO) << "Current block candidate: " << request.ptr;
             ms = milliseconds::zero();
         }
 

@@ -12,6 +12,7 @@
 #include "../include/mining.h"
 #include "../include/prehash.h"
 #include "../include/reduction.h"
+#include "../include/request.h"
 #include <ctype.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -366,6 +367,117 @@ int TestPerformance(
     return EXIT_SUCCESS;
 }
 
+
+// to be rewritten or deleted, junk stuff
+void TestRequests()
+{
+    json_t oldreq(0, REQ_LEN);
+    json_t *newreq;
+    newreq = new json_t(0, REQ_LEN);
+    json_t oldreqbig(0, REQ_LEN);
+    info_t testinfo;
+
+    char bigrequest[] = "{ \"msg\" : \"46b7e94915275125129581725817295812759128"
+                        "571925871285728572857285725285728571928517287519285718"
+                        "275192857192857192857192587129581729587129581728571295"
+                        "817295182759128751928571925871285782758782751928571827"
+                        "519285787bfad202ab4e3dd9cc0603c1f61f53485854028b8fa03f"
+                        "399544fb298\", \"b\" : 2134827235332678044033321050158"
+                        "7889707005372997724693988999057291299,  \"pk\" : \"039"
+                        "5f8d54fdd5edb7eeab3228c952d39f5e60d048178f94ac992d4f76"
+                        "a6dce4c71\"  }";
+    WriteFunc((void*)bigrequest, sizeof(char), strlen(bigrequest), &oldreqbig);
+    if(strcmp(bigrequest, oldreqbig.ptr))
+    {
+        LOG(ERROR) << "WriteFunc strings do not match " 
+        << bigrequest << "\n" << oldreqbig.ptr;
+    }
+    
+    
+    char request[] = "{ \"msg\" : \"46b7e949bfad202ab4e3dd9cc0603c1f61f5348585"
+                     "4028b8fa03f399544fb298\", \"b\" : 2134827235332678044033"
+                     "3210501587889707005372997724693988999057291299,  \"pk\" "
+                     ": \"0395f8d54fdd5edb7eeab3228c952d39f5e60d048178f94ac992"
+                     "d4f76a6dce4c71\"  }";
+
+    WriteFunc((void*)request, sizeof(char), strlen(request), &oldreq);
+    if(strcmp(request, oldreq.ptr))
+    {
+        LOG(ERROR) << "WriteFunc strings do not match " << request << "\n" << oldreq.ptr;
+    }
+    
+
+
+    char seedstring[] = "13cc81ef0b13fd496217c7c44b16c09d923ad475d897cffd37c63"
+                        "a15aebf579313d67934727d94ba42687f238480eb9248da9ba21e9c1";
+
+    GenerateSecKey(
+        seedstring, strlen(seedstring), testinfo.sk,
+        testinfo.skstr
+    );
+    GeneratePublicKey(testinfo.skstr, testinfo.pkstr, testinfo.pk);
+
+    char shortrequest[] =  "{ \"msg\" : \"46b7e\", \"b\" : 2134,  \"pk\" : \"0395"
+                            "f8d54fdd5edb7eeab3228c952d39f5e60d048178f94ac992d4"
+                            "f76a6dce4c71\"  }";
+    char brokenrequest[] =  " \"msg\"  \"46b7e\", \"b\" : 2134,  \"pk\" : \"0395f8"
+                            "d54fdd5edb7eeab3228c952d39f5e60d048178f94ac992d4f76a6"
+                            "dce4c71\"  }";
+    char uncompleterequest[] =  "{ \"msg\" : \"46b7e\", \"pk\" : \"0395f8d54fdd5edb"
+                                "7eeab3228c952d39f5e60d048178f94ac992d4f76a6dce4c71\""
+                                " }";
+    char uncompleterequest2[] =  "{ \"b\" : 2134,  \"pk\" : \"0395f8d54fdd5edb7eeab"
+                                 "3228c952d39f5e60d048178f94ac992d4f76a6dce4c71\"  }";
+
+    WriteFunc((void*)shortrequest, sizeof(char), strlen(shortrequest), newreq);
+    LOG(INFO) << "Testing short request "
+     << "\n result " << ((ParseRequest(&oldreq, newreq, &testinfo, 1) == EXIT_SUCCESS) ? "OK" : "ERROR");
+    delete newreq;
+    newreq = new json_t(0, REQ_LEN);
+    WriteFunc((void*)bigrequest, sizeof(char), strlen(bigrequest), newreq);
+     LOG(INFO) << "Testing big request " 
+      << "\n result " << ((ParseRequest(&oldreq, newreq, &testinfo, 1) == EXIT_SUCCESS) ? "OK" : "ERROR");
+    delete newreq;
+    newreq = new json_t(0, REQ_LEN);
+    WriteFunc((void*)brokenrequest, sizeof(char), strlen(brokenrequest), newreq);
+      LOG(INFO) << "Testing broken request " 
+       << "\n result " << ((ParseRequest(&oldreq, newreq, &testinfo, 1) == EXIT_SUCCESS) ? "ERROR" : "OK");
+    delete newreq;
+    newreq = new json_t(0, REQ_LEN);
+    WriteFunc((void*)uncompleterequest, sizeof(char), strlen(uncompleterequest), newreq);
+       LOG(INFO) << "Testing uncomplete request 1 " 
+        << "\n result " << ((ParseRequest(&oldreq, newreq, &testinfo, 1) == EXIT_SUCCESS) ? "ERROR" : "OK");
+    delete newreq;
+    newreq = new json_t(0, REQ_LEN);
+    WriteFunc((void*)uncompleterequest2, sizeof(char), strlen(uncompleterequest2), newreq);
+    LOG(INFO) << "Testing uncomplete request 2 " 
+     << "\n result " << ((ParseRequest(&oldreq, newreq, &testinfo, 1) == EXIT_SUCCESS) ? "ERROR" : "OK");
+    delete newreq;
+
+
+
+
+}
+
+
+
+void TestNewCrypto()
+{
+    char mnemonic[] = "edge talent poet tortoise trumpet dose";
+    uint8_t sk[NUM_SIZE_8];
+    char skstr[NUM_SIZE_4];
+    GenerateSecKeyNew(mnemonic, strlen(mnemonic), sk, skstr, "");
+    printf("(%.64s) \n", skstr);
+    if(strncmp(skstr, "392f75ad23278b3cd7b060d900138f20f8cba89abb259b5dcf5d9830b49d8e38", NUM_SIZE_4))
+    {
+        LOG(ERROR) << "Seed -> private key conversion does not work correctly";
+    }
+
+
+}
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //  Main
 ////////////////////////////////////////////////////////////////////////////////
@@ -379,6 +491,13 @@ int main(int argc, char ** argv)
 
     el::Helpers::setThreadName("test thread");
 
+    LOG(INFO) << "Checking crypto: ";
+
+    TestNewCrypto();
+
+    LOG(INFO) << "Testing requests:";
+
+    TestRequests();
     //========================================================================//
     //  Check requirements
     //========================================================================//

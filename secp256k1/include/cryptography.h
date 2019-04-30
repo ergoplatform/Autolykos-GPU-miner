@@ -17,6 +17,15 @@ int GenerateSecKey(
     char * skstr
 );
 
+// generate secret key from string - bitcoin algorithm
+int GenerateSecKeyNew(
+    const char * in,
+    const int len,
+    uint8_t * sk,
+    char * skstr,
+    char * message
+);
+
 // generate random key pair
 int GenerateKeyPair(uint8_t * sk, uint8_t * pk);
 

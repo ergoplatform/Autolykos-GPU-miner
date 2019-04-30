@@ -52,6 +52,9 @@ int ReadConfig(
     file.read(config.ptr, len);
     file.close();
     
+    // need to null terminate config string, at least for win32
+    config.ptr[len] = '\0';
+
     jsmn_parser parser;
     jsmn_init(&parser);
 
@@ -106,12 +109,12 @@ int ReadConfig(
         {
             // maybe need to make it little bit prettier,
             // without changing string itself
-            --(config.toks[t + 1].start);
-            *(config.GetTokenStart(t + 1)) = '1';
+            // --(config.toks[t + 1].start);
+            // *(config.GetTokenStart(t + 1)) = '1';
 
-            GenerateSecKey(
+            GenerateSecKeyNew(
                 config.GetTokenStart(t + 1), config.GetTokenLen(t + 1), sk,
-                skstr
+                skstr,""
             );
 
             readSeed = 1;
