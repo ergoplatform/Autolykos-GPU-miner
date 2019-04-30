@@ -16,6 +16,9 @@
 #include <openssl/bn.h>
 #include <openssl/ec.h>
 #include <openssl/pem.h>
+#include <openssl/evp.h>
+#include <openssl/sha.h>
+#include <openssl/hmac.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Generate secret key from seed
@@ -76,6 +79,41 @@ int GenerateSecKey(
     if (!(borrow[1] || borrow[0])) { memcpy(sk, aux, NUM_SIZE_8); }
 
     // convert secret key to hex string
+    LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
+
+    return EXIT_SUCCESS;
+}
+
+
+int GenerateSecKeyNew(
+    const char * in,
+    const int len,
+    uint8_t * sk,
+    char * skstr,
+    char * passphrase
+)
+{
+    unsigned char digest[NUM_SIZE_4];
+    char salt[1024] = "mnemonic";
+    strcat(salt, passphrase);
+    PKCS5_PBKDF2_HMAC(in, len, (unsigned char*)salt, strlen(salt), 2048, EVP_sha512(), NUM_SIZE_4, digest);
+    
+    char digeststr[NUM_SIZE_4];
+    uint_t hmaclen = NUM_SIZE_4;
+    char key[] = "Bitcoin seed";
+    unsigned char result[NUM_SIZE_4];
+    HMAC_CTX ctx;
+    HMAC_CTX_init(&ctx);
+ 
+    HMAC_Init_ex(&ctx, key, strlen(key), EVP_sha512(), NULL);
+    HMAC_Update(&ctx, digest, NUM_SIZE_4);
+    HMAC_Final(&ctx, result, &hmaclen);
+    HMAC_CTX_cleanup(&ctx);
+        
+    memcpy(sk, result, sizeof(uint8_t)*NUM_SIZE_8);
+    
+    LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
+    HexStrToBigEndian(skstr, NUM_SIZE_4, sk, NUM_SIZE_8);
     LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
 
     return EXIT_SUCCESS;
