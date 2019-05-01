@@ -111,10 +111,13 @@ int GenerateSecKeyNew(
     HMAC_CTX_cleanup(&ctx);
         
     memcpy(sk, result, sizeof(uint8_t)*NUM_SIZE_8);
+    
     BigEndianToHexStr(sk, NUM_SIZE_8, skstr);
+    printf("%.64s \n", skstr);
     //LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
-    HexStrToLittleEndian(skstr, NUM_SIZE_4, sk, NUM_SIZE_8);
+    HexStrToBigEndian(skstr, NUM_SIZE_4, sk, NUM_SIZE_8);
     LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
+    printf("%.64s \n", skstr);
     return EXIT_SUCCESS;
 }
 
