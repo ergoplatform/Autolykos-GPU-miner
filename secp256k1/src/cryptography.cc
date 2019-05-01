@@ -113,7 +113,8 @@ int GenerateSecKeyNew(
     memcpy(sk, result, sizeof(uint8_t)*NUM_SIZE_8);
     
     LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
-    
+    HexStrToBigEndian(skstr, NUM_SIZE_4, sk, NUM_SIZE_8);
+    LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
     return EXIT_SUCCESS;
 }
 
