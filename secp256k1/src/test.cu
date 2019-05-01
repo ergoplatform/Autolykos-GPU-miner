@@ -368,7 +368,7 @@ int TestPerformance(
 }
 
 
-// to be rewritten or deleted, junk stuff
+// ugly stuff, will rewrite later
 void TestRequests()
 {
     json_t oldreq(0, REQ_LEN);
@@ -466,13 +466,16 @@ void TestNewCrypto()
     char mnemonic[] = "edge talent poet tortoise trumpet dose";
     uint8_t sk[NUM_SIZE_8];
     char skstr[NUM_SIZE_4];
-    GenerateSecKeyNew(mnemonic, strlen(mnemonic), sk, skstr, "");
-    printf("(%.64s) \n", skstr);
-    if(strncmp(skstr, "392f75ad23278b3cd7b060d900138f20f8cba89abb259b5dcf5d9830b49d8e38", NUM_SIZE_4))
-    {
-        LOG(ERROR) << "Seed -> private key conversion does not work correctly";
-    }
+    char pkstr[PK_SIZE_4+1];
+    uint8_t pk[PK_SIZE_8];
 
+    GenerateSecKeyNew(mnemonic, strlen(mnemonic), sk, skstr, "");
+    
+    if(strncmp(skstr, "392F75AD23278B3CD7B060D900138F20F8CBA89ABB259B5DCF5D9830B49D8E38", NUM_SIZE_4))
+    {
+        printf("%.64s private key1\n", skstr);
+        LOG(ERROR) << "mnemonic -> private key conversion does not work correctly";
+    }
 
 }
 
