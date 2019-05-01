@@ -476,6 +476,10 @@ void TestNewCrypto()
         printf("%.64s private key1\n", skstr);
         LOG(ERROR) << "mnemonic -> private key conversion does not work correctly";
     }
+    else
+    {
+        LOG(INFO) << "Mnemonic -> private key conversion works OK";
+    }
 
 }
 
