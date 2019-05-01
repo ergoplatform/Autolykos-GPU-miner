@@ -114,7 +114,7 @@ int GenerateSecKeyNew(
     
     LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
     HexStrToBigEndian(skstr, NUM_SIZE_4, sk, NUM_SIZE_8);
-    LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
+   // LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
     return EXIT_SUCCESS;
 }
 
