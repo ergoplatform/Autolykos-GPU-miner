@@ -49,6 +49,7 @@ If `make` completed successfully there will appear a test executable
 - If the filename is not specified, the miner will try to use `autolykos/secp256k1/config.json` as a config
 - The configuration file must contain json string of the following structure:  
 `{ "seed" : "seedstring", "node" : "https://127.0.0.1", "keepPrehash" : false }`
+
 If your seed mnemonic string is protected by password, add option `"seedPass": "yourpassword"` to your configuration.
 
 The mode of execution with `keepPrehash` option:
@@ -66,6 +67,7 @@ To choose CUDA devices change and use `runner.sh` or directly change environment
 
 - Create a config.json file in miner directory with following structure:
 `{ "seed" : "seedstring", "node" : "https://127.0.0.1", "keepPrehash" : false }`
+
 If your seed mnemonic string is protected by password, add option `"seedPass": "yourpassword"` to your configuration.
 
 The mode of execution with `keepPrehash` option:
