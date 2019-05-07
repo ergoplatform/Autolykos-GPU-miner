@@ -250,9 +250,6 @@ int GetLatestBlock(
     CURL * curl;
     json_t newreq(0, REQ_LEN);
 
-    int mesChanged = 0;
-    int boundChanged = 0;
-
     //========================================================================//
     //  Get latest block
     //========================================================================//
