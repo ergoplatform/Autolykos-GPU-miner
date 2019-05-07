@@ -116,7 +116,7 @@ int ReadConfig(
             // --(config.toks[t + 1].start);
             // *(config.GetTokenStart(t + 1)) = '1';
 
-            seedstring = malloc((config.GetTokenLen(t + 1) + 1)*sizeof(char));
+            seedstring = (char*)malloc((config.GetTokenLen(t + 1) + 1)*sizeof(char));
             seedstring[0] = '\0';
             strncat(seedstring, config.GetTokenStart(t + 1), config.GetTokenLen(t + 1));
             /*
@@ -134,7 +134,7 @@ int ReadConfig(
             // --(config.toks[t + 1].start);
             // *(config.GetTokenStart(t + 1)) = '1';
 
-            seedPass = malloc((config.GetTokenLen(t + 1) + 1)*sizeof(char));
+            seedPass = (char*)malloc((config.GetTokenLen(t + 1) + 1)*sizeof(char));
             seedPass[0] = '\0';
             strncat(seedPass, config.GetTokenStart(t + 1), config.GetTokenLen(t + 1));
             /*
