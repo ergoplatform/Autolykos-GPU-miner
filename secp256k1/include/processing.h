@@ -8,6 +8,11 @@
 *******************************************************************************/
 
 #include "definitions.h"
+// token equality checker
+int jsoneq(const char *json, jsmntok_t *tok, const char *s);
+
+// find file size
+long int FindFileSize(const char * fileName);
 
 // read config file
 int ReadConfig(
@@ -19,16 +24,20 @@ int ReadConfig(
     int * keep
 );
 
-// print public key
-int PrintPublicKey(const char * pkstr, char * str);
-
-int PrintPublicKey(const uint8_t * pk, char * str);
+// print Autolukos puzzle state variables
+int PrintPuzzleState(
+    const uint8_t * mes,
+    const uint8_t * pk,
+    const uint8_t * sk,
+    const uint8_t * w,
+    const uint8_t * x,
+    const uint8_t * bound
+);
 
 // print Autolukos puzzle solution
 int PrintPuzzleSolution(
     const uint8_t * nonce,
-    const uint8_t * sol,
-    char * str
+    const uint8_t * sol
 );
 
 #endif // PROCESSING_H
