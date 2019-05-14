@@ -998,6 +998,7 @@ int Prehash(
         CompleteInitPrehash<<<1 + (N_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             data, uctxs, hashes, ind
         );
+        CUDA_CALL(cudaPeekAtLastError());
     }
     // hash index, constant message and public key
     else
@@ -1005,12 +1006,15 @@ int Prehash(
         InitPrehash<<<1 + (N_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             data, hashes, ind
         );
+        CUDA_CALL(cudaPeekAtLastError());
     }
 
     // determine indices of out of bounds hashes
     Compactify<<<1 + (N_LEN - 1) / BLOCK_DIM, BLOCK_DIM>>>(
         ind, len, comp, invalid + 2 * N_LEN
     );
+
+    CUDA_CALL(cudaPeekAtLastError());
 
     // determine the quantity of invalid hashes
     CUDA_CALL(cudaMemcpy(

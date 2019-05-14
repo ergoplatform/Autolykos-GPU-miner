@@ -72,9 +72,13 @@ int ReadConfig(
     
     uint8_t readNode = 0;
     uint8_t readSeed = 0;
+    uint8_t readSeedPass = 0;
 
     // default keepPrehash = false
     *keep = 0;
+
+    char* seedstring;
+    char* seedPass;
 
     for (int t = 1; t < numtoks; t += 2)
     {
@@ -112,18 +116,62 @@ int ReadConfig(
             // --(config.toks[t + 1].start);
             // *(config.GetTokenStart(t + 1)) = '1';
 
+            seedstring = (char*)malloc((config.GetTokenLen(t + 1) + 1)*sizeof(char));
+            seedstring[0] = '\0';
+            strncat(seedstring, config.GetTokenStart(t + 1), config.GetTokenLen(t + 1));
+            /*
             GenerateSecKeyNew(
                 config.GetTokenStart(t + 1), config.GetTokenLen(t + 1), sk,
                 skstr,""
             );
-
+            */
             readSeed = 1;
+        }
+        else if (config.jsoneq(t, "seedPass"))
+        {
+            // maybe need to make it little bit prettier,
+            // without changing string itself
+            // --(config.toks[t + 1].start);
+            // *(config.GetTokenStart(t + 1)) = '1';
+
+            seedPass = (char*)malloc((config.GetTokenLen(t + 1) + 1)*sizeof(char));
+            seedPass[0] = '\0';
+            strncat(seedPass, config.GetTokenStart(t + 1), config.GetTokenLen(t + 1));
+            /*
+            GenerateSecKeyNew(
+                config.GetTokenStart(t + 1), config.GetTokenLen(t + 1), sk,
+                skstr,""
+            );
+            */
+            readSeedPass = 1;
         }
         else
         {
-            VLOG(1) << "At least one configuration option is not recognised";
+            LOG(INFO) << "Unrecognized config option, currently valid options are "
+                         "\"node\", \"seed\", \"seedPass\" and \"keepPrehash\"";
         }
     }
+
+    if(readSeed && readSeedPass)
+    {
+        GenerateSecKeyNew(
+            seedstring, strlen(seedstring), sk,
+            skstr, seedPass
+        );
+        free(seedstring);
+        free(seedPass);
+    }
+    else if( readSeed && !readSeedPass)
+    {
+        GenerateSecKeyNew(
+            seedstring, strlen(seedstring), sk,
+            skstr, ""
+        );
+        free(seedstring);
+    }
+
+
+
 
     if (readSeed & readNode) { return EXIT_SUCCESS; }
     else

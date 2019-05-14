@@ -133,7 +133,8 @@ int ParseRequest(json_t * oldreq , json_t * newreq, info_t *info, int checkPubKe
 
     if( PkPos < 0 || BoundPos < 0 || MesPos < 0 )
     {
-        //LOG(ERROR) << "One of expected fields not present in /block/candidate";
+        LOG(ERROR) << "Some of expected fields not present in /block/candidate";
+        LOG(ERROR) << "Block data: " << newreq->ptr;
         return EXIT_FAILURE;
     }
 
@@ -248,9 +249,6 @@ int GetLatestBlock(
 {
     CURL * curl;
     json_t newreq(0, REQ_LEN);
-
-    int mesChanged = 0;
-    int boundChanged = 0;
 
     //========================================================================//
     //  Get latest block

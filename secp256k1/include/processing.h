@@ -1,10 +1,9 @@
+    
 #ifndef PROCESSING_H
 #define PROCESSING_H
 
 /*******************************************************************************
-
     PROCESSING -- Puzzle cycle execution support
-
 *******************************************************************************/
 
 #include "definitions.h"
