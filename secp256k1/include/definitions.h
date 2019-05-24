@@ -692,6 +692,7 @@ do                                                                             \
     if ((x) != cudaSuccess)                                                    \
     {                                                                          \
         fprintf(stderr, "ERROR:  CUDA failed at %s: %d\n",__FILE__,__LINE__);  \
+        fprintf(stderr, "CUDA error code %d\n", x);                            \
         fprintf(                                                               \
             stderr, "Miner is now terminated\n"                                \
             "========================================"                         \
