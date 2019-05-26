@@ -111,38 +111,20 @@ int ReadConfig(
         }
         else if (config.jsoneq(t, "seed"))
         {
-            // maybe need to make it little bit prettier,
-            // without changing string itself
-            // --(config.toks[t + 1].start);
-            // *(config.GetTokenStart(t + 1)) = '1';
 
             seedstring = (char*)malloc((config.GetTokenLen(t + 1) + 1)*sizeof(char));
             seedstring[0] = '\0';
             strncat(seedstring, config.GetTokenStart(t + 1), config.GetTokenLen(t + 1));
-            /*
-            GenerateSecKeyNew(
-                config.GetTokenStart(t + 1), config.GetTokenLen(t + 1), sk,
-                skstr,""
-            );
-            */
+
             readSeed = 1;
         }
         else if (config.jsoneq(t, "seedPass"))
         {
-            // maybe need to make it little bit prettier,
-            // without changing string itself
-            // --(config.toks[t + 1].start);
-            // *(config.GetTokenStart(t + 1)) = '1';
 
             seedPass = (char*)malloc((config.GetTokenLen(t + 1) + 1)*sizeof(char));
             seedPass[0] = '\0';
             strncat(seedPass, config.GetTokenStart(t + 1), config.GetTokenLen(t + 1));
-            /*
-            GenerateSecKeyNew(
-                config.GetTokenStart(t + 1), config.GetTokenLen(t + 1), sk,
-                skstr,""
-            );
-            */
+
             readSeedPass = 1;
         }
         else
