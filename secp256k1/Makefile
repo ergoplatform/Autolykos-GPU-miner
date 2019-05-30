@@ -15,7 +15,7 @@ LIBS = -L/usr/local/lib -lcurl -I/usr/local/include -lssl -lcrypto
 
 # stub config content
 CONFIG = '{ \
-			 "seed": "do not disclose the secret seed", \
+			 "mnemonic": "do not disclose the secret seed", \
 			 "node": "http://188.166.89.71:9052", \
 			 "keepPrehash": false \
 		 }'
