@@ -221,17 +221,14 @@ int GeneratePublicKey(
 {
     EC_KEY * eck = NULL;
     EC_POINT * sec = NULL;
-   // BIGNUM start;
     BIGNUM * res;
     BN_CTX * ctx;
 
-    //BN_init(&start);
 
     FUNCTION_CALL(ctx, BN_CTX_new(), ERROR_OPENSSL);
 
     res = BN_new();
     
-    //res = &start;
     CALL(BN_hex2bn(&res, skstr), ERROR_OPENSSL);
 
     FUNCTION_CALL(eck, EC_KEY_new_by_curve_name(NID_secp256k1), ERROR_OPENSSL);
