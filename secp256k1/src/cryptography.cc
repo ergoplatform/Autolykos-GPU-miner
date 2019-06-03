@@ -19,6 +19,7 @@
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 #include <openssl/hmac.h>
+#include <openssl/opensslv.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Generate secret key from seed
@@ -102,20 +103,37 @@ int GenerateSecKeyNew(
     uint_t hmaclen = NUM_SIZE_4;
     char key[] = "Bitcoin seed";
     unsigned char result[NUM_SIZE_4];
-    HMAC_CTX ctx;
-    HMAC_CTX_init(&ctx);
- 
-    HMAC_Init_ex(&ctx, key, strlen(key), EVP_sha512(), NULL);
-    HMAC_Update(&ctx, digest, NUM_SIZE_4);
-    HMAC_Final(&ctx, result, &hmaclen);
-    HMAC_CTX_cleanup(&ctx);
-        
-    memcpy(sk, result, sizeof(uint8_t)*NUM_SIZE_8);
     
-    LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
-    HexStrToBigEndian(skstr, NUM_SIZE_4, sk, NUM_SIZE_8);
-    LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
+    #if OPENSSL_VERSION_NUMBER < 0x10100000L
 
+        HMAC_CTX ctx;
+        HMAC_CTX_init(&ctx);
+    
+        HMAC_Init_ex(&ctx, key, strlen(key), EVP_sha512(), NULL);
+        HMAC_Update(&ctx, digest, NUM_SIZE_4);
+        HMAC_Final(&ctx, result, &hmaclen);
+        HMAC_CTX_cleanup(&ctx);
+            
+        memcpy(sk, result, sizeof(uint8_t)*NUM_SIZE_8);
+        
+        LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
+        HexStrToBigEndian(skstr, NUM_SIZE_4, sk, NUM_SIZE_8);
+        LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
+
+    #else 
+        HMAC_CTX *ctx = HMAC_CTX_new();
+    
+        HMAC_Init_ex(ctx, key, strlen(key), EVP_sha512(), NULL);
+        HMAC_Update(ctx, digest, NUM_SIZE_4);
+        HMAC_Final(ctx, result, &hmaclen);
+            
+        memcpy(sk, result, sizeof(uint8_t)*NUM_SIZE_8);
+        HMAC_CTX_free(ctx);
+        LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
+        HexStrToBigEndian(skstr, NUM_SIZE_4, sk, NUM_SIZE_8);
+        LittleEndianToHexStr(sk, NUM_SIZE_8, skstr);
+
+    #endif
     return EXIT_SUCCESS;
 }
 
@@ -203,15 +221,14 @@ int GeneratePublicKey(
 {
     EC_KEY * eck = NULL;
     EC_POINT * sec = NULL;
-    BIGNUM start;
     BIGNUM * res;
     BN_CTX * ctx;
 
-    BN_init(&start);
 
     FUNCTION_CALL(ctx, BN_CTX_new(), ERROR_OPENSSL);
 
-    res = &start;
+    res = BN_new();
+    
     CALL(BN_hex2bn(&res, skstr), ERROR_OPENSSL);
 
     FUNCTION_CALL(eck, EC_KEY_new_by_curve_name(NID_secp256k1), ERROR_OPENSSL);
@@ -253,6 +270,7 @@ int GeneratePublicKey(
     //====================================================================//
     OPENSSL_free(str);
     BN_CTX_free(ctx);
+    BN_free(res);
     EC_KEY_free(eck);
 
     return EXIT_SUCCESS;

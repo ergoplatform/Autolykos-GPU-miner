@@ -109,7 +109,7 @@ int ReadConfig(
                 VLOG(1) << "Setting keepPrehash to 1";
             }
         }
-        else if (config.jsoneq(t, "seed"))
+        else if (config.jsoneq(t, "mnemonic") || config.jsoneq(t,"seed"))
         {
 
             seedstring = (char*)malloc((config.GetTokenLen(t + 1) + 1)*sizeof(char));
@@ -118,7 +118,7 @@ int ReadConfig(
 
             readSeed = 1;
         }
-        else if (config.jsoneq(t, "seedPass"))
+        else if (config.jsoneq(t, "mnemonicPass") || config.jsoneq(t,"seedPass"))
         {
 
             seedPass = (char*)malloc((config.GetTokenLen(t + 1) + 1)*sizeof(char));
@@ -130,7 +130,7 @@ int ReadConfig(
         else
         {
             LOG(INFO) << "Unrecognized config option, currently valid options are "
-                         "\"node\", \"seed\", \"seedPass\" and \"keepPrehash\"";
+                         "\"node\", \"mnemonic\", \"mnemonicPass\" and \"keepPrehash\"";
         }
     }
 
