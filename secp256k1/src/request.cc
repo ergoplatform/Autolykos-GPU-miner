@@ -377,7 +377,11 @@ int PostPuzzleSolution(
     }
     while (retries < MAX_POST_RETRIES && curlError != CURLE_OK);
 
+    
+    
     CurlLogError(curlError);
+
+    LOG(INFO) << "Node response:" << respond.ptr;
 
     curl_easy_cleanup(curl);
     curl_slist_free_all(headers);

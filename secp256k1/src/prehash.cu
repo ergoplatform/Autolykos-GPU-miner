@@ -1125,8 +1125,6 @@ int Prehash(
     uint32_t len = N_LEN;
 
     uint32_t * ind = invalid;
-    uint32_t * comp = invalid + N_LEN;
-    uint32_t * tmp;
 
     // put zero to new length 
     CUDA_CALL(cudaMemset((void *)(invalid + 2 * N_LEN), 0, INDEX_SIZE_8));
