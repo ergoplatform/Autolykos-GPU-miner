@@ -49,7 +49,7 @@ using namespace std::chrono;
 ////////////////////////////////////////////////////////////////////////////////
 //  Miner thread cycle
 ////////////////////////////////////////////////////////////////////////////////
-void MinerThread(int deviceId, info_t * info)
+void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
 {
     CUDA_CALL(cudaSetDevice(deviceId));
 
@@ -209,11 +209,12 @@ void MinerThread(int deviceId, info_t * info)
                 = duration_cast<milliseconds>(
                     system_clock::now().time_since_epoch()
                 ) - start;
+            
+            // change avg hashrate in global memory
 
-            LOG(INFO) << "GPU " << deviceId << " hashrate "
-                << (double)NONCES_PER_ITER * NCycles
-                / ((double)1000 * timediff.count()) << " MH/s";
-
+            (*hashrates)[deviceId] = (double)NONCES_PER_ITER * NCycles
+                / ((double)1000 * timediff.count());
+             
             start = duration_cast<milliseconds>(
                 system_clock::now().time_since_epoch()
             );
@@ -324,11 +325,12 @@ void MinerThread(int deviceId, info_t * info)
 
             *((uint64_t *)nonce) = base + ind - 1;
 
+            
             PrintPuzzleSolution(nonce, res_h, logstr);
-            PostPuzzleSolution(to, pkstr, w_h, nonce, res_h);
-
             LOG(INFO) << "GPU " << deviceId
-                << " found and posted a solution:\n" << logstr;
+            << " found and trying to POST a solution:\n" << logstr;
+
+            PostPuzzleSolution(to, pkstr, w_h, nonce, res_h);
     
             state = STATE_KEYGEN;
         }
@@ -432,10 +434,12 @@ int main(int argc, char ** argv)
     //  Fork miner threads
     //========================================================================//
     std::vector<std::thread> miners(deviceCount);
-
+    std::vector<double> hashrates(deviceCount);
+    
     for (int i = 0; i < deviceCount; ++i)
     {
-        miners[i] = std::thread(MinerThread, i, &info);
+        miners[i] = std::thread(MinerThread, i, &info, &hashrates);
+        hashrates[i] = 0;
     }
 
     //========================================================================//
@@ -471,6 +475,13 @@ int main(int argc, char ** argv)
                 << ms.count() / (double)curltimes << " ms";
             LOG(INFO) << "Current block candidate: " << request.ptr;
             ms = milliseconds::zero();
+            std::stringstream hrBuffer;
+            hrBuffer << "Average hashrates: ";
+            for(int i = 0; i < deviceCount; ++i)
+            {
+                hrBuffer << "GPU" << i << " " << hashrates[i] << " MH/s ";
+            }
+            LOG(INFO) << hrBuffer.str();
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(8));
