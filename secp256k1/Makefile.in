@@ -12,4 +12,3 @@ BLOCKDIM = 64
 WORKSPACE = 0x400000
 
 # EMBED = -DEMBEDDED_MNEMONIC="\"mnemonic\"" -DEMBEDDED_PASS="\"mnemonicpass\""
-EMBED = ""
