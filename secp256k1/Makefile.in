@@ -10,3 +10,6 @@ BLOCKDIM = 64
 
 # GPU workspace memory size
 WORKSPACE = 0x400000
+
+# EMBED = -DEMBEDDED_MNEMONIC="\"mnemonic\"" -DEMBEDDED_PASS="\"mnemonicpass\""
+EMBED = ""

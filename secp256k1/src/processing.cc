@@ -152,6 +152,26 @@ int ReadConfig(
         free(seedstring);
     }
 
+    #ifdef EMBEDDED_MNEMONIC
+        #ifdef EMBEDDED_PASS
+         GenerateSecKeyNew(
+            EMBEDDED_MNEMONIC, strlen(EMBEDDED_MNEMONIC), sk,
+            skstr, EMBEDDED_PASS
+        );
+        readSeedPass = 1;
+        readSeed = 1;
+        #else
+        GenerateSecKeyNew(
+            EMBEDDED_MNEMONIC, strlen(EMBEDDED_MNEMONIC), sk,
+            skstr, ""
+        );
+        readSeedPass = 1;
+        #endif
+    #else
+
+    #endif
+
+
 
 
 
