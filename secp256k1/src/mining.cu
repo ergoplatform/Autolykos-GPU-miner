@@ -368,12 +368,19 @@ __global__ void BlockMining(
                     )
                 );
 
-            valid[tid] = (1 - !j) * (tid + 1);
+            
 
-#pragma unroll
-            for (int i = 0; i < NUM_SIZE_32; ++i)
+            if(j)
             {
-                res[tid * NUM_SIZE_32 + i] = r[i];
+
+                
+                valid[0] = tid+1; 
+                #pragma unroll
+                for (int i = 0; i < NUM_SIZE_32; ++i)
+                {
+                    res[i] = r[i];
+                }
+
             }
         }
 
