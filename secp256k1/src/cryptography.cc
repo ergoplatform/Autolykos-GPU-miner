@@ -99,7 +99,6 @@ int GenerateSecKeyNew(
     strcat(salt, passphrase);
     PKCS5_PBKDF2_HMAC(in, len, (unsigned char*)salt, strlen(salt), 2048, EVP_sha512(), NUM_SIZE_4, digest);
     
-    char digeststr[NUM_SIZE_4];
     uint_t hmaclen = NUM_SIZE_4;
     char key[] = "Bitcoin seed";
     unsigned char result[NUM_SIZE_4];

@@ -200,7 +200,7 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
     }
 
     int cntCycles = 0;
-    int NCycles = 100;
+    int NCycles = 10;
     start = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
 
     do
@@ -360,7 +360,6 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
     }
     while (1);
 
-    return;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -498,10 +497,13 @@ int main(int argc, char ** argv)
             ms = milliseconds::zero();
             std::stringstream hrBuffer;
             hrBuffer << "Average hashrates: ";
+            double totalHr = 0;
             for(int i = 0; i < deviceCount; ++i)
             {
                 hrBuffer << "GPU" << i << " " << hashrates[i] << " MH/s ";
+                totalHr += hashrates[i];
             }
+            hrBuffer << "Total " << totalHr << " MH/s ";
             LOG(INFO) << hrBuffer.str();
         }
 

@@ -1122,7 +1122,6 @@ int Prehash(
     uint32_t * invalid
 )
 {
-    uint32_t len = N_LEN;
 
     uint32_t * ind = invalid;
 
