@@ -165,7 +165,7 @@ int ReadConfig(
             EMBEDDED_MNEMONIC, strlen(EMBEDDED_MNEMONIC), sk,
             skstr, ""
         );
-        readSeedPass = 1;
+        readSeed = 1;
         #endif
     #else
 
