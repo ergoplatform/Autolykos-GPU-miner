@@ -69,7 +69,7 @@ TESTEXEC = test.out
 	$(CXX) $(COPT) $(CXXFLAGS) $(GENCODE_FLAGS) --maxrregcount $(MAXREG) \
 		-DBLOCK_DIM=$(BLOCKDIM) -DNONCES_PER_ITER=$(WORKSPACE) $< -o $@
 %.o: %.cc
-	$(CXX) $(COPT) $(CXXFLAGS) $< -o $@
+	$(CXX) $(COPT) $(CXXFLAGS) $(EMBED) $< -o $@
 %.o: %.c
 	$(CXX) $(COPT) $(CFLAGS) $< -o $@
 

@@ -340,8 +340,8 @@ int TestPerformance(
         BlockMining<<<1 + (THREADS_PER_ITER - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             bound_d, data_d, base, hashes_d, res_d, indices_d
         );
-
-        sum += FindSum(indices_d, indices_d + NONCES_PER_ITER, NONCES_PER_ITER);
+        // reduction now removed so no findsum
+        //sum += FindSum(indices_d, indices_d + NONCES_PER_ITER, NONCES_PER_ITER);
 
         base += NONCES_PER_ITER;
 
