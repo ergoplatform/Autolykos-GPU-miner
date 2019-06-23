@@ -149,12 +149,12 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
 
     // place to handle result of the puzzle
     uint32_t * res_d;
-    CUDA_CALL(cudaMalloc(&res_d, sizeof(uint32_t)*2));
+    CUDA_CALL(cudaMalloc(&res_d, NUM_SIZE_8 + sizeof(uint32_t)));
     // place to handle nonce if solution is found
-    uint32_t * indices_d = res_d + 1;
+    uint32_t * indices_d = res_d + 8;
 
     CUDA_CALL(cudaMemset(
-        indices_d, 0, NUM_SIZE_8
+        indices_d, 0, sizeof(uint32_t)
     ));
 
     // unfinalized hash contexts
@@ -199,7 +199,7 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
     }
 
     int cntCycles = 0;
-    int NCycles = 10;
+    int NCycles = 50;
     start = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
 
     do
@@ -215,7 +215,7 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
             
             // change avg hashrate in global memory
 
-            (*hashrates)[deviceId] = (double)NONCES_PER_ITER * NCycles
+            (*hashrates)[deviceId] = (double)NONCES_PER_ITER * (double)NCycles
                 / ((double)1000 * timediff.count());
              
             start = duration_cast<milliseconds>(
@@ -277,29 +277,22 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
 
             VLOG(1) << "Starting prehashing with new block data";
             Prehash(keepPrehash, data_d, uctxs_d, hashes_d, res_d);
- 
+            
+            // calculate unfinalized hash of message
+
+            VLOG(1) << "Starting InitMining";
+            InitMining(&ctx_h, (uint32_t *)mes_h, NUM_SIZE_8);
+
+            CUDA_CALL(cudaDeviceSynchronize());
+    
+            // copy context
+            CUDA_CALL(cudaMemcpy(
+                data_d + COUPLED_PK_SIZE_32 + 3 * NUM_SIZE_32, &ctx_h,
+                sizeof(ctx_t), cudaMemcpyHostToDevice
+            ));
+
             state = STATE_CONTINUE;
         }
-
-        CUDA_CALL(cudaDeviceSynchronize());
-
-        VLOG(1) << "Starting mining cycle";
-
-        // restart iteration if new block was found
-        if (blockId != info->blockId.load()) { continue; }
-
-        // calculate unfinalized hash of message
-        VLOG(1) << "Starting InitMining";
-        InitMining(&ctx_h, (uint32_t *)mes_h, NUM_SIZE_8);
-
-        // copy context
-        CUDA_CALL(cudaMemcpy(
-            data_d + COUPLED_PK_SIZE_32 + 3 * NUM_SIZE_32, &ctx_h,
-            sizeof(ctx_t), cudaMemcpyHostToDevice
-        ));
-
-        // restart iteration if new block was found
-        if (blockId != info->blockId.load()) { continue; }
 
         VLOG(1) << "Starting main BlockMining procedure";
 
@@ -313,22 +306,10 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
         // restart iteration if new block was found
         if (blockId != info->blockId.load()) { continue; }
 
-        
-        // try to find solution
-        /*
-        ind = FindNonZero(
-            indices_d, indices_d + NONCES_PER_ITER, NONCES_PER_ITER
-        );
-        */
-        
-        uint32_t index[2];
-
         CUDA_CALL(cudaMemcpy(
-            index, indices_d, NUM_SIZE_8,
+            &ind, indices_d, sizeof(uint32_t),
             cudaMemcpyDeviceToHost
         ));
-
-        ind = index[0];
 
 
         // solution found
@@ -351,7 +332,7 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
     
             state = STATE_KEYGEN;
             CUDA_CALL(cudaMemset(
-                indices_d, 0, NUM_SIZE_8
+                indices_d, 0, sizeof(uint32_t)
             ));
         }
 

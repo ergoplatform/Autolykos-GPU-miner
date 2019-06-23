@@ -148,30 +148,23 @@ int TestSolutions(
         bound_d, data_d, base, hashes_d, res_d, indices_d
     );
 
-    const uint32_t ref_indices[3] = { 0x3381BD, 0x376C26, 0x3D5B84 };
-
-    const uint64_t ref_res[3 * NUM_SIZE_64] = {
-        0xA41F6C4914B3BCD0, 0x71EEA8CF5356CF28, 0xADB7E97512C1B9AD,
-        0x8081936D54481DD8, 0x661D4798E2309692, 0x7EAE28B576532950,
-        0x3D2B0B32A1E52137, 0x2406A4B8304E264A, 0x1329C47EBABBB9A8,
-        0x9D7AFFEA975A94CF, 0xABFBCFEA7171F4AA, 0x3BA19A1A3D28B102
-    };
-
-    uint64_t res_h[3 * NUM_SIZE_64];
-
-    for (int i = 0; i < 3; ++i)
+    uint64_t res_h[NUM_SIZE_64];
+    uint32_t solFound = 0;
+    uint32_t nonce;
+    // copy results to host
+    CUDA_CALL(cudaMemcpy(
+        res_h, res_d, NUM_SIZE_8,
+        cudaMemcpyDeviceToHost
+    ));
+    CUDA_CALL(cudaMemcpy(
+        &nonce, indices_d, sizeof(uint32_t),
+        cudaMemcpyDeviceToHost
+    ));
+    LOG(INFO) << "Found nonce: " << nonce-1;
+    if(nonce != 0x3381BF)
     {
-        // copy results to host
-        CUDA_CALL(cudaMemcpy(
-            res_h, res_d + ref_indices[i] * NUM_SIZE_32, NUM_SIZE_8,
-            cudaMemcpyDeviceToHost
-        ));
-
-        if (memcmp(res_h, ref_res + i * NUM_SIZE_64, NUM_SIZE_8))
-        {
-            LOG(ERROR) << "Solutions test failed";
-            exit(EXIT_FAILURE);
-        }
+        LOG(ERROR) << "Solutions test failed: wrong nonce";
+        exit(EXIT_FAILURE);
     }
 
     //========================================================================//
@@ -286,6 +279,8 @@ int TestPerformance(
 
     Prehash(0, data_d, NULL, hashes_d, res_d);
 
+    CUDA_CALL(cudaDeviceSynchronize());
+    
     ms = ch::duration_cast<ch::milliseconds>(
         ch::system_clock::now().time_since_epoch()
     ) - start;
@@ -300,11 +295,15 @@ int TestPerformance(
             data_d, uctxs_d
         );
 
+        CUDA_CALL(cudaDeviceSynchronize());
+
         start = ch::duration_cast<ch::milliseconds>(
             ch::system_clock::now().time_since_epoch()
         );
 
         Prehash(1, data_d, uctxs_d, hashes_d, res_d);
+
+        CUDA_CALL(cudaDeviceSynchronize());
 
         ms = ch::duration_cast<ch::milliseconds>(
             ch::system_clock::now().time_since_epoch()
@@ -329,7 +328,7 @@ int TestPerformance(
 
     uint32_t sum = 0;
     int iter = 0;
-
+    uint32_t nonce = 0;
     start = ch::duration_cast<ch::milliseconds>(
         ch::system_clock::now().time_since_epoch()
     );
@@ -340,9 +339,18 @@ int TestPerformance(
         BlockMining<<<1 + (THREADS_PER_ITER - 1) / BLOCK_DIM, BLOCK_DIM>>>(
             bound_d, data_d, base, hashes_d, res_d, indices_d
         );
+
+        CUDA_CALL(cudaMemcpy(
+            &nonce, indices_d, sizeof(uint32_t),
+            cudaMemcpyDeviceToHost
+        ));
+
+        if(nonce != 0) ++sum;
+
+        CUDA_CALL(cudaMemset(indices_d, 0 ,sizeof(uint32_t)));
         // reduction now removed so no findsum
         //sum += FindSum(indices_d, indices_d + NONCES_PER_ITER, NONCES_PER_ITER);
-
+        cudaDeviceSynchronize();
         base += NONCES_PER_ITER;
 
         ms = ch::duration_cast<ch::milliseconds>(
@@ -556,7 +564,7 @@ int main(int argc, char ** argv)
     ((uint64_t *)info.bound)[0] = 0xFFFFFFFFFFFFFFFF;
     ((uint64_t *)info.bound)[1] = 0xFFFFFFFFFFFFFFFF;
     ((uint64_t *)info.bound)[2] = 0xFFFFFFFFFFFFFFFF;
-    ((uint64_t *)info.bound)[3] = 0x00000FFFFFFFFFFF;
+    ((uint64_t *)info.bound)[3] = 0x000002FFFFFFFFFF;
 
     ((uint64_t *)info.mes)[0] = 1;
     ((uint64_t *)info.mes)[1] = 0;
