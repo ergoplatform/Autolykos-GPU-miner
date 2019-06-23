@@ -147,12 +147,11 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
     uint32_t * hashes_d;
     CUDA_CALL(cudaMalloc(&hashes_d, (uint32_t)N_LEN * NUM_SIZE_8));
 
-    // WORKSPACE_SIZE_8 bytes // depends on macros, now ~512 MiB
-    // potential solutions of puzzle
+    // place to handle result of the puzzle
     uint32_t * res_d;
-    CUDA_CALL(cudaMalloc(&res_d, WORKSPACE_SIZE_8));
-    // indices of unfinalized hashes
-    uint32_t * indices_d = res_d + NONCES_PER_ITER * NUM_SIZE_32;
+    CUDA_CALL(cudaMalloc(&res_d, sizeof(uint32_t)*2));
+    // place to handle nonce if solution is found
+    uint32_t * indices_d = res_d + 1;
 
     CUDA_CALL(cudaMemset(
         indices_d, 0, NUM_SIZE_8
