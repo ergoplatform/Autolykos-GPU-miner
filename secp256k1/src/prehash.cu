@@ -1122,12 +1122,8 @@ int Prehash(
     uint32_t * invalid
 )
 {
-    uint32_t len = N_LEN;
 
     uint32_t * ind = invalid;
-
-    // put zero to new length 
-    CUDA_CALL(cudaMemset((void *)(invalid + 2 * N_LEN), 0, INDEX_SIZE_8));
 
     // complete init prehash by hashing message and public key
     if (keep)
