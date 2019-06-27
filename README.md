@@ -76,3 +76,13 @@ The mode of execution with `keepPrehash` option:
 
 To change CUDA devices available to the miner change environment variable `CUDA_VISIBLE_DEVICES` , for example ` set CUDA_VISIBLE_DEVICES="0,1" `
 
+
+## Mnemonic and public key generation
+
+- Run `auto.out -G`
+
+It will generate a BIP39 192 bit entropy mnemonic phrase and public key for you.
+
+WARNING(!!!)
+
+This generator relies on C++ std::random_device as entropy source. Although on tested platforms (Linux and GCC 5.5, Win64 and Visual Studio 2017) it works OK, there are cases with different implementations when no good entropy is generated and this interface falls back to some PRNG. So we advise to check if different runs give you different mnemonics, otherwise do not use it!

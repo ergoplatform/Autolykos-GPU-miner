@@ -5,7 +5,7 @@
     AUTOLYKOS -- Autolykos puzzle cycle
 
 *******************************************************************************/
-
+#include "bip39/include/bip39/bip39.h"
 #include "../include/cryptography.h"
 #include "../include/definitions.h"
 #include "../include/easylogging++.h"
@@ -31,6 +31,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <random>
 
 #ifdef _WIN32
 #include <io.h>
@@ -360,6 +361,42 @@ int main(int argc, char ** argv)
 
     char logstr[1000];
 
+    // Mnemonic generation mode
+    if(argc > 1)
+    {
+        if(!strcmp(argv[1],"-G"))
+        {
+            if(checkRandomDevice() == EXIT_SUCCESS)
+            {
+                std::string mnemonic = BIP39::generate_mnemonic(BIP39::entropy_bits_t::_192).to_string();
+                LOG(INFO) << "!!!Generated new mnemonic, put it in your config.json file!!!\n" <<
+                    mnemonic << 
+                "\n!!!Generated new mnemonic, put it in your config.json file!!!"; 
+                char skstr[NUM_SIZE_4];
+                char pkstr[PK_SIZE_4 + 1];
+                uint8_t sk[NUM_SIZE_8];
+                uint8_t pk[PK_SIZE_8];
+                GenerateSecKeyNew(
+                    mnemonic.c_str(), strlen(mnemonic.c_str()), sk,
+                    skstr, ""
+                );    
+                char logstr_gen[1000];
+                GeneratePublicKey(skstr, pkstr, pk);
+                PrintPublicKey(pkstr, logstr_gen);
+                LOG(INFO) << "Generated public key:\n   " << logstr_gen;
+            
+                exit(EXIT_SUCCESS);
+            }
+            else
+            {
+                LOG(ERROR) << "No good randomness source, can't generate mnemonic";
+                exit(EXIT_SUCCESS);
+            }
+        }
+    }
+
+
+
     //========================================================================//
     //  Check GPU availability
     //========================================================================//
@@ -426,6 +463,7 @@ int main(int argc, char ** argv)
     {
         status = GetLatestBlock(from, &request, &info, 1);
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
+        LOG(INFO) << "Waiting for block data to be published by node...";
     }
 
     //========================================================================//

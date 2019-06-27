@@ -20,6 +20,7 @@
 #include <openssl/sha.h>
 #include <openssl/hmac.h>
 #include <openssl/opensslv.h>
+#include <random>
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Generate secret key from seed
@@ -274,5 +275,20 @@ int GeneratePublicKey(
 
     return EXIT_SUCCESS;
 }
+
+//-----------------------
+//--check std::random_device for different results
+//---------
+int checkRandomDevice()
+{
+    std::random_device rd1;
+    std::random_device rd2;
+    if(rd1() == rd2()) return EXIT_FAILURE;
+    if(rd1() == rd2()) return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+
+}
+
 
 // cryptography.cc
