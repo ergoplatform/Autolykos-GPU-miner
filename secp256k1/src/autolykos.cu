@@ -419,15 +419,13 @@ int main(int argc, char ** argv)
     // CURL init
     PERSISTENT_CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), CURLE_OK);
     
+
     // get first block 
-    status = GetLatestBlock(from, &request, &info, 1);
-
-    if (status != EXIT_SUCCESS)
+    status = EXIT_FAILURE;
+    while(status != EXIT_SUCCESS)
     {
-        LOG(ERROR) << "First block getting request failed,"
-            << " possibly node address is wrong";
-
-        return EXIT_FAILURE;
+        status = GetLatestBlock(from, &request, &info, 1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
     }
 
     //========================================================================//
