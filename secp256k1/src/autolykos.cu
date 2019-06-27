@@ -425,7 +425,7 @@ int main(int argc, char ** argv)
     while(status != EXIT_SUCCESS)
     {
         status = GetLatestBlock(from, &request, &info, 1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+        std::this_thread::sleep_for(std::chrono::milliseconds(800));
     }
 
     //========================================================================//
