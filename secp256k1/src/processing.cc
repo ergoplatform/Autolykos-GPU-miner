@@ -189,7 +189,7 @@ int ReadConfig(
 int PrintPublicKey(const char * pkstr, char * str)
 {
     sprintf(
-        str, "   pk = 0x%.2s %.16s %.16s %.16s %.16s",
+        str, "   pkHex = %.2s%.16s%.16s%.16s%.16s",
         pkstr, pkstr + 2, pkstr + 18, pkstr + 34, pkstr + 50
     );
 
@@ -199,7 +199,7 @@ int PrintPublicKey(const char * pkstr, char * str)
 int PrintPublicKey(const uint8_t * pk, char * str)
 {
     sprintf(
-        str, "   pk = 0x%02X%016lX%016lX%016lX%016lX",
+        str, "   pkHex = 0x%02X%016lX%016lX%016lX%016lX",
         pk[0],
         REVERSE_ENDIAN((uint64_t *)(pk + 1) + 0),
         REVERSE_ENDIAN((uint64_t *)(pk + 1) + 1),
