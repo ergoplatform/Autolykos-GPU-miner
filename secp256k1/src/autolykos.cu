@@ -463,7 +463,10 @@ int main(int argc, char ** argv)
     {
         status = GetLatestBlock(from, &request, &info, 1);
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
-        LOG(INFO) << "Waiting for block data to be published by node...";
+        if(status != EXIT_SUCCESS)
+        {
+            LOG(INFO) << "Waiting for block data to be published by node...";
+        }
     }
 
     //========================================================================//
