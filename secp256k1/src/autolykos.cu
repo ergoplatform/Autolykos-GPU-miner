@@ -5,7 +5,7 @@
     AUTOLYKOS -- Autolykos puzzle cycle
 
 *******************************************************************************/
-
+#include "bip39/include/bip39/bip39.h"
 #include "../include/cryptography.h"
 #include "../include/definitions.h"
 #include "../include/easylogging++.h"
@@ -31,6 +31,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <random>
 
 #ifdef _WIN32
 #include <io.h>
@@ -200,6 +201,10 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
 
     int cntCycles = 0;
     int NCycles = 50;
+
+    // wait for the very first block to come before starting
+    while (info->blockId.load() == 0) {}
+
     start = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
 
     do
@@ -232,7 +237,7 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
         }
 
         uint_t controlId = info->blockId.load();
-
+        
         if (blockId != controlId)
         {
             // if info->blockId changed
@@ -360,6 +365,42 @@ int main(int argc, char ** argv)
 
     char logstr[1000];
 
+    // Mnemonic generation mode
+    if(argc > 1)
+    {
+        if(!strcmp(argv[1],"-G"))
+        {
+            if(checkRandomDevice() == EXIT_SUCCESS)
+            {
+                std::string mnemonic = BIP39::generate_mnemonic(BIP39::entropy_bits_t::_192).to_string();
+                LOG(INFO) << "!!!Generated new mnemonic, put it in your config.json file!!!\n" <<
+                    mnemonic << 
+                "\n!!!Generated new mnemonic, put it in your config.json file!!!"; 
+                char skstr[NUM_SIZE_4];
+                char pkstr[PK_SIZE_4 + 1];
+                uint8_t sk[NUM_SIZE_8];
+                uint8_t pk[PK_SIZE_8];
+                GenerateSecKeyNew(
+                    mnemonic.c_str(), strlen(mnemonic.c_str()), sk,
+                    skstr, ""
+                );    
+                char logstr_gen[1000];
+                GeneratePublicKey(skstr, pkstr, pk);
+                PrintPublicKey(pkstr, logstr_gen);
+                LOG(INFO) << "Generated public key:\n   " << logstr_gen;
+            
+                exit(EXIT_SUCCESS);
+            }
+            else
+            {
+                LOG(ERROR) << "No good randomness source, can't generate mnemonic";
+                exit(EXIT_SUCCESS);
+            }
+        }
+    }
+
+
+
     //========================================================================//
     //  Check GPU availability
     //========================================================================//
@@ -382,7 +423,7 @@ int main(int argc, char ** argv)
     char from[MAX_URL_SIZE];
     info_t info;
 
-    info.blockId = 1;
+    info.blockId = 0;
     info.keepPrehash = 0;
     
     LOG(INFO) << "Using configuration file " << fileName;
@@ -420,14 +461,6 @@ int main(int argc, char ** argv)
     PERSISTENT_CALL_STATUS(curl_global_init(CURL_GLOBAL_ALL), CURLE_OK);
     
 
-    // get first block 
-    status = EXIT_FAILURE;
-    while(status != EXIT_SUCCESS)
-    {
-        status = GetLatestBlock(from, &request, &info, 1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(800));
-    }
-
     //========================================================================//
     //  Fork miner threads
     //========================================================================//
@@ -439,6 +472,21 @@ int main(int argc, char ** argv)
         miners[i] = std::thread(MinerThread, i, &info, &hashrates);
         hashrates[i] = 0;
     }
+
+
+    // get first block 
+    status = EXIT_FAILURE;
+    while(status != EXIT_SUCCESS)
+    {
+        status = GetLatestBlock(from, &request, &info, 1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(800));
+        if(status != EXIT_SUCCESS)
+        {
+            LOG(INFO) << "Waiting for block data to be published by node...";
+        }
+    }
+    
+
 
     //========================================================================//
     //  Main thread get-block cycle

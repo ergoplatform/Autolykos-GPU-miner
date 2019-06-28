@@ -76,3 +76,9 @@ The mode of execution with `keepPrehash` option:
 
 To change CUDA devices available to the miner change environment variable `CUDA_VISIBLE_DEVICES` , for example ` set CUDA_VISIBLE_DEVICES="0,1" `
 
+
+## Mnemonic and public key generation
+
+- Run `auto.out -G`
+
+It will generate a BIP39 192 bit entropy mnemonic phrase and public key for you.

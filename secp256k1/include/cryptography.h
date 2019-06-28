@@ -36,4 +36,7 @@ int GeneratePublicKey(
     uint8_t * pk
 );
 
+// check if random device works OK
+int checkRandomDevice();
+
 #endif // CRYPTOGRAPHY_H
