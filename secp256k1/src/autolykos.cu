@@ -50,7 +50,7 @@ using namespace std::chrono;
 ////////////////////////////////////////////////////////////////////////////////
 //  Miner thread cycle
 ////////////////////////////////////////////////////////////////////////////////
-void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
+void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, std::vector<int>* tstamps)
 {
     CUDA_CALL(cudaSetDevice(deviceId));
 
@@ -226,6 +226,8 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates)
             start = duration_cast<milliseconds>(
                 system_clock::now().time_since_epoch()
             );
+
+            (*tstamps)[deviceId] = start.count();
         }
     
         // if solution was found by this thread wait for new block to come 
@@ -466,11 +468,15 @@ int main(int argc, char ** argv)
     //========================================================================//
     std::vector<std::thread> miners(deviceCount);
     std::vector<double> hashrates(deviceCount);
-    
+    std::vector<int> lastTimestamps(deviceCount);
+    std::vector<int> timestamps(deviceCount);
+
     for (int i = 0; i < deviceCount; ++i)
     {
-        miners[i] = std::thread(MinerThread, i, &info, &hashrates);
+        miners[i] = std::thread(MinerThread, i, &info, &hashrates, &timestamps);
         hashrates[i] = 0;
+        lastTimestamps[i] = 1;
+        timestamps[i] = 0;
     }
 
 
@@ -526,8 +532,18 @@ int main(int argc, char ** argv)
             double totalHr = 0;
             for(int i = 0; i < deviceCount; ++i)
             {
+                // check if miner thread is updating hashrate, e.g. alive
+                if(!(curlcnt % (5*curltimes)))
+                {
+                    if(lastTimestamps[i] == timestamps[i])
+                    {
+                        hashrates[i] = 0;
+                    }
+                    lastTimestamps[i] = timestamps[i];
+                }
                 hrBuffer << "GPU" << i << " " << hashrates[i] << " MH/s ";
                 totalHr += hashrates[i];
+                
             }
             hrBuffer << "Total " << totalHr << " MH/s ";
             LOG(INFO) << hrBuffer.str();
