@@ -82,3 +82,14 @@ To change CUDA devices available to the miner change environment variable `CUDA_
 - Run `auto.out -G`
 
 It will generate a BIP39 192 bit entropy mnemonic phrase and public key for you.
+
+## Testnet public node
+
+Sometimes mining problems can be related to your Ergo node problems. We recommend to test your miner build with this public testnet node:
+
+`{
+  "mnemonic": "noise peasant subway frozen illegal pretty oak agent train valid wash title burst column yard decide move coin gas asset pretty hire happy fuel",
+  "node": "http://159.203.36.162:9052",
+  "keepPrehash": true
+}`
+
