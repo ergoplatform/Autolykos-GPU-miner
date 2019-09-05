@@ -93,3 +93,8 @@ Sometimes mining problems can be related to your Ergo node problems. We recommen
   "keepPrehash": true
 }`
 
+## HTTP Info
+
+Miner has a HTTP info page located at `http://miningnode:36207` (one can change default port by adding `-DHTTPAPI_PORT XXXX` to Makefile).
+
+It outputs total hashrate, and per-GPU hashrates, power usages and temperatures in JSON format (relies on NVML, can fail if NVML fails - if so, JSON contains error field).
