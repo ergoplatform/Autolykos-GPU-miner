@@ -558,7 +558,7 @@ int main(int argc, char ** argv)
             LOG(INFO) << hrBuffer.str();
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }    
 
     return EXIT_SUCCESS;
