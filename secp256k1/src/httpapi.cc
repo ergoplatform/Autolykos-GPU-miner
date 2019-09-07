@@ -106,6 +106,6 @@ void HttpApiThread(std::vector<double>* hashrates, std::vector<std::pair<int,int
     #ifdef HTTPAPI_PORT
     svr.listen("0.0.0.0", HTTPAPI_PORT);
     #else
-    svr.listen("0.0.0.0", 32067);
+    svr.listen("0.0.0.0", 36207);
     #endif
 }
