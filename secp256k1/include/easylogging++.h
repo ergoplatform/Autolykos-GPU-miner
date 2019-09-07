@@ -14,6 +14,8 @@
 //  http://muflihun.com
 //
 #define ELPP_THREAD_SAFE
+#define ELPP_WINSOCK2
+
 
 #ifndef EASYLOGGINGPP_H
 #define EASYLOGGINGPP_H

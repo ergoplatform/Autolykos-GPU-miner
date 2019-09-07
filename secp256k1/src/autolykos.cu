@@ -5,6 +5,13 @@
     AUTOLYKOS -- Autolykos puzzle cycle
 
 *******************************************************************************/
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#endif
+
 #include "bip39/include/bip39/bip39.h"
 #include "../include/cryptography.h"
 #include "../include/definitions.h"
@@ -558,7 +565,7 @@ int main(int argc, char ** argv)
             LOG(INFO) << hrBuffer.str();
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        std::this_thread::sleep_for(std::chrono::milliseconds(15));
     }    
 
     return EXIT_SUCCESS;
