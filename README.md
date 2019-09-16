@@ -42,6 +42,8 @@ If `make` completed successfully there will appear a test executable
 5. Find `vcvars64.bat` script, it should be in `VISUAL_STUDIO_INSTALL_DIRECTORY\VC\Auxiliary\Build`
 6. Run cmd.exe, run `vcvars64.bat` script, then change dir to secp256k1, then run `buildwin.cmd`
 7. If everything went good, `miner.exe` should appear in `secp256k1` directory 
+8. If `miner.exe` can't find `nvml.dll`, add `C:\Program Files\NVIDIA Corporation\NVSMI` to your PATH environment variable before running.
+
 
 ## Run (Linux)
 
