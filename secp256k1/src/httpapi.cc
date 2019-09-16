@@ -66,12 +66,12 @@ void HttpApiThread(std::vector<double>* hashrates, std::vector<std::pair<int,int
 
                     deviceInfo << " \"gpu" << i << "\" : { ";
                     char devname[256];
-                    char serial[256];
+                    char UUID[256];
                     result = nvmlDeviceGetName (device, devname, 256 );
-                    result = nvmlDeviceGetSerial (device, serial, 256 );
+                    result = nvmlDeviceGetUUID (device, UUID, 256 );
                     deviceInfo << " \"devname\" : \"" << devname << "\" , ";                    
                     deviceInfo << " \"pciid\" : \"" << pciInfo.busId << "\" , ";
-                    deviceInfo << " \"serial\" : \"" << serial << "\" , ";
+                    deviceInfo << " \"UUID\" : \"" << UUID << "\" , ";
 
                     double hrate;
                     try{
@@ -99,12 +99,11 @@ void HttpApiThread(std::vector<double>* hashrates, std::vector<std::pair<int,int
         }
         else
         {
-            strBuf << " \"error\": \"NVML error, possibly some device fell off the bus\"";
+            strBuf << " \"error\": \"NVML error occured\"";
         }
         std::chrono::time_point<std::chrono::system_clock> timeEnd;
         timeEnd = std::chrono::system_clock::now();
-        std::chrono::duration<double> uptime = timeEnd - timeStart; 
-        std::chrono::duration<int> hrs = std::chrono::duration_cast<std::chrono::hours>(uptime);
+        std::chrono::duration<std::chrono::hours> hrs = std::chrono::duration_cast<std::chrono::hours>(timeEnd - timeStart);
         strBuf << " , \"uptime\": \"" << hrs.count() << "h\" ";
         strBuf << " } ";
 
