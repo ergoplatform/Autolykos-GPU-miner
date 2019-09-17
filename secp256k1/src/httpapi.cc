@@ -103,8 +103,7 @@ void HttpApiThread(std::vector<double>* hashrates, std::vector<std::pair<int,int
         }
         std::chrono::time_point<std::chrono::system_clock> timeEnd;
         timeEnd = std::chrono::system_clock::now();
-        std::chrono::duration<std::chrono::hours> hrs = std::chrono::duration_cast<std::chrono::hours>(timeEnd - timeStart);
-        strBuf << " , \"uptime\": \"" << hrs.count() << "h\" ";
+        strBuf << " , \"uptime\": \"" << std::chrono::duration_cast<std::chrono::hours>(timeEnd - timeStart).count() << "h\" ";
         strBuf << " } ";
 
 
