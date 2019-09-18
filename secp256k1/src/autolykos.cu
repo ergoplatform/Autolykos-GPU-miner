@@ -5,6 +5,13 @@
     AUTOLYKOS -- Autolykos puzzle cycle
 
 *******************************************************************************/
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#endif
+
 #include "bip39/include/bip39/bip39.h"
 #include "../include/cryptography.h"
 #include "../include/definitions.h"
@@ -15,6 +22,7 @@
 #include "../include/processing.h"
 #include "../include/reduction.h"
 #include "../include/request.h"
+#include "../include/httpapi.h"
 #include <ctype.h>
 #include <cuda.h>
 #include <curl/curl.h>
@@ -46,7 +54,6 @@
 INITIALIZE_EASYLOGGINGPP
 
 using namespace std::chrono;
-
 ////////////////////////////////////////////////////////////////////////////////
 //  Miner thread cycle
 ////////////////////////////////////////////////////////////////////////////////
@@ -470,9 +477,16 @@ int main(int argc, char ** argv)
     std::vector<double> hashrates(deviceCount);
     std::vector<int> lastTimestamps(deviceCount);
     std::vector<int> timestamps(deviceCount);
-
+    
+    // PCI bus and device IDs
+    std::vector<std::pair<int,int>> devinfos(deviceCount);
     for (int i = 0; i < deviceCount; ++i)
     {
+        cudaDeviceProp props;
+        if(cudaGetDeviceProperties(&props, i) == cudaSuccess)
+        {
+            devinfos[i] = std::make_pair(props.pciBusID, props.pciDeviceID);
+        }
         miners[i] = std::thread(MinerThread, i, &info, &hashrates, &timestamps);
         hashrates[i] = 0;
         lastTimestamps[i] = 1;
@@ -492,7 +506,7 @@ int main(int argc, char ** argv)
         }
     }
     
-
+    std::thread httpApi = std::thread(HttpApiThread,&hashrates,&devinfos);    
 
     //========================================================================//
     //  Main thread get-block cycle
@@ -501,6 +515,8 @@ int main(int argc, char ** argv)
     const uint_t curltimes = 2000;
 
     milliseconds ms = milliseconds::zero(); 
+    
+
 
     // bomb node with HTTP with 10ms intervals, if new block came 
     // signal miners with blockId
@@ -549,7 +565,7 @@ int main(int argc, char ** argv)
             LOG(INFO) << hrBuffer.str();
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+        std::this_thread::sleep_for(std::chrono::milliseconds(15));
     }    
 
     return EXIT_SUCCESS;

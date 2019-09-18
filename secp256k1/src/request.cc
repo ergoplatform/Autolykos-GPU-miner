@@ -275,7 +275,7 @@ int GetLatestBlock(
     // if curl returns error on request, do not change or check anything 
     if (!curlError)
     {
-
+        int oldId = info->blockId.load();
         if(ParseRequest(oldreq, &newreq, info, checkPubKey) != EXIT_SUCCESS)
         {
             return EXIT_FAILURE;
@@ -283,9 +283,14 @@ int GetLatestBlock(
         //====================================================================//
         //  Substitute old block with newly read
         //====================================================================//
-        *oldreq = newreq;
-        newreq.ptr = NULL;
-        newreq.toks = NULL;
+        if(oldId != info->blockId.load())
+        {
+            FREE(oldreq->ptr);
+            FREE(oldreq->toks);
+            *oldreq = newreq;
+            newreq.ptr = NULL;
+            newreq.toks = NULL;
+        }
 
         return EXIT_SUCCESS;
     }

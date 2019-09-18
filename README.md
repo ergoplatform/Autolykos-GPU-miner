@@ -42,6 +42,8 @@ If `make` completed successfully there will appear a test executable
 5. Find `vcvars64.bat` script, it should be in `VISUAL_STUDIO_INSTALL_DIRECTORY\VC\Auxiliary\Build`
 6. Run cmd.exe, run `vcvars64.bat` script, then change dir to secp256k1, then run `buildwin.cmd`
 7. If everything went good, `miner.exe` should appear in `secp256k1` directory 
+8. If `miner.exe` can't find `nvml.dll`, add `C:\Program Files\NVIDIA Corporation\NVSMI` to your PATH environment variable before running.
+
 
 ## Run (Linux)
 
@@ -93,3 +95,8 @@ Sometimes mining problems can be related to your Ergo node problems. We recommen
   "keepPrehash": true
 }`
 
+## HTTP Info
+
+Miner has a HTTP info page located at `http://miningnode:36207` (one can change default port by adding `-DHTTPAPI_PORT XXXX` to Makefile).
+
+It outputs total hashrate, and per-GPU hashrates, power usages and temperatures in JSON format (relies on NVML, can fail if NVML fails - if so, JSON contains error field).
