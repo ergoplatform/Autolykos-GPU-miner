@@ -64,7 +64,7 @@ void HttpApiThread(std::vector<double>* hashrates, std::vector<std::pair<int,int
                         deviceInfo << " , ";        
                     }
 
-                    deviceInfo << " \"gpu" << i << "\" : { ";
+                    deviceInfo << " { ";
                     char devname[256];
                     char UUID[256];
                     result = nvmlDeviceGetName (device, devname, 256 );
