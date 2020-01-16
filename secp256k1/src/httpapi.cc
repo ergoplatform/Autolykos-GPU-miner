@@ -84,8 +84,11 @@ void HttpApiThread(std::vector<double>* hashrates, std::vector<std::pair<int,int
                     {}
                     unsigned int temp;
                     unsigned int power;
+                    unsigned int fanspeed;
+                    result = nvmlDeviceGetFanSpeed ( device, &fanspeed );
                     result = nvmlDeviceGetPowerUsage ( device, &power );
                     result = nvmlDeviceGetTemperature ( device, NVML_TEMPERATURE_GPU, &temp );
+                    deviceInfo << " \"fan\" : " << fanspeed << " , ";
                     deviceInfo << " \"power\" : " << power/1000 << " , ";
                     deviceInfo << " \"temperature\" : " << temp << " }";
                     strBuf << deviceInfo.str();
