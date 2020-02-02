@@ -32,7 +32,12 @@ __global__ void BlockMining(
     // results
     uint32_t * res,
     // indices of valid solutions
-    uint32_t * valid
+    uint32_t * valid,
+    uint32_t* BHashes
 );
 
+
+__global__ void BlakeHash(const uint32_t* data, const uint64_t base, uint32_t* BHashes);
+
 #endif // MINING_H
+

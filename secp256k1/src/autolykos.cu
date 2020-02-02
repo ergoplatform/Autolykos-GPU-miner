@@ -61,6 +61,7 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, st
 {
     CUDA_CALL(cudaSetDevice(deviceId));
     cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
+
     char threadName[20];
     sprintf(threadName, "GPU %i miner", deviceId);
     el::Helpers::setThreadName(threadName);    
@@ -149,6 +150,9 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, st
     CUDA_CALL(cudaMalloc(&bound_d, NUM_SIZE_8 + DATA_SIZE_8));
     // data: pk || mes || w || padding || x || sk || ctx
     uint32_t * data_d = bound_d + NUM_SIZE_32;
+    
+    uint32_t* BHashes;
+    CUDA_CALL(cudaMalloc(&BHashes, NUM_SIZE_8*THREADS_PER_ITER));
 
     // precalculated hashes
     // N_LEN * NUM_SIZE_8 bytes // 2 GiB
@@ -309,10 +313,10 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, st
         }
 
         VLOG(1) << "Starting main BlockMining procedure";
-
+        BlakeHash<<<1 + (THREADS_PER_ITER - 1) / BLOCK_DIM, BLOCK_DIM>>>(data_d, base, BHashes);
         // calculate solution candidates
         BlockMining<<<1 + (THREADS_PER_ITER - 1) / BLOCK_DIM, BLOCK_DIM>>>(
-            bound_d, data_d, base, hashes_d, res_d, indices_d
+            bound_d, data_d, base, hashes_d, res_d, indices_d, BHashes
         );
 
         VLOG(1) << "Trying to find solution";
