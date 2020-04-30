@@ -1,14 +1,14 @@
 # CUDA architechture
-CUDAARCH = 30
+CUDAARCH = 61
 
 # CUDA maximum register usage per thread
-MAXREG = 179
+MAXREG = 200
 #-Xptxas -v
 
 # CUDA kernel block dimension 
-BLOCKDIM = 64
+BLOCKDIM = 32
 
 # GPU workspace memory size
-WORKSPACE = 0x400000
+WORKSPACE = 0x800000
 
 # EMBED = -DEMBEDDED_MNEMONIC="\"mnemonic\"" -DEMBEDDED_PASS="\"mnemonicpass\""

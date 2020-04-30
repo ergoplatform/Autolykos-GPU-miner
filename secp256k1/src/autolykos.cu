@@ -152,12 +152,13 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, st
     uint32_t * data_d = bound_d + NUM_SIZE_32;
     
     uint32_t* BHashes;
-    CUDA_CALL(cudaMalloc(&BHashes, NUM_SIZE_8*THREADS_PER_ITER));
+    CUDA_CALL(cudaMalloc(&BHashes, (NUM_SIZE_8)*THREADS_PER_ITER));
 
     // precalculated hashes
     // N_LEN * NUM_SIZE_8 bytes // 2 GiB
     uint32_t * hashes_d;
     CUDA_CALL(cudaMalloc(&hashes_d, (uint32_t)N_LEN * NUM_SIZE_8));
+    
 
     // place to handle result of the puzzle
     uint32_t * res_d;
@@ -191,6 +192,10 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, st
         data_d + COUPLED_PK_SIZE_32 + 2 * NUM_SIZE_32, sk_h, NUM_SIZE_8,
         cudaMemcpyHostToDevice
     ));
+    //uint32_t* skptr = sk_h + COUPLED_PK_SIZE_32 + 2*NUM_SIZE_32;
+    cpySkSymbol(sk_h);
+    //CUDA_CALL(cudaMemcpyToSymbol(sk, sk_h, NUM_SIZE_32 * sizeof(uint32_t)));
+
 
     //========================================================================//
     //  Autolykos puzzle cycle
@@ -309,14 +314,16 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, st
                 sizeof(ctx_t), cudaMemcpyHostToDevice
             ));
 
+            cpyCtxSymbol((ctx_t*)(data_d + COUPLED_PK_SIZE_32 + 3*NUM_SIZE_32));
+
             state = STATE_CONTINUE;
         }
 
         VLOG(1) << "Starting main BlockMining procedure";
-        BlakeHash<<<1 + (THREADS_PER_ITER - 1) / BLOCK_DIM, BLOCK_DIM>>>(data_d, base, BHashes);
+        BlakeHash<<<1 + (THREADS_PER_ITER - 1) / (BLOCK_DIM*4), BLOCK_DIM>>>(data_d, base, BHashes);
         // calculate solution candidates
-        BlockMining<<<1 + (THREADS_PER_ITER - 1) / BLOCK_DIM, BLOCK_DIM>>>(
-            bound_d, data_d, base, hashes_d, res_d, indices_d, BHashes
+        BlockMining<<<1 + (THREADS_PER_ITER - 1) / (BLOCK_DIM), BLOCK_DIM>>>(
+            bound_d, hashes_d, data_d, res_d, indices_d, BHashes
         );
 
         VLOG(1) << "Trying to find solution";
