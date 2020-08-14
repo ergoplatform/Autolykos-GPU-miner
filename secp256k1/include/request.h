@@ -35,6 +35,13 @@ int ParseRequest(
     int checkPubKey
 );
 
+int ParseRequestWithPBound(
+    json_t * oldreq, 
+    json_t * newreq, 
+    info_t *info, 
+    int checkPubKey
+);
+
 // CURL http GET request
 int GetLatestBlock(
     const char * from,

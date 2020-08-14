@@ -31,6 +31,7 @@ int ReadConfig(
     char * skstr,
     char * from,
     char * to,
+    char * pool,
     int * keep
 )
 {
@@ -86,7 +87,7 @@ int ReadConfig(
         {
             from[0] = '\0';
             to[0] = '\0';
-
+            pool[0] = '\0';
             strncat(
                 from, config.GetTokenStart(t + 1), config.GetTokenLen(t + 1)
             );
@@ -95,6 +96,11 @@ int ReadConfig(
             
             strncat(to, config.GetTokenStart(t + 1), config.GetTokenLen(t + 1));
             strcat(to, "/mining/solution");
+            
+            strncat(pool, config.GetTokenStart(t + 1), config.GetTokenLen(t + 1));
+            strcat(pool, "/mining/share");
+            
+
 
             VLOG(1) << "from url " << from  << " to url " << to;
 
@@ -115,7 +121,7 @@ int ReadConfig(
             seedstring = (char*)malloc((config.GetTokenLen(t + 1) + 1)*sizeof(char));
             seedstring[0] = '\0';
             strncat(seedstring, config.GetTokenStart(t + 1), config.GetTokenLen(t + 1));
-
+            VLOG(1) << "Mnemonic read: " << seedstring;
             readSeed = 1;
         }
         else if (config.jsoneq(t, "mnemonicPass") || config.jsoneq(t,"seedPass"))

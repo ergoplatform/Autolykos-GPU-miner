@@ -23,6 +23,7 @@
 #include "../include/reduction.h"
 #include "../include/request.h"
 #include "../include/httpapi.h"
+#include "../include/queue.h"
 #include <ctype.h>
 #include <cuda.h>
 #include <curl/curl.h>
@@ -54,14 +55,53 @@
 INITIALIZE_EASYLOGGINGPP
 
 using namespace std::chrono;
+
+void SenderThread(info_t * info, BlockQueue<MinerShare>* shQueue)
+{
+    while(true)
+    {
+        MinerShare share = shQueue->get();
+        char logstr[2048];
+        
+        uint64_t* r = (uint64_t*)share.d;
+        uint64_t* bound = (uint64_t*)(info->bound); 
+
+        int issol = ((uint64_t *)r)[3] < ((uint64_t *)bound)[3]
+        || (((uint64_t *)r)[3] == ((uint64_t *)bound)[3] && (
+            ((uint64_t *)r)[2] < ((uint64_t *)bound)[2]
+            || ((uint64_t *)r)[2] == ((uint64_t *)bound)[2] && (
+                ((uint64_t *)r)[1] < ((uint64_t *)bound)[1]
+                || ((uint64_t *)r)[1] == ((uint64_t *)bound)[1]
+                && ((uint64_t *)r)[0] < ((uint64_t *)bound)[0]
+            )
+        ));
+        PrintPuzzleSolution((uint8_t*)&share.nonce, (uint8_t*)share.d, logstr);
+        if(issol)
+        {        
+            LOG(INFO) << "Some GPU"
+            << " found and trying to POST a solution:\n" << logstr;
+            PostPuzzleSolution(info->to, info->pkstr, share.pubkey_w, (uint8_t*)&share.nonce, share.d);
+        }
+        else
+        {
+            LOG(INFO) << "Some GPU"
+            << " found and trying to POST a share to the pool:\n" << logstr;
+            PostPuzzleSolution(info->pool, info->pkstr, share.pubkey_w, (uint8_t*)&share.nonce, share.d);
+        }
+        
+
+    }
+
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //  Miner thread cycle
 ////////////////////////////////////////////////////////////////////////////////
-void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, std::vector<int>* tstamps)
+void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, std::vector<int>* tstamps, BlockQueue<MinerShare>* shQueue)
 {
     CUDA_CALL(cudaSetDevice(deviceId));
     cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
-
     char threadName[20];
     sprintf(threadName, "GPU %i miner", deviceId);
     el::Helpers::setThreadName(threadName);    
@@ -86,7 +126,7 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, st
     uint8_t pk_h[PK_SIZE_8];
     uint8_t x_h[NUM_SIZE_8];
     uint8_t w_h[PK_SIZE_8];
-    uint8_t res_h[NUM_SIZE_8];
+    uint8_t res_h[NUM_SIZE_8*MAX_SOLS];
     uint8_t nonce[NONCE_SIZE_8];
 
     char skstr[NUM_SIZE_4];
@@ -103,9 +143,10 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, st
     //========================================================================//
     info->info_mutex.lock();
 
+    
     memcpy(sk_h, info->sk, NUM_SIZE_8);
     memcpy(mes_h, info->mes, NUM_SIZE_8);
-    memcpy(bound_h, info->bound, NUM_SIZE_8);
+    memcpy(bound_h, info->poolbound, NUM_SIZE_8);
     memcpy(pk_h, info->pk, PK_SIZE_8);
     memcpy(pkstr, info->pkstr, (PK_SIZE_4 + 1) * sizeof(char));
     memcpy(skstr, info->skstr, NUM_SIZE_4 * sizeof(char));
@@ -161,12 +202,22 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, st
 
     // place to handle result of the puzzle
     uint32_t * res_d;
-    CUDA_CALL(cudaMalloc(&res_d, NUM_SIZE_8 + sizeof(uint32_t)));
-    // place to handle nonce if solution is found
-    uint32_t * indices_d = res_d + 8;
+    CUDA_CALL(cudaMalloc(&res_d, NUM_SIZE_8*MAX_SOLS));
+    uint32_t * indices_d;
+    CUDA_CALL(cudaMalloc(&indices_d, MAX_SOLS*sizeof(uint32_t)));
 
+    // place to handle nonce if solution is found
+    uint32_t indices_h[MAX_SOLS];
+    
+    uint32_t * count_d;
+
+    CUDA_CALL(cudaMalloc(&count_d,sizeof(uint32_t)));
+
+    CUDA_CALL(cudaMemset(count_d,0,sizeof(uint32_t)));
+
+    
     CUDA_CALL(cudaMemset(
-        indices_d, 0, sizeof(uint32_t)
+        indices_d, 0, sizeof(uint32_t)*MAX_SOLS
     ));
 
     // unfinalized hash contexts
@@ -258,7 +309,7 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, st
             info->info_mutex.lock();
 
             memcpy(mes_h, info->mes, NUM_SIZE_8);
-            memcpy(bound_h, info->bound, NUM_SIZE_8);
+            memcpy(bound_h, info->poolbound, NUM_SIZE_8);
 
             info->info_mutex.unlock();
 
@@ -316,8 +367,10 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, st
         BlakeHash<<<1 + (THREADS_PER_ITER - 1) / BLOCK_DIM, BLOCK_DIM>>>(data_d, base, BHashes);
         // calculate solution candidates
         BlockMining<<<1 + (THREADS_PER_ITER - 1) / BLOCK_DIM, BLOCK_DIM>>>(
-            bound_d, data_d, base, hashes_d, res_d, indices_d, BHashes
+            bound_d, data_d, base, hashes_d, res_d, indices_d, count_d,BHashes
         );
+        
+        CUDA_CALL(cudaPeekAtLastError());
 
         VLOG(1) << "Trying to find solution";
 
@@ -325,35 +378,45 @@ void MinerThread(int deviceId, info_t * info, std::vector<double>* hashrates, st
         if (blockId != info->blockId.load()) { continue; }
 
         CUDA_CALL(cudaMemcpy(
-            &ind, indices_d, sizeof(uint32_t),
+            indices_h, indices_d, sizeof(uint32_t)*MAX_SOLS,
             cudaMemcpyDeviceToHost
         ));
 
-
+        int i = 0;
         // solution found
-        if (ind)
+        if(indices_h[0])
         {
             CUDA_CALL(cudaMemcpy(
-                res_h, res_d , NUM_SIZE_8,
+                res_h, res_d , NUM_SIZE_8*MAX_SOLS,
                 cudaMemcpyDeviceToHost
             ));
-            
-            
-            *((uint64_t *)nonce) = base + ind - 1;
+            while(indices_h[i] && i < MAX_SOLS)
+            {
+ 
+                *((uint64_t *)nonce) = base + indices_h[i] - 1;
+                
+                MinerShare share(*((uint64_t *)nonce), w_h, res_h + NUM_SIZE_32*i);
+                shQueue->put(share);
+                /*
 
-            
-            PrintPuzzleSolution(nonce, res_h, logstr);
-            LOG(INFO) << "GPU " << deviceId
-            << " found and trying to POST a solution:\n" << logstr;
-
-            PostPuzzleSolution(to, pkstr, w_h, nonce, res_h);
+                PrintPuzzleSolution(nonce, res_h, logstr);
     
-            state = STATE_KEYGEN;
-            CUDA_CALL(cudaMemset(
-                indices_d, 0, sizeof(uint32_t)
-            ));
-        }
 
+                PostPuzzleSolution(to, pkstr, w_h, nonce, res_h);
+        
+                state = STATE_KEYGEN;
+                
+                */
+                i++;
+   
+            }
+            LOG(INFO) << "Found " << i << " shares";
+            CUDA_CALL(cudaMemset(
+                indices_d, 0, sizeof(uint32_t)*MAX_SOLS
+            ));
+            CUDA_CALL(cudaMemset(count_d,0,sizeof(uint32_t)));
+
+        }
         base += NONCES_PER_ITER;
     }
     while (1);
@@ -435,10 +498,12 @@ int main(int argc, char ** argv)
     char * fileName = (argc == 1)? confName: argv[1];
     char from[MAX_URL_SIZE];
     info_t info;
-
     info.blockId = 0;
     info.keepPrehash = 0;
     
+    BlockQueue<MinerShare> solQueue;
+
+
     LOG(INFO) << "Using configuration file " << fileName;
 
     // check access to config file
@@ -450,7 +515,7 @@ int main(int argc, char ** argv)
 
     // read configuration from file
     status = ReadConfig(
-        fileName, info.sk, info.skstr, from, info.to, &info.keepPrehash
+        fileName, info.sk, info.skstr, from, info.to, info.pool, &info.keepPrehash
     );
 
     if (status == EXIT_FAILURE) { return EXIT_FAILURE; }
@@ -491,7 +556,7 @@ int main(int argc, char ** argv)
         {
             devinfos[i] = std::make_pair(props.pciBusID, props.pciDeviceID);
         }
-        miners[i] = std::thread(MinerThread, i, &info, &hashrates, &timestamps);
+        miners[i] = std::thread(MinerThread, i, &info, &hashrates, &timestamps, &solQueue);
         hashrates[i] = 0;
         lastTimestamps[i] = 1;
         timestamps[i] = 0;
@@ -509,7 +574,7 @@ int main(int argc, char ** argv)
             LOG(INFO) << "Waiting for block data to be published by node...";
         }
     }
-    
+    std::thread solSender(SenderThread, &info, &solQueue);
     std::thread httpApi = std::thread(HttpApiThread,&hashrates,&devinfos);    
 
     //========================================================================//

@@ -30,6 +30,9 @@
 // N: number of precalculated hashes
 #define N_LEN              0x4000000 // 2^26
 
+// max solutions found in one iteration
+#define MAX_SOLS 16
+
 ////////////////////////////////////////////////////////////////////////////////
 //  PARAMETERS: Heuristic prehash CUDA kernel parameters
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +107,7 @@
 #define MAX_JSON_CAPACITY  8192
 
 // total JSON objects count
-#define REQ_LEN            7
+#define REQ_LEN            9
 
 // JSON position of message
 #define MES_POS            2
@@ -250,7 +253,9 @@ struct info_t
     char pkstr[PK_SIZE_4 + 1];
     int keepPrehash;
     char to[MAX_URL_SIZE];
-
+    //pool additions
+    uint8_t poolbound[NUM_SIZE_8];
+    char pool[MAX_URL_SIZE];
     // Increment when new block is sent by node
     std::atomic<uint_t> blockId; 
 };
