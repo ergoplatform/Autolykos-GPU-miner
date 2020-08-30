@@ -33,6 +33,7 @@ __global__ void BlockMining(
     uint32_t * res,
     // indices of valid solutions
     uint32_t * valid,
+ 	uint32_t *count,
     uint32_t* BHashes
 );
 

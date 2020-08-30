@@ -155,6 +155,7 @@ __global__ void BlockMining(
     uint32_t * res,
     // indices of valid solutions
     uint32_t * valid,
+	uint32_t * count,
     uint32_t *BHashes
 )
 {
@@ -399,17 +400,21 @@ __global__ void BlockMining(
 
         
 
-        if(j)
+
+
+
+
+         if(j)
         {
 
             
-            valid[0] = tid+1; 
-            #pragma unroll
-            for (int i = 0; i < NUM_SIZE_32; ++i)
-            {
-                res[i] = r[i];
-            }
-
+                uint32_t id = atomicInc(count, MAX_SOLS);
+                valid[id] = tid+1; 
+                #pragma unroll
+                for (int i = 0; i < NUM_SIZE_32; ++i)
+                {
+                    res[i + id*NUM_SIZE_32] = r[i];
+                }
         }
         
 
